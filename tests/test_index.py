@@ -1,3 +1,4 @@
+import itertools
 import shutil
 import tempfile
 import unittest
@@ -8,6 +9,7 @@ import pandas as pd
 
 from fast_forward import InMemoryIndex, Mode, OnDiskIndex, Ranking
 from fast_forward.encoder import LambdaEncoder
+from fast_forward.quantizer.nanopq import NanoPQ
 from fast_forward.util import create_coalesced_index
 
 DUMMY_QUERIES = {"q1": "query 1", "q2": "query 2"}
@@ -36,6 +38,9 @@ DUMMY_PSG_RUN = {
 DUMMY_PSG_RANKING = Ranking.from_run(DUMMY_PSG_RUN, queries=DUMMY_QUERIES)
 DUMMY_ENCODER = LambdaEncoder(lambda _: np.array([1, 1, 1, 1, 1]))
 
+DUMMY_QUANTIZER = NanoPQ(2, 8)
+DUMMY_QUANTIZER.fit(np.random.normal(size=(16, 16)).astype(np.float32))
+
 
 class TestIndex(unittest.TestCase):
     __test__ = False
@@ -44,10 +49,29 @@ class TestIndex(unittest.TestCase):
         self.doc_psg_index.add(
             vectors=DUMMY_VECTORS, doc_ids=DUMMY_DOC_IDS, psg_ids=DUMMY_PSG_IDS
         )
-        self.index_partial_ids.add(vectors=DUMMY_VECTORS, doc_ids=DUMMY_DOC_IDS)
-        self.index_partial_ids.add(vectors=DUMMY_VECTORS, psg_ids=DUMMY_PSG_IDS)
+
+        # some vectors have only a document ID, some have only a passage ID, some have both
+        self.index_partial_ids.add(
+            vectors=DUMMY_VECTORS,
+            doc_ids=[None, None] + DUMMY_DOC_IDS[2:],
+            psg_ids=DUMMY_PSG_IDS[:-2] + [None, None],
+        )
+        # vectors have only document IDs
+        self.index_partial_ids.add(vectors=DUMMY_VECTORS[:2], doc_ids=DUMMY_DOC_IDS[:2])
+        # vectors have only passage IDs
+        self.index_partial_ids.add(
+            vectors=DUMMY_VECTORS[-2:], psg_ids=DUMMY_PSG_IDS[-2:]
+        )
+
         self.doc_index.add(vectors=DUMMY_VECTORS, doc_ids=DUMMY_DOC_IDS)
         self.psg_index.add(vectors=DUMMY_VECTORS, psg_ids=DUMMY_PSG_IDS)
+
+        self.quantized_index.add(
+            vectors=np.random.normal(size=(5, DUMMY_QUANTIZER.dims[0])).astype(
+                np.float32
+            ),
+            doc_ids=DUMMY_DOC_IDS,
+        )
 
     def test_properties(self):
         self.assertEqual(set(DUMMY_DOC_IDS), self.doc_psg_index.doc_ids)
@@ -57,7 +81,7 @@ class TestIndex(unittest.TestCase):
 
         self.assertEqual(set(DUMMY_DOC_IDS), self.index_partial_ids.doc_ids)
         self.assertEqual(set(DUMMY_PSG_IDS), self.index_partial_ids.psg_ids)
-        self.assertEqual(DUMMY_NUM * 2, len(self.index_partial_ids))
+        self.assertEqual(DUMMY_NUM + 4, len(self.index_partial_ids))
         self.assertEqual(DUMMY_DIM, self.index_partial_ids.dim)
 
         self.assertEqual(set(DUMMY_DOC_IDS), self.doc_index.doc_ids)
@@ -69,6 +93,8 @@ class TestIndex(unittest.TestCase):
         self.assertEqual(0, len(self.psg_index.doc_ids))
         self.assertEqual(DUMMY_NUM, len(self.psg_index))
         self.assertEqual(DUMMY_DIM, self.psg_index.dim)
+
+        self.assertEqual(16, self.quantized_index.dim)
 
     def test_add_retrieve(self):
         self.assertEqual(0, len(self.index))
@@ -105,7 +131,6 @@ class TestIndex(unittest.TestCase):
     def test_maxp(self):
         self.doc_psg_index.mode = Mode.MAXP
         result = self.doc_psg_index(DUMMY_DOC_RANKING)
-        print(result)
         self.assertEqual(
             result,
             Ranking.from_run(
@@ -143,8 +168,6 @@ class TestIndex(unittest.TestCase):
         )
 
         self.doc_psg_index.mode = Mode.AVEP
-        print(expected)
-        print(self.doc_psg_index(DUMMY_DOC_RANKING))
         self.assertEqual(
             self.doc_psg_index(DUMMY_DOC_RANKING),
             expected,
@@ -163,8 +186,6 @@ class TestIndex(unittest.TestCase):
             }
         )
         self.doc_psg_index.mode = Mode.PASSAGE
-        print(self.doc_psg_index(DUMMY_PSG_RANKING))
-        print(expected)
         self.assertEqual(
             self.doc_psg_index(DUMMY_PSG_RANKING),
             expected,
@@ -176,18 +197,45 @@ class TestIndex(unittest.TestCase):
         )
 
     def test_errors(self):
+        # no IDs
         with self.assertRaises(ValueError):
             self.index_no_enc.add(DUMMY_VECTORS, doc_ids=None, psg_ids=None)
+
+        # too few IDs
+        with self.assertRaises(ValueError):
+            self.index_no_enc.add(
+                DUMMY_VECTORS, doc_ids=DUMMY_DOC_IDS[:-2], psg_ids=None
+            )
+        with self.assertRaises(ValueError):
+            self.index_no_enc.add(
+                DUMMY_VECTORS, doc_ids=None, psg_ids=DUMMY_PSG_IDS[:-2]
+            )
+
+        # missing ID
+        with self.assertRaises(ValueError):
+            self.index_no_enc.add(
+                DUMMY_VECTORS,
+                doc_ids=[None] + DUMMY_DOC_IDS[1:],
+                psg_ids=[None] + DUMMY_PSG_IDS[1:],
+            )
+
+        # encoding without encoder
         with self.assertRaises(RuntimeError):
             self.index_no_enc.encode_queries(["test"])
+
+        # adding vectors with wrong dimension
+        self.index_wrong_dim.add(np.array([[0, 0], [1, 1]]), doc_ids=["d1", "d2"])
         with self.assertRaises(ValueError):
             self.index_wrong_dim.add(
-                DUMMY_VECTORS, doc_ids=DUMMY_DOC_IDS, psg_ids=DUMMY_PSG_IDS
+                np.array([[0, 0, 0], [1, 1, 1]]), doc_ids=["d3", "d4"]
             )
+
+        # ranking without queries
         ranking_no_queries = Ranking.from_run(DUMMY_DOC_RUN)
         with self.assertRaises(ValueError):
             self.doc_psg_index(ranking_no_queries)
 
+        # early stopping without required parameters
         with self.assertRaises(ValueError):
             self.doc_psg_index(
                 DUMMY_DOC_RANKING, early_stopping=10, early_stopping_alpha=None
@@ -198,12 +246,9 @@ class TestIndex(unittest.TestCase):
             )
 
     def test_early_stopping(self):
-        vectors = np.stack([[1, 0], [1, 1]] * 10)
-        psg_ids = [f"p{i}" for i in range(20)]
-        index = InMemoryIndex(
-            2, LambdaEncoder(lambda q: np.array([10, 10])), mode=Mode.PASSAGE
+        self.early_stopping_index.add(
+            np.stack([[1, 0], [1, 1]] * 10), psg_ids=[f"p{i}" for i in range(20)]
         )
-        index.add(vectors, psg_ids=psg_ids)
         r = Ranking(
             pd.DataFrame(
                 [
@@ -213,39 +258,53 @@ class TestIndex(unittest.TestCase):
                 ]
             )
         )
+
+        result_expected = Ranking(
+            pd.DataFrame(
+                [
+                    {"q_id": "q2", "id": "p19", "score": 20.0},
+                    {"q_id": "q2", "id": "p17", "score": 20.0},
+                    {"q_id": "q2", "id": "p15", "score": 20.0},
+                    {"q_id": "q2", "id": "p13", "score": 20.0},
+                    {"q_id": "q2", "id": "p11", "score": 20.0},
+                    {"q_id": "q2", "id": "p18", "score": 10.0},
+                    {"q_id": "q2", "id": "p16", "score": 10.0},
+                    {"q_id": "q2", "id": "p14", "score": 10.0},
+                    {"q_id": "q2", "id": "p12", "score": 10.0},
+                    {"q_id": "q2", "id": "p10", "score": 10.0},
+                    {"q_id": "q1", "id": "p19", "score": 20.0},
+                    {"q_id": "q1", "id": "p17", "score": 20.0},
+                    {"q_id": "q1", "id": "p15", "score": 20.0},
+                    {"q_id": "q1", "id": "p13", "score": 20.0},
+                    {"q_id": "q1", "id": "p11", "score": 20.0},
+                    {"q_id": "q1", "id": "p18", "score": 10.0},
+                    {"q_id": "q1", "id": "p16", "score": 10.0},
+                    {"q_id": "q1", "id": "p14", "score": 10.0},
+                    {"q_id": "q1", "id": "p12", "score": 10.0},
+                    {"q_id": "q1", "id": "p10", "score": 10.0},
+                ]
+            )
+        )
+
         self.assertEqual(
-            index(
+            self.early_stopping_index(
                 r,
                 early_stopping=5,
                 early_stopping_alpha=0.5,
                 early_stopping_intervals=(2, 5, 10, 20),
             ),
-            Ranking(
-                pd.DataFrame(
-                    [
-                        {"q_id": "q2", "id": "p19", "score": 20.0},
-                        {"q_id": "q2", "id": "p17", "score": 20.0},
-                        {"q_id": "q2", "id": "p15", "score": 20.0},
-                        {"q_id": "q2", "id": "p13", "score": 20.0},
-                        {"q_id": "q2", "id": "p11", "score": 20.0},
-                        {"q_id": "q2", "id": "p18", "score": 10.0},
-                        {"q_id": "q2", "id": "p16", "score": 10.0},
-                        {"q_id": "q2", "id": "p14", "score": 10.0},
-                        {"q_id": "q2", "id": "p12", "score": 10.0},
-                        {"q_id": "q2", "id": "p10", "score": 10.0},
-                        {"q_id": "q1", "id": "p19", "score": 20.0},
-                        {"q_id": "q1", "id": "p17", "score": 20.0},
-                        {"q_id": "q1", "id": "p15", "score": 20.0},
-                        {"q_id": "q1", "id": "p13", "score": 20.0},
-                        {"q_id": "q1", "id": "p11", "score": 20.0},
-                        {"q_id": "q1", "id": "p18", "score": 10.0},
-                        {"q_id": "q1", "id": "p16", "score": 10.0},
-                        {"q_id": "q1", "id": "p14", "score": 10.0},
-                        {"q_id": "q1", "id": "p12", "score": 10.0},
-                        {"q_id": "q1", "id": "p10", "score": 10.0},
-                    ]
-                )
+            result_expected,
+        )
+
+        # order of intervals should make no difference
+        self.assertEqual(
+            self.early_stopping_index(
+                r,
+                early_stopping=5,
+                early_stopping_alpha=0.5,
+                early_stopping_intervals=(5, 2, 20, 10),
             ),
+            result_expected,
         )
 
     def test_coalescing(self):
@@ -267,29 +326,61 @@ class TestIndex(unittest.TestCase):
             vectors_2, _ = self.coalesced_indexes[1]._get_vectors([doc_id])
             self.assertEqual(len(vectors_1), len(vectors_2))
             for v1, v2 in zip(vectors_1, vectors_2):
-                print(v1, v2)
                 self.assertTrue(np.array_equal(v1, v2))
+
+    def test_iter(self):
+        for index in self.iter_indexes:
+            index.add(DUMMY_VECTORS, doc_ids=DUMMY_DOC_IDS, psg_ids=DUMMY_PSG_IDS)
+            for batch_size in (1, 3, 5, 10):
+                vectors, doc_ids, psg_ids = zip(*index.batch_iter(batch_size))
+                np.testing.assert_equal(DUMMY_VECTORS, np.concatenate(vectors))
+                self.assertEqual(
+                    DUMMY_DOC_IDS, list(itertools.chain.from_iterable(doc_ids))
+                )
+                self.assertEqual(
+                    DUMMY_PSG_IDS, list(itertools.chain.from_iterable(psg_ids))
+                )
+
+    def test_quantization(self):
+        self.assertEqual(2, self.quantized_index._get_internal_dim())
+
+        # make sure the dimensions of the returned vetors match the original dimension
+        for vec, _, _ in self.quantized_index:
+            self.assertEqual(16, vec.shape[0])
+
+        self.quantized_index.mode = Mode.MAXP
+        self.assertEqual(
+            self.quantized_index._get_vectors(UNIQUE_DUMMY_DOC_IDS)[0].shape, (5, 2)
+        )
 
 
 class TestInMemoryIndex(TestIndex):
     __test__ = True
 
     def setUp(self):
-        self.index = InMemoryIndex(16, init_size=32, alloc_size=32)
-        self.doc_psg_index = InMemoryIndex(DUMMY_DIM, DUMMY_ENCODER)
-        self.index_partial_ids = InMemoryIndex(DUMMY_DIM, DUMMY_ENCODER)
-        self.doc_index = InMemoryIndex(DUMMY_DIM, DUMMY_ENCODER)
-        self.psg_index = InMemoryIndex(DUMMY_DIM, DUMMY_ENCODER)
-        self.index_no_enc = InMemoryIndex(DUMMY_DIM, query_encoder=None)
-        self.index_wrong_dim = InMemoryIndex(DUMMY_DIM + 1, query_encoder=None)
+        self.index = InMemoryIndex(init_size=32, alloc_size=32)
+        self.doc_psg_index = InMemoryIndex(DUMMY_ENCODER)
+        self.index_partial_ids = InMemoryIndex(DUMMY_ENCODER)
+        self.doc_index = InMemoryIndex(DUMMY_ENCODER)
+        self.psg_index = InMemoryIndex(DUMMY_ENCODER)
+        self.index_no_enc = InMemoryIndex(query_encoder=None)
+        self.index_wrong_dim = InMemoryIndex(query_encoder=None)
+        self.early_stopping_index = InMemoryIndex(
+            LambdaEncoder(lambda q: np.array([10, 10])), mode=Mode.PASSAGE
+        )
         self.coalesced_indexes = [
-            InMemoryIndex(DUMMY_DIM, mode=Mode.MAXP),
-            InMemoryIndex(DUMMY_DIM, mode=Mode.MAXP),
+            InMemoryIndex(mode=Mode.MAXP),
+            InMemoryIndex(mode=Mode.MAXP),
         ]
+        self.iter_indexes = [
+            InMemoryIndex(init_size=2, alloc_size=2),
+            InMemoryIndex(init_size=5),
+        ]
+        self.quantized_index = InMemoryIndex(quantizer=DUMMY_QUANTIZER)
         super().setUp()
 
     def test_consolidate(self):
-        index = InMemoryIndex(16, init_size=8, alloc_size=4)
+        index = InMemoryIndex(init_size=8, alloc_size=4)
         data = data = np.random.normal(size=(32, 16))
         psg_ids = [f"psg_{i}" for i in range(32)]
 
@@ -310,45 +401,54 @@ class TestOnDiskIndex(TestIndex):
     def setUp(self):
         self.temp_dir = Path(tempfile.mkdtemp())
         self.index = OnDiskIndex(
-            self.temp_dir / "index.h5", 16, init_size=32, resize_min_val=32
+            self.temp_dir / "index.h5", init_size=32, resize_min_val=32
         )
         self.doc_psg_index = OnDiskIndex(
             self.temp_dir / "doc_psg_index.h5",
-            DUMMY_DIM,
             DUMMY_ENCODER,
         )
         self.index_partial_ids = OnDiskIndex(
             self.temp_dir / "index_partial_ids.h5",
-            DUMMY_DIM,
             DUMMY_ENCODER,
         )
         self.doc_index = OnDiskIndex(
             self.temp_dir / "doc_index.h5",
-            DUMMY_DIM,
             DUMMY_ENCODER,
         )
         self.psg_index = OnDiskIndex(
             self.temp_dir / "psg_index.h5",
-            DUMMY_DIM,
             DUMMY_ENCODER,
         )
         self.index_no_enc = OnDiskIndex(
-            self.temp_dir / "index_no_enc.h5", DUMMY_DIM, query_encoder=None
+            self.temp_dir / "index_no_enc.h5", query_encoder=None
         )
         self.index_wrong_dim = OnDiskIndex(
-            self.temp_dir / "index_wrong_dim.h5", DUMMY_DIM + 1, query_encoder=None
+            self.temp_dir / "index_wrong_dim.h5", query_encoder=None
+        )
+        self.early_stopping_index = OnDiskIndex(
+            self.temp_dir / "early_stopping_index.h5",
+            LambdaEncoder(lambda q: np.array([10, 10])),
+            mode=Mode.PASSAGE,
         )
         self.coalesced_indexes = [
-            OnDiskIndex(
-                self.temp_dir / "coalesced_index_1.h5", DUMMY_DIM, mode=Mode.MAXP
-            ),
-            OnDiskIndex(
-                self.temp_dir / "coalesced_index_2.h5", DUMMY_DIM, mode=Mode.MAXP
-            ),
+            OnDiskIndex(self.temp_dir / "coalesced_index_1.h5", mode=Mode.MAXP),
+            OnDiskIndex(self.temp_dir / "coalesced_index_2.h5", mode=Mode.MAXP),
         ]
+        self.iter_indexes = [
+            OnDiskIndex(
+                self.temp_dir / "iter_index_1.h5",
+                init_size=2,
+                resize_min_val=2,
+            ),
+            OnDiskIndex(self.temp_dir / "iter_index_2.h5", init_size=5),
+        ]
+        self.quantized_index = OnDiskIndex(
+            self.temp_dir / "quantized_index.h5", quantizer=DUMMY_QUANTIZER
+        )
         super().setUp()
 
     def test_load(self):
+        # test whether vectors are preserved properly
         shutil.copy(
             self.temp_dir / "doc_psg_index.h5", self.temp_dir / "doc_psg_index_copy.h5"
         )
@@ -377,6 +477,27 @@ class TestOnDiskIndex(TestIndex):
         self.psg_index.mode = Mode.PASSAGE
         index_copied.mode = Mode.PASSAGE
         _test_get_vectors(index_copied, self.psg_index, DUMMY_PSG_IDS)
+
+        # test whether quantizers are loaded properly
+        shutil.copy(
+            self.temp_dir / "quantized_index.h5",
+            self.temp_dir / "quantized_index_copy.h5",
+        )
+        quantized_index_copied = OnDiskIndex.load(
+            self.temp_dir / "quantized_index_copy.h5"
+        )
+        self.assertEqual(
+            quantized_index_copied._quantizer._pq, self.quantized_index._quantizer._pq
+        )
+        self.quantized_index.mode = Mode.PASSAGE
+        quantized_index_copied.mode = Mode.PASSAGE
+        _test_get_vectors(index_copied, self.psg_index, DUMMY_PSG_IDS)
+
+        # test loading an empty index
+        OnDiskIndex(self.temp_dir / "empty_index.h5")
+        empty_index_loaded = OnDiskIndex.load(self.temp_dir / "empty_index.h5")
+        self.assertEqual(len(empty_index_loaded._get_doc_ids()), 0)
+        self.assertEqual(len(empty_index_loaded._get_psg_ids()), 0)
 
     def test_to_memory(self):
         for index, params in [
@@ -407,10 +528,13 @@ class TestOnDiskIndex(TestIndex):
                 _test_get_vectors(mem_index, index, ids)
                 _test_get_vectors(mem_index_buffered, index, ids)
 
-    def test_max_id_length(self):
-        index = OnDiskIndex(
-            self.temp_dir / "max_id_length_index.h5", 16, max_id_length=3
+        mem_quantized_index = self.quantized_index.to_memory()
+        self.assertEqual(
+            mem_quantized_index._quantizer._pq, self.quantized_index._quantizer._pq
         )
+
+    def test_max_id_length(self):
+        index = OnDiskIndex(self.temp_dir / "max_id_length_index.h5", max_id_length=3)
         vectors = np.zeros(shape=(16, 16))
         doc_ids_ok = ["d1"] * 16
         psg_ids_ok = [f"p{i}" for i in range(16)]
@@ -432,7 +556,6 @@ class TestOnDiskIndex(TestIndex):
     def test_ds_buffer_size(self):
         index = OnDiskIndex(
             self.temp_dir / "ds_buffer_size_index.h5",
-            16,
             mode=Mode.PASSAGE,
             ds_buffer_size=5,
         )

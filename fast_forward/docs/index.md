@@ -14,7 +14,7 @@ OnDiskIndexes can be loaded into memory using `fast_forward.index.disk.OnDiskInd
 The following snippet illustrates how to create a `fast_forward.index.disk.OnDiskIndex` object (given a `fast_forward.encoder.Encoder`, `my_query_encoder`) and add some vector representations to it:
 
 ```python
-my_index = OnDiskIndex(Path("my_index.h5"), 768, my_query_encoder)
+my_index = OnDiskIndex(Path("my_index.h5"), my_query_encoder)
 my_index.add(
     my_vectors,  # shape (3, 768)
     doc_ids=["d1", "d1", "d2"],
@@ -26,7 +26,7 @@ Here, `my_vectors` is a Numpy array of shape `(3, 768)`, `768` being the dimensi
 
 The index can then be subsequently loaded back using `fast_forward.index.disk.OnDiskIndex.load`.
 
-## Using an index
+# Using an index
 
 Index can be used to compute semantic re-ranking scores by calling them directly. It requires a `fast_forward.ranking.Ranking` (typically, this comes from a sparse retriever) with the corresponding queries:
 
