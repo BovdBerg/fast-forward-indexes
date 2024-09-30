@@ -6,19 +6,20 @@ import abc
 import logging
 from enum import Enum
 from time import perf_counter
-from typing import Iterable, List, Sequence, Set, Tuple, Union
+from typing import Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 import pandas as pd
 
 from fast_forward.encoder import Encoder
+from fast_forward.quantizer import Quantizer
 from fast_forward.ranking import Ranking
 
 LOGGER = logging.getLogger(__name__)
 
 
 class Mode(Enum):
-    """Enum used to set the retrieval mode of an index."""
+    """Enum used to set the ranking mode of an index."""
 
     PASSAGE = 1
     MAXP = 2
@@ -26,25 +27,36 @@ class Mode(Enum):
     AVEP = 4
 
 
+IDSequence = Sequence[Optional[str]]
+
+
 class Index(abc.ABC):
     """Abstract base class for Fast-Forward indexes."""
+
+    _query_encoder: Encoder = None
+    _quantizer: Quantizer = None
 
     def __init__(
         self,
         query_encoder: Encoder = None,
-        mode: Mode = Mode.PASSAGE,
+        quantizer: Quantizer = None,
+        mode: Mode = Mode.MAXP,
         encoder_batch_size: int = 32,
     ) -> None:
         """Create an index.
 
         Args:
             query_encoder (Encoder, optional): The query encoder to use. Defaults to None.
-            mode (Mode, optional): Retrieval mode. Defaults to Mode.PASSAGE.
+            quantizer (Quantizer, optional): The quantizer to use. Defaults to None.
+            mode (Mode, optional): Ranking mode. Defaults to Mode.MAXP.
             encoder_batch_size (int, optional): Encoder batch size. Defaults to 32.
         """
         super().__init__()
-        self.query_encoder = query_encoder
+        if query_encoder is not None:
+            self.query_encoder = query_encoder
         self.mode = mode
+        if quantizer is not None:
+            self.quantizer = quantizer
         self._encoder_batch_size = encoder_batch_size
 
     def encode_queries(self, queries: Sequence[str]) -> np.ndarray:
@@ -59,21 +71,21 @@ class Index(abc.ABC):
         Returns:
             np.ndarray: The query representations.
         """
-        if self._query_encoder is None:
+        if self.query_encoder is None:
             raise RuntimeError("Index does not have a query encoder.")
 
         result = []
         for i in range(0, len(queries), self._encoder_batch_size):
             batch = queries[i : i + self._encoder_batch_size]
-            result.append(self._query_encoder(batch))
+            result.append(self.query_encoder(batch))
         return np.concatenate(result)
 
     @property
-    def query_encoder(self) -> Encoder:
-        """Return the query encoder.
+    def query_encoder(self) -> Optional[Encoder]:
+        """Return the query encoder if it exists.
 
         Returns:
-            Encoder: The query encoder.
+            Optional[Encoder]: The query encoder (if any).
         """
         return self._query_encoder
 
@@ -82,10 +94,36 @@ class Index(abc.ABC):
         """Set the query encoder.
 
         Args:
-            encoder (Encoder): The query encoder.
+            encoder (Encoder): The new query encoder.
         """
-        assert encoder is None or isinstance(encoder, Encoder)
+        assert isinstance(encoder, Encoder)
         self._query_encoder = encoder
+
+    @property
+    def quantizer(self) -> Optional[Quantizer]:
+        """Return the quantizer if it exists.
+
+        Returns:
+            Optional[Quantizer]: The quantizer (if any).
+        """
+        return self._quantizer
+
+    @quantizer.setter
+    def quantizer(self, quantizer: Quantizer) -> None:
+        """Set the quantizer. This is only possible before any vectors are added to the index.
+
+        Raises:
+            RuntimeError: When the index is not empty.
+
+        Args:
+            quantizer (Quantizer): The new quantizer.
+        """
+        assert isinstance(quantizer, Quantizer)
+
+        if len(self) > 0:
+            raise RuntimeError("Quantizers can only be attached to empty indexes.")
+        self._quantizer = quantizer
+        quantizer.set_attached()
 
     @property
     def mode(self) -> Mode:
@@ -101,50 +139,50 @@ class Index(abc.ABC):
         """Set the ranking mode.
 
         Args:
-            mode (Mode): The ranking mode.
+            mode (Mode): The new ranking mode.
         """
         assert isinstance(mode, Mode)
         self._mode = mode
 
-    @property
     @abc.abstractmethod
-    def dim(self) -> int:
-        """Return the dimensionality of the vectors in the index.
+    def _get_internal_dim(self) -> Optional[int]:
+        """Return the dimensionality of the vectors (or codes) in the index (internal method).
+
+        If no vectors exist, return None. If a quantizer is used, return the dimension of the codes.
 
         Returns:
-            int: The dimensionality.
+            Optional[int]: The dimensionality (if any).
         """
         pass
 
     @property
+    def dim(self) -> Optional[int]:
+        """Return the dimensionality of the vector index.
+
+        May return None if there are no vectors.
+
+        If a quantizer is used, the dimension before quantization is returned.
+
+        Returns:
+            Optional[int]: The dimensionality (if any).
+        """
+        if self._quantizer is not None:
+            return self._quantizer.dims[0]
+        return self._get_internal_dim()
+
+    @property
+    @abc.abstractmethod
     def doc_ids(self) -> Set[str]:
         """Return all unique document IDs.
 
         Returns:
             Set[str]: The document IDs.
         """
-        return self._get_doc_ids()
-
-    @abc.abstractmethod
-    def _get_doc_ids(self) -> Set[str]:
-        """Return all unique document IDs.
-
-        Returns:
-            Set[str]: The document IDs.
-        """
         pass
 
     @property
-    def psg_ids(self) -> Set[str]:
-        """Return all unique passage IDs.
-
-        Returns:
-            Set[str]: The passage IDs.
-        """
-        return self._get_psg_ids()
-
     @abc.abstractmethod
-    def _get_psg_ids(self) -> Set[str]:
+    def psg_ids(self) -> Set[str]:
         """Return all unique passage IDs.
 
         Returns:
@@ -165,53 +203,71 @@ class Index(abc.ABC):
     def _add(
         self,
         vectors: np.ndarray,
-        doc_ids: Union[Sequence[str], None],
-        psg_ids: Union[Sequence[str], None],
+        doc_ids: IDSequence,
+        psg_ids: IDSequence,
     ) -> None:
         """Add vector representations and corresponding IDs to the index.
-        Each vector is guaranteed to have either a document or passage ID associated.
+
+        Document IDs may have duplicates, passage IDs are assumed to be unique. Vectors may be quantized.
 
         Args:
-            vectors (np.ndarray): The representations, shape `(num_vectors, dim)`.
-            doc_ids (Union[Sequence[str], None]): The corresponding document IDs (may be duplicate).
-            psg_ids (Union[Sequence[str], None]): The corresponding passage IDs (must be unique).
+            vectors (np.ndarray): The representations, shape `(num_vectors, dim)` or `(num_vectors, quantized_dim)`.
+            doc_ids (IDSequence): The corresponding document IDs.
+            psg_ids (IDSequence): The corresponding passage IDs.
         """
         pass
 
     def add(
         self,
         vectors: np.ndarray,
-        doc_ids: Sequence[str] = None,
-        psg_ids: Sequence[str] = None,
+        doc_ids: IDSequence = None,
+        psg_ids: IDSequence = None,
     ) -> None:
         """Add vector representations and corresponding IDs to the index.
-        Only one of `doc_ids` and `psg_ids` may be None.
+
+        Only one of `doc_ids` and `psg_ids` may be None. Individual IDs in the sequence may also be None,
+        but each vector must have at least one associated ID.
+
+        Document IDs may have duplicates, passage IDs must be unique.
 
         Args:
             vectors (np.ndarray): The representations, shape `(num_vectors, dim)`.
-            doc_id (Sequence[str], optional): The corresponding document IDs (may be duplicate). Defaults to None.
-            psg_id (Sequence[str], optional): The corresponding passage IDs (must be unique). Defaults to None.
+            doc_id (IDSequence, optional): The corresponding document IDs (may be duplicate). Defaults to None.
+            psg_id (IDSequence, optional): The corresponding passage IDs (must be unique). Defaults to None.
 
         Raises:
             ValueError: When there are no document IDs and no passage IDs.
-            ValueError: When vector and index dimensionalities don't match.
+            ValueError: When the number of IDs does not match the number of vectors.
+            ValueError: When the input vector and index dimensionalities don't match.
+            ValueError: When a vector has neither a document nor a passage ID.
             RuntimeError: When items can't be added to the index for any reason.
         """
         if doc_ids is None and psg_ids is None:
             raise ValueError("At least one of doc_ids and psg_ids must be provided.")
 
         num_vectors, dim = vectors.shape
-        if doc_ids is not None:
-            assert num_vectors == len(doc_ids)
-        if psg_ids is not None:
-            assert num_vectors == len(psg_ids)
 
-        if dim != self.dim:
+        if doc_ids is None:
+            doc_ids = [None] * num_vectors
+        if psg_ids is None:
+            psg_ids = [None] * num_vectors
+        if not len(doc_ids) == len(psg_ids) == num_vectors:
+            raise ValueError("Number of IDs does not match number of vectors.")
+
+        if self.dim is not None and dim != self.dim:
             raise ValueError(
-                f"Vector dimensionality ({dim}) does not match index dimensionality ({self.dim})."
+                f"Input vector dimensionality ({dim}) does not match index dimensionality ({self.dim})."
             )
 
-        self._add(vectors, doc_ids, psg_ids)
+        for doc_id, psg_id in zip(doc_ids, psg_ids):
+            if doc_id is None and psg_id is None:
+                raise ValueError("Vector has neither document nor passage ID.")
+
+        self._add(
+            vectors if self.quantizer is None else self.quantizer.encode(vectors),
+            doc_ids,
+            psg_ids,
+        )
 
     @abc.abstractmethod
     def _get_vectors(self, ids: Iterable[str]) -> Tuple[np.ndarray, List[List[int]]]:
@@ -221,6 +277,7 @@ class Index(abc.ABC):
 
         The integers will be used to get the corresponding representations from the array.
         The output of this function depends on the current mode.
+        If a quantizer is used, this function returns quantized vectors.
 
         Args:
             ids (Iterable[str]): The document/passage IDs to get the representations for.
@@ -252,6 +309,8 @@ class Index(abc.ABC):
 
         # get all required vectors from the FF index
         vectors, id_to_vec_idxs = self._get_vectors(id_df["id"].to_list())
+        if self.quantizer is not None:
+            vectors = self.quantizer.decode(vectors)
 
         # compute indices for query vectors and doc/passage vectors in current arrays
         select_query_vectors = []
@@ -282,7 +341,7 @@ class Index(abc.ABC):
             scores_i = select_scores[i]
             if len(scores_i) == 0:
                 return np.nan
-            return op(scores[select_scores[i]])
+            return op(scores[scores_i])
 
         # insert FF scores in the correct rows
         df["ff_score"] = df.index.map(_mapfunc)
@@ -294,7 +353,7 @@ class Index(abc.ABC):
         query_vectors: np.ndarray,
         cutoff: int,
         alpha: float,
-        intervals: Iterable[int],
+        depths: Iterable[int],
     ) -> pd.DataFrame:
         """Compute scores with early stopping for a data frame.
         The input data frame needs a "q_no" column with unique query numbers.
@@ -304,22 +363,39 @@ class Index(abc.ABC):
             query_vectors (np.ndarray): All query vectors indexed by "q_no".
             cutoff (int): Cut-off depth for early stopping.
             alpha (float): Interpolation parameter.
-            intervals (Iterable[int]): Depths to compute scores at.
+            depths (Iterable[int]): Depths to compute scores at.
 
         Returns:
             pd.DataFrame: Data frame with computed scores.
         """
-        # remaining query IDs that do not meet the early stopping criterion yet
-        q_ids_left = pd.unique(df["q_id"])
+        # early stopping splits the data frame, hence we need to keep track of the original index
+        df["orig_index"] = df.index
 
         # data frame for computed scores
         scores_so_far = None
 
-        # a and b are the interval for which the scores are computed in each step
+        # [a, b] is the interval for which the scores are computed in each step
         a = 0
-        for b in intervals:
+        for b in sorted(depths):
             if b < cutoff:
                 continue
+
+            # identify queries which do not meet the early stopping criterion
+            if a == 0:
+                # first iteration: take all queries
+                q_ids_left = pd.unique(df["q_id"])
+            else:
+                # subsequent iterations: compute ES criterion
+                q_ids_left = (
+                    scores_so_far.groupby("q_id")
+                    .filter(
+                        lambda g: g["int_score"].nlargest(cutoff).iat[-1]
+                        < alpha * g["score"].iat[-1] + (1 - alpha) * g["ff_score"].max()
+                    )["q_id"]
+                    .drop_duplicates()
+                    .to_list()
+                )
+            LOGGER.info("depth %s: %s queries left", b, len(q_ids_left))
 
             # take the next chunk with b-a docs/passages for each query
             chunk = df.loc[df["q_id"].isin(q_ids_left)].groupby("q_id").nth(range(a, b))
@@ -328,7 +404,7 @@ class Index(abc.ABC):
             if len(chunk) == 0:
                 break
 
-            # compute scores for the chunk and join
+            # compute scores for the chunk and merge
             out = self._compute_scores(chunk, query_vectors)[["orig_index", "ff_score"]]
             chunk_scores = chunk.merge(out, on="orig_index", suffixes=[None, "_"])
 
@@ -345,18 +421,6 @@ class Index(abc.ABC):
                     axis=0,
                 )
 
-            # identify which queries still do not meet the early stopping criterion
-            q_ids_left = (
-                scores_so_far.groupby("q_id")
-                .filter(
-                    lambda g: g["int_score"].nlargest(cutoff).iat[-1]
-                    < alpha * g["score"].iat[-1] + (1 - alpha) * g["ff_score"].max()
-                )["q_id"]
-                .drop_duplicates()
-                .to_list()
-            )
-            LOGGER.info("depth %s: %s queries left", b, len(q_ids_left))
-
             a = b
         return scores_so_far.join(df, on="orig_index", lsuffix=None, rsuffix="_")
 
@@ -365,7 +429,7 @@ class Index(abc.ABC):
         ranking: Ranking,
         early_stopping: int = None,
         early_stopping_alpha: float = None,
-        early_stopping_intervals: Iterable[int] = None,
+        early_stopping_depths: Iterable[int] = None,
     ) -> Ranking:
         """Compute scores for a ranking.
 
@@ -373,7 +437,7 @@ class Index(abc.ABC):
             ranking (Ranking): The ranking to compute scores for. Must have queries attached.
             early_stopping (int, optional): Perform early stopping at this cut-off depth. Defaults to None.
             early_stopping_alpha (float, optional): Interpolation parameter for early stopping. Defaults to None.
-            early_stopping_intervals (Iterable[int], optional): Intervals for early stopping. Defaults to None.
+            early_stopping_depths (Iterable[int], optional): Depths for early stopping. Defaults to None.
 
         Returns:
             Ranking: Ranking with the computed scores.
@@ -385,9 +449,9 @@ class Index(abc.ABC):
         if not ranking.has_queries:
             raise ValueError("Input ranking has no queries attached.")
         if early_stopping is not None and (
-            early_stopping_alpha is None or early_stopping_intervals is None
+            early_stopping_alpha is None or early_stopping_depths is None
         ):
-            raise ValueError("Early stopping requires alpha and intervals.")
+            raise ValueError("Early stopping requires alpha and depths.")
         t0 = perf_counter()
 
         # get all unique queries and query IDs and map to unique numbers (0 to m)
@@ -403,14 +467,12 @@ class Index(abc.ABC):
         query_vectors = self.encode_queries(list(query_df["query"]))
 
         if early_stopping is not None:
-            # early stopping splits the data frame, hence we need to keep track of the original index
-            df["orig_index"] = df.index
             result = self._early_stopping(
                 df,
                 query_vectors,
                 early_stopping,
                 early_stopping_alpha,
-                early_stopping_intervals,
+                early_stopping_depths,
             )
         else:
             result = self._compute_scores(df, query_vectors)
@@ -424,3 +486,50 @@ class Index(abc.ABC):
             copy=False,
             is_sorted=False,
         )
+
+    @abc.abstractmethod
+    def _batch_iter(
+        self, batch_size: int
+    ) -> Iterator[Tuple[np.ndarray, IDSequence, IDSequence]]:
+        """Iterate over the index in batches (internal method).
+
+        If a quantizer is used, the vectors are the quantized codes.
+        When an ID does not exist, it must be set to None.
+
+        Args:
+            batch_size (int): Batch size.
+
+        Yields:
+            Tuple[np.ndarray, IDSequence, IDSequence]: Vectors, document IDs, passage IDs in batches.
+        """
+        pass
+
+    def batch_iter(
+        self, batch_size: int
+    ) -> Iterator[Tuple[np.ndarray, IDSequence, IDSequence]]:
+        """Iterate over all vectors, document IDs, and passage IDs in batches.
+        IDs may be either strings or None.
+
+        Args:
+            batch_size (int): Batch size.
+
+        Yields:
+            Tuple[np.ndarray, IDSequence, IDSequence]: Batches of vectors, document IDs (if any), passage IDs (if any).
+        """
+        if self._quantizer is None:
+            yield from self._batch_iter(batch_size)
+
+        else:
+            for batch in self._batch_iter(batch_size):
+                yield self._quantizer.decode(batch[0]), batch[1], batch[2]
+
+    def __iter__(
+        self,
+    ) -> Iterator[Tuple[np.ndarray, Optional[str], Optional[str]]]:
+        """Iterate over all vectors, document IDs, and passage IDs.
+
+        Yields:
+            Tuple[np.ndarray, Optional[str], Optional[str]]: Vector, document ID (if any), passage ID (if any).
+        """
+        for vectors, doc_ids, psg_ids in self.batch_iter(2**9):
+            yield from zip(vectors, doc_ids, psg_ids)

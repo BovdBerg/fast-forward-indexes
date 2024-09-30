@@ -45,7 +45,7 @@ from fast_forward.encoder import TCTColBERTQueryEncoder
 encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco")
 
 # load an index on disk
-ff_index = OnDiskIndex.load(Path("/path/to/index.h5"), encoder, Mode.MAXP)
+ff_index = OnDiskIndex.load(Path("/path/to/index.h5"), encoder, mode=Mode.MAXP)
 
 # load a run (TREC format) and attach all required queries
 first_stage_ranking = (
@@ -72,6 +72,7 @@ first_stage_ranking.interpolate(out, 0.1).save(Path("/path/to/output/run.tsv"))
 
 - [create and use Fast-Forward indexes?](fast_forward/index.html)
 - [index a collection?](fast_forward/indexer.html)
+- [use quantization to reduce index size?](fast_forward/quantizer.html)
 - [create custom encoders?](fast_forward/encoder.html#custom-encoders)
 - [read, manipulate, and save rankings?](fast_forward/ranking.html)
 - [use Fast-Forward indexes with PyTerrier?](fast_forward/util.html#pyterrier-transformers)

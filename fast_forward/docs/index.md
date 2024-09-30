@@ -14,7 +14,7 @@ OnDiskIndexes can be loaded into memory using `fast_forward.index.disk.OnDiskInd
 The following snippet illustrates how to create a `fast_forward.index.disk.OnDiskIndex` object (given a `fast_forward.encoder.Encoder`, `my_query_encoder`) and add some vector representations to it:
 
 ```python
-my_index = OnDiskIndex(Path("my_index.h5"), 768, my_query_encoder)
+my_index = OnDiskIndex(Path("my_index.h5"), my_query_encoder)
 my_index.add(
     my_vectors,  # shape (3, 768)
     doc_ids=["d1", "d1", "d2"],
@@ -26,7 +26,7 @@ Here, `my_vectors` is a Numpy array of shape `(3, 768)`, `768` being the dimensi
 
 The index can then be subsequently loaded back using `fast_forward.index.disk.OnDiskIndex.load`.
 
-## Using an index
+# Using an index
 
 Index can be used to compute semantic re-ranking scores by calling them directly. It requires a `fast_forward.ranking.Ranking` (typically, this comes from a sparse retriever) with the corresponding queries:
 
@@ -53,20 +53,20 @@ Similarly, the index can return document IDs, where the score of a document comp
 
 ## Early stopping
 
-Early stopping is a technique to limit the number of index look-ups. This can be beneficial for OnDiskIndexes, especially when the disk is slow. For early stopping, a relatively small cut-off depth (e.g., `10`) is required, and it is mostly helpful when a large number of candidates are to be re-ranked. More information can be found [in the paper](https://dl.acm.org/doi/abs/10.1145/3485447.3511955).
+Early stopping is a technique to limit the number of index look-ups. This can be beneficial for OnDiskIndexes, especially when the disk is slow. For early stopping, a relatively small cut-off depth (e.g., `10`) is required, and it is mostly helpful when a large number of candidates are to be re-ranked. More information can be found [in the paper](https://dl.acm.org/doi/abs/10.1145/3485447.3511955). Note that the implementation here differs slightly from the algorithm in the paper, as the early stopping criterion is only computed at depths that are specified via the `early_stopping_depths` parameter for performance reasons.
 
 The following snippet demonstrates early stopping with
 
 - a cut-off depth of `5`,
 - interpolation parameter `0.2`,
-- intervals `(0, 400)` and `(401, 5000)`.
+- depths `400` and `5000`.
 
 ```python
 result = my_index(
     ranking,
     early_stopping=5,
     early_stopping_alpha=0.2,
-    early_stopping_intervals=(400, 5000),
+    early_stopping_depths=(400, 5000),
 )
 ```
 
