@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 
 ### Change line below to the path of the run file
-run_file_path = '/home/bvdb9/bo-extremely-efficient-query-encoder/outputs/full_eval/dev.rank.tsv'
+run_file_path = '/home/bvdb9/bo-extremely-efficient-query-encoder/outputs/full_eval/2024-09-06-01:11:58/dev.rank.tsv'
 
 
 
