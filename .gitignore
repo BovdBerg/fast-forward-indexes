@@ -110,3 +110,6 @@ venv.bak/
 
 # Profiling
 profiling/profiles/
+
+# Indexing
+**.h5
