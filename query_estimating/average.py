@@ -20,7 +20,7 @@ import pandas as pd
 
 if __name__ == '__main__':
     ### PARAMETERS
-    ranking_path: Path = Path("/home/bvdb9/runs/vaswani-None-BM25-top1000.tsv")
+    ranking_path: Path = Path("/home/bvdb9/runs/vaswani-None-BM25-top10000.tsv")
     index_path: Path = Path("/home/bvdb9/indices/vaswani/ff_index_TCTColBERT.h5")
     ranking_output_path: Path = Path("rerank-avg.tsv")
     dataset = ir_datasets.load("vaswani")
