@@ -10,7 +10,7 @@ config_dict = {
         "wmodel": "BM25",
     },
     "topics_variant": "test-2019", # e.g. "test-2019", None
-    "k": 1000,
+    "k": 10000,
     "out_dir": "/home/bvdb9/runs",
 }
 
