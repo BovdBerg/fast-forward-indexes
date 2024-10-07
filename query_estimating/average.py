@@ -44,4 +44,36 @@ if __name__ == '__main__':
 
         # calculate the average of the embeddings and save it
         q_reps[q_id] = d_reps.mean(axis=0)
+
+    # For each query
+    # - Get the documents from the ranking
+    # - Get the embeddings of these documents
+    # - re-rank the top documents as nearest neighbors to the estimated query embedding
+    # - save the re-ranked documents as the final ranking
+    for q_id, q_rep in tqdm(q_reps.items(), desc="Re-ranking on cosine similarity to new query vectors", total=len(q_reps)):
+        # Get the top documents from the ranking
+        docs_ids = ranking[q_id].keys()
+        d_reps: np.ndarray = index._get_vectors(docs_ids)[0]
+        
+        # Re-rank the nearest neighbors (cosine similarity) to q_vec as top documents
+        scores = {}
+        for d_id, d_rep in zip(docs_ids, d_reps):
+            scores[d_id] = np.dot(q_rep, d_rep) # cosine similarity
+        
+        # Sort documents by score in descending order
+        sorted_docs = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        
+        # Save the re-ranked documents as the final ranking
+        with open(ranking_output_path, 'a') as f:
+            for rank, (d_id, score) in enumerate(sorted_docs, start=1):
+                f.write(f"{q_id}\tQ0\t{d_id}\t{rank}\t{score}\tfast-forward\n")
+        print("saved reranking to %s", ranking_output_path)
+
+    # print the head of the ranking_output_path
+    print('head of ranking_output_path:')
+    print('\tq_id\titer\td_id\trank\tscore\t\t\ttag')
+    with open(ranking_output_path, 'r') as f:
+        for i in range(3):
+            print("\t" + f.readline().strip())
+
     print("done")
