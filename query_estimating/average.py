@@ -28,68 +28,55 @@ if __name__ == '__main__':
 
 
     # load the ranking and attach the queries
-    ranking: Ranking = Ranking.from_file(
+    sparse_ranking: Ranking = Ranking.from_file(
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
     )
-    print('len(ranking.q_ids)', len(ranking))
 
     # load the index
     index: Index = OnDiskIndex.load(index_path)
-    print('len(index)', len(index))
 
-    q_reps: Dict[int, np.ndarray] = {}
+    # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
+    q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
+
+    top_sparse_ranking = sparse_ranking.cut(top_k) # keep only the top_k docs per query
+
     # for each query, get the embeddings of the top_docs
-    top_ranking = ranking.cut(top_k) # keep only the top_k docs per query
-    for q_id in tqdm(top_ranking, desc="Estimating query embeddings", total=len(ranking)):
+    for i, q_id in enumerate(tqdm(top_sparse_ranking, desc="Estimating query embeddings", total=len(sparse_ranking))):
         # get the embeddings of the top_docs from the index
-        top_docs_ids = top_ranking[q_id].keys()
+        top_docs_ids = top_sparse_ranking[q_id].keys()
         d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
 
         # calculate the average of the embeddings and save it
-        q_reps[q_id] = d_reps.mean(axis=0)
+        # TODO: should I use q_id - 1 or i as index?
+        q_reps[int(q_id) - 1] = np.mean(d_reps, axis=0)
 
-    # For each query
-    # - Get the documents from the ranking
-    # - Get the embeddings of these documents
-    # - re-rank the top documents as nearest neighbors to the estimated query embedding
-    # - save the re-ranked documents as the final ranking
-    for q_id, q_rep in tqdm(q_reps.items(), desc="Re-ranking on distance to new query embeddings", total=len(q_reps)):
-        # Get the top documents from the ranking
-        docs_ids = ranking[q_id].keys()
-        d_reps: np.ndarray = index._get_vectors(docs_ids)[0]
-        
-        # Re-rank the nearest neighbors (cosine similarity) to q_vec as top documents
-        scores = {}
-        for d_id, d_rep in zip(docs_ids, d_reps):
-            scores[d_id] = np.dot(q_rep, d_rep) # cosine similarity
-        
-        # Sort documents by score in descending order
-        sorted_docs = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-        
-        # Save the re-ranked documents as the final ranking
-        with open(ranking_output_path, 'a') as f:
-            for rank, (d_id, score) in enumerate(sorted_docs, start=1):
-                f.write(f"{q_id}\tQ0\t{d_id}\t{rank}\t{score}\tfast-forward\n")
+    q_reps_df = pd.DataFrame(q_reps)
+    print('q_reps shape', q_reps.shape, 'head:\n', q_reps_df.head())
 
-    # print the head of the ranking_output_path
-    print(f"Saved reranking to {ranking_output_path}, head:")
-    print('\tq_id\titer\td_id\trank\tscore\t\t\ttag')
-    with open(ranking_output_path, 'r') as f:
-        for i in range(3):
-            print("\t" + f.readline().strip())
+    # TODO: understand these next lines (until results)
+    query_df = (sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True))
+    query_df["q_no"] = query_df.index
 
-    ### Compare original sparse ranking to re-ranked ranking and print results
-    sparse_ranking = Ranking.from_file(
-        ranking_path,
-        queries={q.query_id: q.text for q in dataset.queries_iter()},
-    )
-    reranked_ranking = Ranking.from_file(
-        ranking_output_path,
-        queries={q.query_id: q.text for q in dataset.queries_iter()},
+    df = sparse_ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
+
+    result = index._compute_scores(df, q_reps)
+    result["score"] = result["ff_score"]
+
+    dense_ranking = Ranking(
+        result,
+        name="fast-forward",
+        dtype=sparse_ranking._df.dtypes["score"],
+        copy=False,
+        is_sorted=False,
     )
 
+    # Compare original [sparse, dense, interpolated] rankings, printing the results
+    eval_metrics: list[str] = [nDCG@10]
     print("\nResults:")
-    eval_metrics = [nDCG@10]
-    print("\tSparse ranking: ", calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(sparse_ranking)))
-    print("\tRe-ranked ranking: ", calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(reranked_ranking)))
+    print("\tDense score ranking (a=0): ", calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(dense_ranking)))
+    for a in [0.1, 0.25, 0.5, 0.75]:
+        interpolated_ranking = sparse_ranking.interpolate(dense_ranking, a)
+        score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
+        print(f"\tInterpolated score ranking (a={a}): ", score)
+    print("\tSparse score ranking (a=1): ", calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(sparse_ranking)))
