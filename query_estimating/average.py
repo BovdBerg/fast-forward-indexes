@@ -4,9 +4,10 @@
     # - format: (q_id, q0, d_id, rank, score, name)
 # - ff_index: used to retrieve document embeddings
 
-from typing import Dict
 from pathlib import Path
 import numpy as np
+import torch
+from fast_forward.encoder import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -14,6 +15,7 @@ from tqdm import tqdm
 import ir_datasets
 from ir_measures import calc_aggregate, nDCG
 from fast_forward.util import to_ir_measures
+import pandas as pd
 
 
 if __name__ == '__main__':
