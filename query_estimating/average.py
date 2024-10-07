@@ -12,6 +12,8 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from tqdm import tqdm
 import ir_datasets
+from ir_measures import calc_aggregate, nDCG
+from fast_forward.util import to_ir_measures
 
 
 if __name__ == '__main__':
@@ -75,4 +77,17 @@ if __name__ == '__main__':
         for i in range(3):
             print("\t" + f.readline().strip())
 
-    print("done")
+    ### Compare original sparse ranking to re-ranked ranking and print results
+    sparse_ranking = Ranking.from_file(
+        ranking_path,
+        queries={q.query_id: q.text for q in dataset.queries_iter()},
+    )
+    reranked_ranking = Ranking.from_file(
+        ranking_output_path,
+        queries={q.query_id: q.text for q in dataset.queries_iter()},
+    )
+
+    print("\nResults:")
+    eval_metrics = [nDCG@10]
+    print("\tSparse ranking: ", calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(sparse_ranking)))
+    print("\tRe-ranked ranking: ", calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(reranked_ranking)))
