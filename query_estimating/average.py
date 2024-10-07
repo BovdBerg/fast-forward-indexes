@@ -18,7 +18,7 @@ if __name__ == '__main__':
     ### PARAMETERS
     ranking_path: Path = Path("/home/bvdb9/runs/vaswani-None-BM25-top1000.tsv")
     index_path: Path = Path("/home/bvdb9/indices/vaswani/ff_index_TCTColBERT.h5")
-    ranking_output_path: Path = Path("avg-embeddings.tsv")
+    ranking_output_path: Path = Path("rerank-avg.tsv")
     dataset = ir_datasets.load("vaswani")
     top_k: int = 10
 
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     # - Get the embeddings of these documents
     # - re-rank the top documents as nearest neighbors to the estimated query embedding
     # - save the re-ranked documents as the final ranking
-    for q_id, q_rep in tqdm(q_reps.items(), desc="Re-ranking on cosine similarity to new query vectors", total=len(q_reps)):
+    for q_id, q_rep in tqdm(q_reps.items(), desc="Re-ranking on distance to new query embeddings", total=len(q_reps)):
         # Get the top documents from the ranking
         docs_ids = ranking[q_id].keys()
         d_reps: np.ndarray = index._get_vectors(docs_ids)[0]
@@ -67,10 +67,9 @@ if __name__ == '__main__':
         with open(ranking_output_path, 'a') as f:
             for rank, (d_id, score) in enumerate(sorted_docs, start=1):
                 f.write(f"{q_id}\tQ0\t{d_id}\t{rank}\t{score}\tfast-forward\n")
-        print("saved reranking to %s", ranking_output_path)
 
     # print the head of the ranking_output_path
-    print('head of ranking_output_path:')
+    print(f"Saved reranking to {ranking_output_path}, head:")
     print('\tq_id\titer\td_id\trank\tscore\t\t\ttag')
     with open(ranking_output_path, 'r') as f:
         for i in range(3):

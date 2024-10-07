@@ -113,3 +113,4 @@ profiling/profiles/
 
 # Indexing
 **.h5
+rerank-avg.tsv
