@@ -59,13 +59,14 @@ if __name__ == '__main__':
         print('default encoding q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
     else:
         # Estimate the query embeddings as the average of the top-ranked document embeddings
+        # TODO: Should this for-loop go over the newly indexed query_df instead?
         for i, q_id in enumerate(tqdm(top_sparse_ranking, desc="Estimating query embeddings", total=len(sparse_ranking))):
             # get the embeddings of the top_docs from the index
             top_docs_ids = top_sparse_ranking[q_id].keys()
             d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
 
             # calculate the average of the embeddings and save it
-            # TODO: should I use q_id - 1 or i as index?
+            # TODO: should I use q_id - 1 or i as index? index 451601 is out of bounds for axis 0 with size 43 <-- 451601 is the q_id
             q_reps[int(q_id) - 1] = np.mean(d_reps, axis=0)
 
     q_reps_df = pd.DataFrame(q_reps)
