@@ -84,6 +84,9 @@ if __name__ == '__main__':
         is_sorted=False,
     )
 
+    # Save dense ranking to output file
+    dense_ranking.save(ranking_output_path)
+
     # Compare original [sparse, dense, interpolated] rankings, printing the results
     eval_metrics: list[str] = [nDCG@10]
     print(f"\nResults (top_k docs={top_k}, ranking={ranking_path.name}, index={index_path.name}):")
