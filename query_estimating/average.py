@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
     # Compare original [sparse, dense, interpolated] rankings, printing the results
     eval_metrics: list[str] = [nDCG@10]
-    print(f"\nResults (top_k docs={top_k}, ranking={ranking_path.name}, index={index_path.name}):")
+    print(f"\nResults (top_k docs={top_k}, ranking={ranking_path.name}, index={index_path.name}, use_default_encoding={use_default_encoding}):")
     print("\tDense score ranking (a=0): ", calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(dense_ranking)))
     for a in [0.1, 0.25, 0.5, 0.75]:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, a)
