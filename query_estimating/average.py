@@ -26,6 +26,8 @@ if __name__ == '__main__':
     dataset = ir_datasets.load("vaswani")
     top_k: int = 10
     use_default_encoding: bool = False
+    default_encoding_k_s: int = 1000
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
     # load the ranking and attach the queries
@@ -54,15 +56,17 @@ if __name__ == '__main__':
     q_reps_df = pd.DataFrame(q_reps)
     print('q_reps shape', q_reps.shape, 'head:\n', q_reps_df.head())
 
-    # TODO: understand these next lines (until results)
+    # Get each query (q_id, query text) and assign a unique int id q_no
     query_df = (sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True))
     query_df["q_no"] = query_df.index
 
+    # Add q_no to sparse_ranking
     df = sparse_ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
 
     ###### Default approach to encoding queries (not taking the avg)
     if use_default_encoding:
-        index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco")
+        sparse_ranking = sparse_ranking.cut(default_encoding_k_s)
+        index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
         q_reps = index.encode_queries(list(query_df["query"]))
         print('default encoding q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
 
