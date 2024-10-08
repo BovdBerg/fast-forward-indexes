@@ -25,7 +25,7 @@ if __name__ == '__main__':
     ranking_output_path: Path = Path("rerank-avg.tsv")
     dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
     top_k: int = 10
-    use_default_encoding: bool = False
+    use_default_encoding: bool = True
     default_encoding_k_s: int = 1000
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
