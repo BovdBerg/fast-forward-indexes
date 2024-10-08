@@ -17,6 +17,7 @@ from fast_forward.quantizer import Quantizer
 from fast_forward.ranking import Ranking
 
 LOGGER = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class Mode(Enum):
