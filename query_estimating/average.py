@@ -51,25 +51,25 @@ if __name__ == '__main__':
     q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
     top_sparse_ranking = sparse_ranking.cut(top_k) # keep only the top_k docs per query
 
-    # embed each query as the average embedding of its top-ranked docs
-    for i, q_id in enumerate(tqdm(top_sparse_ranking, desc="Estimating query embeddings", total=len(sparse_ranking))):
-        # get the embeddings of the top_docs from the index
-        top_docs_ids = top_sparse_ranking[q_id].keys()
-        d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
-
-        # calculate the average of the embeddings and save it
-        # TODO: should I use q_id - 1 or i as index?
-        q_reps[int(q_id) - 1] = np.mean(d_reps, axis=0)
-
-    q_reps_df = pd.DataFrame(q_reps)
-    print('q_reps shape', q_reps.shape, 'head:\n', q_reps_df.head())
-
-    # Default approach to encoding queries (not taking the avg)
     if use_default_encoding:
+        # Default approach: encode queries using a query_encoder
         sparse_ranking = sparse_ranking.cut(default_encoding_k_s)
         index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
         q_reps = index.encode_queries(list(query_df["query"]))
         print('default encoding q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
+    else:
+        # Estimate the query embeddings as the average of the top-ranked document embeddings
+        for i, q_id in enumerate(tqdm(top_sparse_ranking, desc="Estimating query embeddings", total=len(sparse_ranking))):
+            # get the embeddings of the top_docs from the index
+            top_docs_ids = top_sparse_ranking[q_id].keys()
+            d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
+
+            # calculate the average of the embeddings and save it
+            # TODO: should I use q_id - 1 or i as index?
+            q_reps[int(q_id) - 1] = np.mean(d_reps, axis=0)
+
+    q_reps_df = pd.DataFrame(q_reps)
+    print('q_reps shape', q_reps.shape, 'head:\n', q_reps_df.head())
 
     result = index._compute_scores(df, q_reps)
     result["score"] = result["ff_score"]
