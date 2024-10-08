@@ -39,6 +39,8 @@ if __name__ == '__main__':
 
     # load the index
     index: Index = OnDiskIndex.load(index_path)
+    if in_memory:
+        index = index.to_memory()
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
     q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
