@@ -25,6 +25,7 @@ if __name__ == '__main__':
     ranking_output_path: Path = Path("rerank-avg.tsv")
     dataset = ir_datasets.load("vaswani")
     top_k: int = 10
+    use_default_encoding: bool = False
 
 
     # load the ranking and attach the queries
@@ -38,10 +39,9 @@ if __name__ == '__main__':
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
     q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
-
     top_sparse_ranking = sparse_ranking.cut(top_k) # keep only the top_k docs per query
 
-    # for each query, get the embeddings of the top_docs
+    # embed each query as the average embedding of its top-ranked docs
     for i, q_id in enumerate(tqdm(top_sparse_ranking, desc="Estimating query embeddings", total=len(sparse_ranking))):
         # get the embeddings of the top_docs from the index
         top_docs_ids = top_sparse_ranking[q_id].keys()
@@ -60,6 +60,12 @@ if __name__ == '__main__':
 
     df = sparse_ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
 
+    ###### Default approach to encoding queries (not taking the avg)
+    if use_default_encoding:
+        index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco")
+        q_reps = index.encode_queries(list(query_df["query"]))
+        print('default encoding q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
+
     result = index._compute_scores(df, q_reps)
     result["score"] = result["ff_score"]
 
@@ -73,7 +79,7 @@ if __name__ == '__main__':
 
     # Compare original [sparse, dense, interpolated] rankings, printing the results
     eval_metrics: list[str] = [nDCG@10]
-    print("\nResults:")
+    print(f"\nResults (top_k docs={top_k}, ranking={ranking_path.name}, index={index_path.name}):")
     print("\tDense score ranking (a=0): ", calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(dense_ranking)))
     for a in [0.1, 0.25, 0.5, 0.75]:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, a)
