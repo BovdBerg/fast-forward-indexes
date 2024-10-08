@@ -152,7 +152,7 @@ class InMemoryIndex(Index):
 
     def _get_vectors(self, ids: Iterable[str]) -> Tuple[np.ndarray, List[List[int]]]:
         items_by_shard = defaultdict(list)
-        for id in ids:
+        for id in tqdm(ids, desc="Getting vectors", total=len(ids)):
             if self.mode in (Mode.MAXP, Mode.AVEP) and id in self._doc_id_to_idx:
                 idxs = self._doc_id_to_idx[id]
             elif self.mode == Mode.FIRSTP and id in self._doc_id_to_idx:
@@ -170,7 +170,7 @@ class InMemoryIndex(Index):
         result_vectors = []
         result_ids = defaultdict(list)
         items_so_far = 0
-        for shard_idx, items in items_by_shard.items():
+        for shard_idx, items in tqdm(items_by_shard.items(), desc="Processing shards", total=len(items_by_shard)):
             idxs, ids_ = zip(*items)
             result_vectors.append(self._shards[shard_idx][list(idxs)])
             for i, id_in_shard in enumerate(ids_):
@@ -179,7 +179,7 @@ class InMemoryIndex(Index):
 
         if len(result_vectors) == 0:
             return np.array([]), []
-        return np.concatenate(result_vectors), [result_ids[id] for id in ids]
+        np.concatenate(result_vectors), [result_ids[id] for id in tqdm(ids, desc="Collecting result IDs", total=len(ids))]
 
     def _batch_iter(
         self, batch_size: int
