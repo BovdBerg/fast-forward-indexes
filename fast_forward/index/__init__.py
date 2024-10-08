@@ -314,7 +314,10 @@ class Index(abc.ABC):
         LOGGER.info('_compute_scores: _get_vectors')
         vectors, id_to_vec_idxs = self._get_vectors(id_df["id"].to_list())
         if self.quantizer is not None:
+            LOGGER.info('_compute_scores: self.quantizer=%s', type(self.quantizer))
+            LOGGER.info('_compute_scores: decode vectors')
             vectors = self.quantizer.decode(vectors)
+            LOGGER.info('_compute_scores: decode vectors done')
 
         # compute indices for query vectors and doc/passage vectors in current arrays
         select_query_vectors = []
