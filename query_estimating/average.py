@@ -56,7 +56,6 @@ if __name__ == '__main__':
         sparse_ranking = sparse_ranking.cut(default_encoding_k_s)
         index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
         q_reps = index.encode_queries(list(query_df["query"]))
-        print('default encoding q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
     else:
         # Estimate the query embeddings as the average of the top-ranked document embeddings
         # TODO: Should this for-loop go over the newly indexed query_df instead?
@@ -68,9 +67,7 @@ if __name__ == '__main__':
             # calculate the average of the embeddings and save it
             # TODO: should I use q_id - 1 or i as index? index 451601 is out of bounds for axis 0 with size 43 <-- 451601 is the q_id
             q_reps[int(q_id) - 1] = np.mean(d_reps, axis=0)
-
-    q_reps_df = pd.DataFrame(q_reps)
-    print('q_reps shape', q_reps.shape, 'head:\n', q_reps_df.head())
+    print('q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
 
     result = index._compute_scores(df, q_reps)
     result["score"] = result["ff_score"]
