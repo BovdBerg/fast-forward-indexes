@@ -10,6 +10,7 @@ from typing import Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from fast_forward.encoder import Encoder
 from fast_forward.quantizer import Quantizer
@@ -317,7 +318,7 @@ class Index(abc.ABC):
         select_vectors = []
         select_scores = []
         c = 0
-        for id_no, q_no in zip(df["id_no"], df["q_no"]):
+        for id_no, q_no in tqdm(zip(df["id_no"], df["q_no"]), desc="Computing scores", total=len(df)):
             vec_idxs = id_to_vec_idxs[id_no]
             select_vectors.extend(vec_idxs)
             select_scores.append(list(range(c, c + len(vec_idxs))))
