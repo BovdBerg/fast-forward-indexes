@@ -350,6 +350,7 @@ class OnDiskIndex(Index):
             psg_id_iter = fp["psg_ids"].asstr()[:num_vectors]
             for i, (doc_id, psg_id) in tqdm(
                 enumerate(zip(doc_id_iter, psg_id_iter)),
+                desc="Loading index",
                 total=num_vectors,
             ):
                 if len(doc_id) > 0:
