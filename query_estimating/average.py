@@ -42,6 +42,11 @@ if __name__ == '__main__':
     if in_memory:
         index = index.to_memory()
 
+    # Get each query (q_id, query text) and assign a unique int id q_no
+    query_df = (sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True))
+    query_df["q_no"] = query_df.index
+    df = sparse_ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
+
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
     q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
     top_sparse_ranking = sparse_ranking.cut(top_k) # keep only the top_k docs per query
@@ -59,14 +64,7 @@ if __name__ == '__main__':
     q_reps_df = pd.DataFrame(q_reps)
     print('q_reps shape', q_reps.shape, 'head:\n', q_reps_df.head())
 
-    # Get each query (q_id, query text) and assign a unique int id q_no
-    query_df = (sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True))
-    query_df["q_no"] = query_df.index
-
-    # Add q_no to sparse_ranking
-    df = sparse_ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
-
-    ###### Default approach to encoding queries (not taking the avg)
+    # Default approach to encoding queries (not taking the avg)
     if use_default_encoding:
         sparse_ranking = sparse_ranking.cut(default_encoding_k_s)
         index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
