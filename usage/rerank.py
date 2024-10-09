@@ -1,9 +1,4 @@
-### Description: In the re-ranking stage, we can estimate the query embedding as the average of the top-ranked document embeddings from the first-stage retrieval.
-# From first-stage retrieval, we have:
-# - ranking: a ranking of documents for a given query
-    # - format: (q_id, q0, d_id, rank, score, name)
-# - ff_index: used to retrieve document embeddings
-
+from enum import Enum
 from pathlib import Path
 import numpy as np
 import torch
@@ -18,15 +13,35 @@ from fast_forward.util import to_ir_measures
 import pandas as pd
 
 
+class EncodingMethod(Enum):
+    """Enum for encoding method.
+
+    TCTColBERT: Use the TCTColBERT query encoder.
+    AVERAGE: Estimate the query embeddings as the average of the top-ranked document embeddings.
+    """
+    TCTColBERT = 1
+    AVERAGE = 2
+
+
 # TODO: split this code into functions
 if __name__ == '__main__':
-    ### PARAMETERS
+    """Re-ranking stage: Create query embeddings and re-rank documents based on similarity to queries embeddings.
+    
+    Input (from first-stage retrieval):
+    - ranking: a ranking of documents for each given query
+        - format: (q_id, q0, d_id, rank, score, name)
+    - ff_index: used to retrieve document embeddings
+
+    Output:
+    - ranking: a re-ranked ranking of documents for each given query
+    """
+    ### PARAMETERS (SETTINGS)
     ranking_path: Path = Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
     index_path: Path = Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
     ranking_output_path: Path = Path("rerank-avg.tsv")
     dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
-    top_k: int = 1000
-    use_traditional_enc: bool = False
+    top_k: int = 10
+    encoding_method = EncodingMethod.AVERAGE
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
     eval_metrics: list[str] = [nDCG@10]
@@ -48,26 +63,27 @@ if __name__ == '__main__':
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
     q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
-    if use_traditional_enc:
-        # Default approach: encode queries using a query_encoder
-        index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
-        q_reps = index.encode_queries(list(sparse_ranking._df["query"].drop_duplicates()))
-    else:
-        # Estimate the query embeddings as the average of the top-ranked document embeddings
-        # TODO: This task can probably be parallelized
-        for q_no, q_id in tqdm(
-            sparse_ranking._df[["q_no", "q_id"]].drop_duplicates().itertuples(index=False), 
-            desc="Estimating query embeddings", 
-            total=len(sparse_ranking)
-        ):
-            # get the embeddings of the top_docs from the index
-            top_docs_ids = list(sparse_ranking._df[sparse_ranking._df["q_id"] == q_id]["id"])
-            d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
-            if index.quantizer is not None:
-                d_reps = index.quantizer.decode(d_reps)
+    match encoding_method:
+        case EncodingMethod.TCTColBERT:
+            # Default approach: encode queries using a query_encoder
+            index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
+            q_reps = index.encode_queries(list(sparse_ranking._df["query"].drop_duplicates()))
+        case EncodingMethod.AVERAGE:
+            # Estimate the query embeddings as the average of the top-ranked document embeddings
+            # TODO: This task can probably be parallelized
+            for q_no, q_id in tqdm(
+                sparse_ranking._df[["q_no", "q_id"]].drop_duplicates().itertuples(index=False), 
+                desc="Estimating query embeddings", 
+                total=len(sparse_ranking)
+            ):
+                # get the embeddings of the top_docs from the index
+                top_docs_ids = list(sparse_ranking._df[sparse_ranking._df["q_id"] == q_id]["id"])
+                d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
+                if index.quantizer is not None:
+                    d_reps = index.quantizer.decode(d_reps)
 
-            # calculate the average of the embeddings and save it
-            q_reps[q_no] = np.mean(d_reps, axis=0)
+                # calculate the average of the embeddings and save it
+                q_reps[q_no] = np.mean(d_reps, axis=0)
     print('q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
 
     result = index._compute_scores(sparse_ranking._df, q_reps)
@@ -81,6 +97,7 @@ if __name__ == '__main__':
         is_sorted=False,
     )
 
+    # TODO: Why does the sparse_ranking score differently depending on the cutoff if I reload the original ranking file here?
     sparse_ranking: Ranking = Ranking.from_file(
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
@@ -90,7 +107,7 @@ if __name__ == '__main__':
     dense_ranking.save(ranking_output_path)
 
     # Compare original [sparse, dense, interpolated] rankings, printing the results
-    print(f"\nResults (top_k docs={top_k}, ranking={ranking_path.name}, index={index_path.name}, use_default_encoding={use_traditional_enc}):")
+    print(f"\nResults (encoding_method={encoding_method.name}, top_k={top_k}, ranking={ranking_path.name}, index={index_path.name}):")
     for alpha in alphas:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
         score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
