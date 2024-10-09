@@ -179,7 +179,7 @@ class InMemoryIndex(Index):
 
         if len(result_vectors) == 0:
             return np.array([]), []
-        np.concatenate(result_vectors), [result_ids[id] for id in ids]
+        return np.concatenate(result_vectors), [result_ids[id] for id in ids]
 
     def _batch_iter(
         self, batch_size: int
