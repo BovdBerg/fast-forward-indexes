@@ -10,7 +10,6 @@ from typing import Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from fast_forward.encoder import Encoder
 from fast_forward.quantizer import Quantizer
