@@ -24,6 +24,23 @@ class EncodingMethod(Enum):
     AVERAGE = 2
 
 
+def load_index(index_path: Path, in_memory: bool) -> Index:
+    """
+    Load the index from disk and optionally move it to memory.
+
+    Args:
+        index_path (Path): Path to the index file.
+        in_memory (bool): Whether to load the index in memory.
+
+    Returns:
+        Index: The loaded index.
+    """
+    index: Index = OnDiskIndex.load(index_path)
+    if in_memory:
+        index = index.to_memory()
+    return index
+
+
 def load_and_prepare_ranking(
         ranking_path: Path, 
         dataset, 
@@ -277,11 +294,7 @@ if __name__ == '__main__':
     eval_metrics: list[str] = [nDCG@10]
     alphas: list[float] = [0, 0.25, 0.5, 0.75, 1]
 
-    # load the index
-    index: Index = OnDiskIndex.load(index_path)
-    if in_memory:
-        index = index.to_memory()
-
+    index = load_index(index_path, in_memory)
     sparse_ranking, uniq_q = load_and_prepare_ranking(ranking_path, dataset, rerank_cutoff)
     q_reps = create_query_representations(sparse_ranking, uniq_q, index, encoding_method, k_top_docs, device)
     dense_ranking = rerank(index, sparse_ranking, q_reps, ranking_output_path)
