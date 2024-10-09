@@ -24,7 +24,172 @@ class EncodingMethod(Enum):
     AVERAGE = 2
 
 
-# TODO: split this code into functions
+def load_and_prepare_ranking(
+        ranking_path: Path, 
+        dataset, 
+        rerank_cutoff: int
+    ) -> Ranking:
+    """
+    Load the ranking, attach the queries, and prepare the data for re-ranking.
+
+    Args:
+        ranking_path (Path): Path to the first-stage ranking file.
+        dataset: Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
+        rerank_cutoff (int): Number of documents to re-rank per query.
+
+    Returns:
+        Ranking: Prepared ranking with unique queries and their indices.
+    """
+    # Load the ranking and attach the queries
+    sparse_ranking: Ranking = Ranking.from_file(
+        ranking_path,
+        queries={q.query_id: q.text for q in dataset.queries_iter()},
+    ).cut(rerank_cutoff)  # Cutoff to top_k docs per query
+
+    # Find unique queries and save their index in q_no column
+    uniq_q = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
+    uniq_q["q_no"] = uniq_q.index
+    print(f"uniq_q shape: {uniq_q.shape}, head:\n{uniq_q.head()}")
+
+    # Merge q_no into the sparse ranking
+    sparse_ranking._df = sparse_ranking._df.merge(uniq_q, on=["q_id", "query"])
+    print(f"sparse_ranking._df shape: {sparse_ranking._df.shape}, head:\n{sparse_ranking._df.head()}")
+
+    return sparse_ranking, uniq_q
+
+
+def create_query_representations(
+        sparse_ranking: Ranking, 
+        uniq_q: pd.DataFrame, 
+        index: Index, 
+        encoding_method: EncodingMethod, 
+        k_top_docs: int, 
+        device: str
+    ) -> np.ndarray:
+    """
+    Create query representations based on the specified encoding method.
+
+    Args:
+        sparse_ranking (Ranking): The initial ranking of documents.
+        uniq_q (pd.DataFrame): DataFrame containing unique queries and their indices.
+        index (Index): The index used to retrieve document embeddings.
+        encoding_method (EncodingMethod): Method to estimate query embeddings.
+        k_top_docs (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+        device (str): Device to use for encoding queries.
+
+    Returns:
+        np.ndarray: Query representations.
+    """
+    # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
+    q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
+    match encoding_method:
+        case EncodingMethod.TCTColBERT:
+            # Default approach: encode queries using a query_encoder
+            index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
+            q_reps = index.encode_queries(uniq_q["query"])
+        case EncodingMethod.AVERAGE:
+            # Estimate the query embeddings as the average of the top-ranked document embeddings
+            top_docs = sparse_ranking.cut(k_top_docs)
+            for q_id, query, q_no in tqdm(
+                uniq_q.itertuples(index=False), 
+                desc="Estimating query embeddings", 
+                total=len(uniq_q)
+            ):
+                # get the embeddings of the top_docs from the index
+                top_docs_ids = top_docs[q_id].keys()
+                d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
+                if index.quantizer is not None:
+                    d_reps = index.quantizer.decode(d_reps)
+
+                # calculate the average of the embeddings and save it
+                q_reps[q_no] = np.mean(d_reps, axis=0)
+    print(f"qreps shape: {q_reps.shape}, head:\n{pd.DataFrame(q_reps).head()}")
+    return q_reps
+
+
+def rerank(
+        index: Index, 
+        sparse_ranking: Ranking, 
+        q_reps: np.ndarray,
+        ranking_output_path: Path
+    ) -> Ranking:
+    result = index._compute_scores(sparse_ranking._df, q_reps)
+    result["score"] = result["ff_score"]
+
+    dense_ranking = Ranking(
+        result,
+        name="fast-forward",
+        dtype=sparse_ranking._df.dtypes["score"],
+        copy=False,
+        is_sorted=False,
+    )
+    dense_ranking.save(ranking_output_path) # Save dense ranking to file
+
+    return dense_ranking
+
+
+def print_settings(
+    ranking_path: Path, 
+    index_path: Path, 
+    rerank_cutoff: int, 
+    encoding_method: EncodingMethod, 
+    device: str, 
+    k_top_docs: int
+    ) -> None:
+    """
+    Print the settings used for re-ranking.
+
+    Args:
+    ranking_path (Path): Path to the first-stage ranking file.
+    index_path (Path): Path to the index file.
+    rerank_cutoff (int): Number of documents to re-rank per query.
+    encoding_method (EncodingMethod): Method to estimate query embeddings.
+    device (str): Device to use for encoding queries.
+    k_top_docs (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+    """
+    settings_description: List[str] = [
+        f"ranking={ranking_path.name}",
+        f"index={index_path.name}",
+        f"rerank_cutoff={rerank_cutoff}",
+        f"encoding_method={encoding_method}",
+    ]
+    match encoding_method:  # Append method-specific settings
+        case EncodingMethod.TCTColBERT:
+            settings_description.append(f"device={device}")
+        case EncodingMethod.AVERAGE:
+            settings_description.append(f"k_top_docs={k_top_docs}")
+    print("\nSettings:\n\t" + ",\n\t".join(settings_description))
+
+
+def print_results(
+    alphas: List[float], 
+    sparse_ranking: Ranking, 
+    dense_ranking: Ranking, 
+    eval_metrics: List[str], 
+    dataset
+    ) -> None:
+    """
+    Print the evaluation results for different interpolation parameters.
+
+    Args:
+    alphas (List[float]): List of interpolation parameters for evaluation.
+    sparse_ranking (Ranking): The initial sparse ranking of documents.
+    dense_ranking (Ranking): The re-ranked dense ranking of documents.
+    eval_metrics (List[str]): Metrics used for evaluation.
+    dataset: Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
+    """
+    print('Results:')
+    for alpha in alphas:
+        interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
+        score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
+        ranking_type = (
+            "Sparse" if alpha == 1 else 
+            "Dense" if alpha == 0 else 
+            "Interpolated"
+        )
+        print(f"\t{ranking_type} ranking (alpha={alpha}): {score}")
+
+
 if __name__ == '__main__':
     """
     Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
@@ -101,85 +266,14 @@ if __name__ == '__main__':
     if in_memory:
         index = index.to_memory()
 
-    # load the ranking and attach the queries
-    sparse_ranking: Ranking = Ranking.from_file(
-        ranking_path,
-        queries={q.query_id: q.text for q in dataset.queries_iter()},
-    ).cut(rerank_cutoff) # Cutoff to top_k docs per query
-
-    # Find unique queries and save their index in q_no column
-    uniq_q = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
-    uniq_q["q_no"] = uniq_q.index
-    print(f"uniq_q shape: {uniq_q.shape}, head:\n{uniq_q.head()}")
-
-    # Merge q_no into the sparse ranking
-    sparse_ranking._df = sparse_ranking._df.merge(uniq_q, on=["q_id", "query"])
-    print(f"sparse_ranking._df shape: {sparse_ranking._df.shape}, head:\n{sparse_ranking._df.head()}")
-
-    # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
-    q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
-    match encoding_method:
-        case EncodingMethod.TCTColBERT:
-            # Default approach: encode queries using a query_encoder
-            index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
-            q_reps = index.encode_queries(uniq_q["query"])
-        case EncodingMethod.AVERAGE:
-            # Estimate the query embeddings as the average of the top-ranked document embeddings
-            top_docs = sparse_ranking.cut(k_top_docs)
-            for q_id, query, q_no in tqdm(
-                uniq_q.itertuples(index=False), 
-                desc="Estimating query embeddings", 
-                total=len(uniq_q)
-            ):
-                # get the embeddings of the top_docs from the index
-                top_docs_ids = top_docs[q_id].keys()
-                d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
-                if index.quantizer is not None:
-                    d_reps = index.quantizer.decode(d_reps)
-
-                # calculate the average of the embeddings and save it
-                q_reps[q_no] = np.mean(d_reps, axis=0)
-    print(f"qreps shape: {q_reps.shape}, head:\n{pd.DataFrame(q_reps).head()}")
-
-    result = index._compute_scores(sparse_ranking._df, q_reps)
-    result["score"] = result["ff_score"]
-
-    dense_ranking = Ranking(
-        result,
-        name="fast-forward",
-        dtype=sparse_ranking._df.dtypes["score"],
-        copy=False,
-        is_sorted=False,
-    )
-    dense_ranking.save(ranking_output_path) # Save dense ranking to file
+    sparse_ranking, uniq_q = load_and_prepare_ranking(ranking_path, dataset, rerank_cutoff)
+    q_reps = create_query_representations(sparse_ranking, uniq_q, index, encoding_method, k_top_docs, device)
+    dense_ranking = rerank(index, sparse_ranking, q_reps, ranking_output_path)
 
     sparse_ranking: Ranking = Ranking.from_file(
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
     )
 
-    # Print settings
-    settings_description: List[str] = [
-        f"ranking={ranking_path.name}",
-        f"index={index_path.name}",
-        f"rerank_cutoff={rerank_cutoff}",
-        f"encoding_method={encoding_method}",
-    ]
-    match encoding_method: # Append method-specific settings
-        case EncodingMethod.TCTColBERT:
-            settings_description.append(f"device={device}")
-        case EncodingMethod.AVERAGE:
-            settings_description.append(f"k_top_docs={k_top_docs}")
-    print("\nSettings:\n\t" + ",\n\t".join(settings_description))
-
-    # Print results
-    print('Results:')
-    for alpha in alphas:
-        interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
-        score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
-        ranking_type = (
-            "Sparse" if alpha == 1 else 
-            "Dense" if alpha == 0 else 
-            "Interpolated"
-        )
-        print(f"\t{ranking_type} ranking (alpha={alpha}): {score}")
+    print_settings(ranking_path, index_path, rerank_cutoff, encoding_method, device, k_top_docs)
+    print_results(alphas, sparse_ranking, dense_ranking, eval_metrics, dataset)
