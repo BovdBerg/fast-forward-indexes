@@ -34,15 +34,13 @@ if __name__ == '__main__':
     sparse_ranking: Ranking = Ranking.from_file(
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
-    )
+    ).cut(top_k) # Cutoff to top_k docs per query
 
     # load the index
     index: Index = OnDiskIndex.load(index_path)
     if in_memory:
         index = index.to_memory()
 
-    # Cutoff ranking to just top_k docs per query
-    sparse_ranking = sparse_ranking.cut(top_k)
 
     # Get each query (q_id, query text) and assign a unique int id q_no
     reindexed_q_df = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
