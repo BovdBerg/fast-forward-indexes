@@ -9,9 +9,26 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from tqdm import tqdm
 import ir_datasets
-from ir_measures import calc_aggregate, nDCG
+from ir_measures import calc_aggregate
 from fast_forward.util import to_ir_measures
 import pandas as pd
+import argparse
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
+    parser.add_argument("--ranking_path", type=Path, required=True, help="Path to the first-stage ranking file.")
+    parser.add_argument("--index_path", type=Path, required=True, help="Path to the index file.")
+    parser.add_argument("--ranking_output_path", type=Path, required=True, help="Path to save the re-ranked ranking.")
+    parser.add_argument("--dataset", type=str, required=True, help="Dataset to evaluate the re-ranked ranking.")
+    parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
+    parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), required=True, help="Method to estimate query embeddings.")
+    parser.add_argument("--k_top_docs", type=int, default=10, help="Number of top-ranked documents to use for EncodingMethod.AVERAGE.")
+    parser.add_argument("--in_memory", action="store_true", help="Whether to load the index in memory.")
+    parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use for encoding queries.")
+    parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
+    parser.add_argument("--alphas", type=float, nargs='+', default=[0, 0.25, 0.5, 0.75, 1], help="List of interpolation parameters for evaluation.")
+    return parser.parse_args()
 
 
 class EncodingMethod(Enum):
@@ -281,23 +298,15 @@ if __name__ == '__main__':
         alphas = [0, 0.25, 0.5, 0.75, 1]
         ```
     """
-    # Arguments
-    ranking_path: Path = Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
-    index_path: Path = Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
-    ranking_output_path: Path = Path("rerank-avg.tsv")
-    dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
-    rerank_cutoff: int = 1000
-    encoding_method = EncodingMethod.AVERAGE
-    k_top_docs: int = 10
-    in_memory: bool = False
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    eval_metrics: list[str] = [nDCG@10]
-    alphas: list[float] = [0, 0.25, 0.5, 0.75, 1]
+    args = parse_args()
 
-    index = load_index(index_path, in_memory)
-    sparse_ranking, uniq_q = load_and_prepare_ranking(ranking_path, dataset, rerank_cutoff)
-    q_reps = create_query_representations(sparse_ranking, uniq_q, index, encoding_method, k_top_docs, device)
-    dense_ranking = rerank(index, sparse_ranking, q_reps, ranking_output_path)
+    # Convert dataset argument to actual dataset object
+    dataset = ir_datasets.load(args.dataset)
 
-    print_settings(ranking_path, index_path, rerank_cutoff, encoding_method, device, k_top_docs)
-    print_results(alphas, sparse_ranking, dense_ranking, eval_metrics, dataset)
+    index = load_index(args.index_path, args.in_memory)
+    sparse_ranking, uniq_q = load_and_prepare_ranking(args.ranking_path, dataset, args.rerank_cutoff)
+    q_reps = create_query_representations(sparse_ranking, uniq_q, index, args.encoding_method, args.k_top_docs, args.device)
+    dense_ranking = rerank(index, sparse_ranking, q_reps, args.ranking_output_path)
+
+    print_settings(args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_top_docs)
+    print_results(args.alphas, sparse_ranking, dense_ranking, args.eval_metrics, dataset)
