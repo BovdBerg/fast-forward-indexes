@@ -244,7 +244,7 @@ class OnDiskIndex(Index):
     def _get_vectors(self, ids: Iterable[str]) -> Tuple[np.ndarray, List[List[int]]]:
         idx_pairs = []
         with h5py.File(self._index_file, "r") as fp:
-            for id in tqdm(ids, desc="Getting vectors", total=len(ids)):
+            for id in ids:
                 if self.mode in (Mode.MAXP, Mode.AVEP) and id in self._doc_id_to_idx:
                     idxs = self._doc_id_to_idx[id]
                 elif self.mode == Mode.FIRSTP and id in self._doc_id_to_idx:
@@ -262,15 +262,21 @@ class OnDiskIndex(Index):
             idx_pairs.sort(key=lambda x: x[1])
             id_to_idxs = defaultdict(list)
             vec_idxs = []
-            for id_idx, (id, vec_idx) in tqdm(enumerate(idx_pairs), desc="Processing vectors", total=len(idx_pairs)):
+            for id_idx, (id, vec_idx) in enumerate(idx_pairs):
                 vec_idxs.append(vec_idx)
                 id_to_idxs[id].append(id_idx)
 
             # reading all vectors at once slows h5py down significantly, so we read them in chunks and concatenate
+            total = len(vec_idxs) // self._ds_buffer_size + 1
             vectors = np.concatenate(
                 [
                     fp["vectors"][vec_idxs[i : i + self._ds_buffer_size]]
-                    for i in tqdm(range(0, len(vec_idxs), self._ds_buffer_size), desc="Reading vectors", total=len(vec_idxs) // self._ds_buffer_size + 1)
+                    for i in tqdm(
+                        range(0, len(vec_idxs), self._ds_buffer_size), 
+                        desc="Reading vectors", 
+                        total=total, 
+                        disable=total == 1
+                    )
                 ]
             )
             return vectors, [id_to_idxs[id] for id in ids]

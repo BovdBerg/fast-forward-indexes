@@ -303,7 +303,6 @@ class Index(abc.ABC):
             pd.DataFrame: Data frame with computed scores.
         """
         # map doc/passage IDs to unique numbers (0 to n)
-        LOGGER.info('_compute_scores: create df with unique queries and ids 0 ... n')
         id_df = df[["id"]].drop_duplicates().reset_index(drop=True)
         id_df["id_no"] = id_df.index
 
@@ -311,20 +310,17 @@ class Index(abc.ABC):
         df = df.merge(id_df, on="id", suffixes=[None, "_"]).reset_index(drop=True)
 
         # get all required vectors from the FF index
-        LOGGER.info('_compute_scores: _get_vectors')
         vectors, id_to_vec_idxs = self._get_vectors(id_df["id"].to_list())
         if self.quantizer is not None:
-            LOGGER.info('_compute_scores: self.quantizer=%s', type(self.quantizer))
-            LOGGER.info('_compute_scores: decode vectors')
             vectors = self.quantizer.decode(vectors)
-            LOGGER.info('_compute_scores: decode vectors done')
 
         # compute indices for query vectors and doc/passage vectors in current arrays
         select_query_vectors = []
         select_vectors = []
         select_scores = []
         c = 0
-        for id_no, q_no in tqdm(zip(df["id_no"], df["q_no"]), desc="Computing scores", total=len(df)):
+        LOGGER.info("Computing scores...")
+        for id_no, q_no in zip(df["id_no"], df["q_no"]):
             vec_idxs = id_to_vec_idxs[id_no]
             select_vectors.extend(vec_idxs)
             select_scores.append(list(range(c, c + len(vec_idxs))))
@@ -332,7 +328,6 @@ class Index(abc.ABC):
             select_query_vectors.extend([q_no] * len(vec_idxs))
 
         # compute all dot products (scores)
-        LOGGER.info('_compute_scores: compute all dot products (scores)')
         q_reps = query_vectors[select_query_vectors]
         d_reps = vectors[select_vectors]
         scores = np.sum(q_reps * d_reps, axis=1)
@@ -352,7 +347,6 @@ class Index(abc.ABC):
             return op(scores[scores_i])
 
         # insert FF scores in the correct rows
-        LOGGER.info("_compute_scores: calculate each query-doc pair's ff_score")
         df["ff_score"] = df.index.map(_mapfunc)
         return df
 
