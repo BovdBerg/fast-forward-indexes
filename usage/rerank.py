@@ -126,7 +126,7 @@ if __name__ == '__main__':
                 total=len(sparse_ranking)
             ):
                 # get the embeddings of the top_docs from the index
-                top_docs_ids = top_docs._df.query("q_id == @q_id")["id"].tolist()
+                top_docs_ids = top_docs[q_id].keys()
                 d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
                 if index.quantizer is not None:
                     d_reps = index.quantizer.decode(d_reps)
