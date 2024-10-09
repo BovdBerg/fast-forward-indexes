@@ -100,14 +100,12 @@ if __name__ == '__main__':
         copy=False,
         is_sorted=False,
     )
+    dense_ranking.save(ranking_output_path) # Save dense ranking to file
 
     sparse_ranking: Ranking = Ranking.from_file(
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
     )
-
-    # Save dense ranking to output file
-    dense_ranking.save(ranking_output_path)
 
     # Compare original [sparse, dense, interpolated] rankings, printing the results
     settings_description: List[str] = [
