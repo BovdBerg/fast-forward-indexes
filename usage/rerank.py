@@ -43,6 +43,7 @@ if __name__ == '__main__':
     dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
     rerank_cutoff: int = 1000
     encoding_method = EncodingMethod.AVERAGE
+    k_top_docs: int = 10 # Only used for EncodingMethod.AVERAGE
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
     eval_metrics: list[str] = [nDCG@10]
@@ -72,13 +73,14 @@ if __name__ == '__main__':
         case EncodingMethod.AVERAGE:
             # Estimate the query embeddings as the average of the top-ranked document embeddings
             # TODO: This task can probably be parallelized
+            top_docs = sparse_ranking.cut(k_top_docs)
             for q_no, q_id in tqdm(
                 sparse_ranking._df[["q_no", "q_id"]].drop_duplicates().itertuples(index=False), 
                 desc="Estimating query embeddings", 
                 total=len(sparse_ranking)
             ):
                 # get the embeddings of the top_docs from the index
-                top_docs_ids = list(sparse_ranking._df[sparse_ranking._df["q_id"] == q_id]["id"])
+                top_docs_ids = list(top_docs._df[top_docs._df["q_id"] == q_id]["id"])
                 d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
                 if index.quantizer is not None:
                     d_reps = index.quantizer.decode(d_reps)
@@ -99,7 +101,6 @@ if __name__ == '__main__':
         is_sorted=False,
     )
 
-    # TODO: Why does the sparse_ranking score differently depending on the cutoff if I reload the original ranking file here?
     sparse_ranking: Ranking = Ranking.from_file(
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
