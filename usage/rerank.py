@@ -46,8 +46,8 @@ def parse_args():
         --alphas (list of float, default=[0, 0.25, 0.5, 0.75, 1]): List of interpolation parameters for evaluation.
     """
     parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
-    # TODO: Remove default paths (ranking_path, index_path) form the arguments
-    parser.add_argument("--ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt", help="Path to the first-stage ranking file.")
+    # TODO [at hand-in]: Remove default paths (ranking_path, index_path) form the arguments
+    parser.add_argument("--ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt", help="Path to the first-stage ranking file (.tsv or .txt).")
     parser.add_argument("--index_path", type=Path, default="/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5", help="Path to the index file.")
     parser.add_argument("--ranking_output_path", type=Path, default="dense_ranking.tsv", help="Path to save the re-ranked ranking.")
     parser.add_argument("--dataset", type=str, default="msmarco-passage/trec-dl-2019", help="Dataset (using package ir-datasets).")
