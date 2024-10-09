@@ -106,7 +106,14 @@ if __name__ == '__main__':
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
     ).cut(rerank_cutoff) # Cutoff to top_k docs per query
-    sparse_ranking._df["q_no"] = pd.Categorical(sparse_ranking._df["q_id"][::-1]).codes # Map queries to numerical categories in q_no column
+
+    # Find unique queries and save their index in q_no column
+    uniq_q = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
+    uniq_q["q_no"] = uniq_q.index
+    print('uniq_ranking._df shape:', uniq_q.shape, 'head:\n', uniq_q.head())
+
+    # Merge q_no into the sparse ranking
+    sparse_ranking._df = sparse_ranking._df.merge(uniq_q, on="q_id")
     print('sparse_ranking._df shape:', sparse_ranking._df.shape, 'head:\n', sparse_ranking._df.head())
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
@@ -115,15 +122,15 @@ if __name__ == '__main__':
         case EncodingMethod.TCTColBERT:
             # Default approach: encode queries using a query_encoder
             index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
-            q_reps = index.encode_queries(list(sparse_ranking._df["query"].drop_duplicates()))
+            q_reps = index.encode_queries(list(uniq_q["query"]))
         case EncodingMethod.AVERAGE:
             # Estimate the query embeddings as the average of the top-ranked document embeddings
             # TODO: This task can probably be parallelized
             top_docs = sparse_ranking.cut(k_top_docs)
-            for q_no, q_id in tqdm(
-                sparse_ranking._df[["q_no", "q_id"]].drop_duplicates().itertuples(index=False), 
+            for q_id, query, q_no in tqdm(
+                uniq_q.itertuples(index=False), 
                 desc="Estimating query embeddings", 
-                total=len(sparse_ranking)
+                total=len(uniq_q)
             ):
                 # get the embeddings of the top_docs from the index
                 top_docs_ids = top_docs[q_id].keys()
