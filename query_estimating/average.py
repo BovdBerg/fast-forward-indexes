@@ -40,9 +40,7 @@ if __name__ == '__main__':
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
     ).cut(top_k) # Cutoff to top_k docs per query
-
-    # Add a new column q_no that maps q_id to numerical categories
-    sparse_ranking._df["q_no"] = pd.Categorical(sparse_ranking._df["q_id"][::-1]).codes
+    sparse_ranking._df["q_no"] = pd.Categorical(sparse_ranking._df["q_id"][::-1]).codes # Map queries to numerical categories in q_no column
     print('sparse_ranking._df shape:', sparse_ranking._df.shape, 'head:\n', sparse_ranking._df.head())
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
