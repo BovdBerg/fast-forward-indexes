@@ -28,6 +28,32 @@ class EncodingMethod(Enum):
 if __name__ == '__main__':
     """Re-ranking stage: Create query embeddings and re-rank documents based on similarity to queries embeddings.
     
+    Args:
+    - ranking_path: Path = path to the first-stage ranking.
+        - E.g. Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
+    - index_path: Path = path to the index.
+        - E.g. Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
+    - ranking_output_path: Path = path to save the re-ranked ranking.
+        - E.g. Path("rerank-avg.tsv")
+    - dataset: dataset to evaluate the re-ranked ranking (provided by ir_datasets package)
+        - E.g. ir_datasets.load("msmarco-passage/trec-dl-2019")
+    - rerank_cutoff: int = number of documents to re-rank per query.
+    - encoding_method: EncodingMethod = method to estimate query embeddings.
+        - E.g. EncodingMethod.AVERAGE.
+    - k_top_docs: int = number of top-ranked documents to use for EncodingMethod.AVERAGE.
+        - E.g. 10
+    - in_memory: bool = whether to load the index in memory.
+        - E.g. True or False
+    - device: str = device to use for encoding queries.
+        - E.g. "cuda" or "cpu".
+    - eval_metrics: List[str] = metrics used for evaluation.
+        - E.g. ["nDCG@10"]
+    - alphas: List[float] = list of interpolation parameters for evaluation
+        - E.g. [0, 0.25, 0.5, 0.75, 1]
+        - a = 0: dense score, 
+        - 0 < a < 1: interpolated score, 
+        - a = 1: sparse score
+    
     Input (from first-stage retrieval):
     - ranking: a ranking of documents for each given query
         - format: (q_id, q0, d_id, rank, score, name)
@@ -35,6 +61,7 @@ if __name__ == '__main__':
 
     Output:
     - ranking: a re-ranked ranking of documents for each given query
+        - saved to ranking_output_path
     """
     ### PARAMETERS (SETTINGS)
     ranking_path: Path = Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
@@ -43,11 +70,11 @@ if __name__ == '__main__':
     dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
     rerank_cutoff: int = 1000
     encoding_method = EncodingMethod.AVERAGE
-    k_top_docs: int = 10 # Only used for EncodingMethod.AVERAGE
+    k_top_docs: int = 10
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
     eval_metrics: list[str] = [nDCG@10]
-    alphas: list[float] = [0, 0.25, 0.5, 0.75, 1] # a=0: dense, 0 < a < 1: interpolated, a=1: sparse
+    alphas: list[float] = [0, 0.25, 0.5, 0.75, 1]
 
 
     # load the index
