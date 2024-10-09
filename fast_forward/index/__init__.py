@@ -16,6 +16,7 @@ from fast_forward.quantizer import Quantizer
 from fast_forward.ranking import Ranking
 
 LOGGER = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class Mode(Enum):
@@ -317,6 +318,7 @@ class Index(abc.ABC):
         select_vectors = []
         select_scores = []
         c = 0
+        LOGGER.info("Computing scores...")
         for id_no, q_no in zip(df["id_no"], df["q_no"]):
             vec_idxs = id_to_vec_idxs[id_no]
             select_vectors.extend(vec_idxs)

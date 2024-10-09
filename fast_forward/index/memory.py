@@ -187,11 +187,11 @@ class InMemoryIndex(Index):
         LOGGER.info("creating ID mappings for this index")
         idx_to_doc_id = {
             idx: doc_id
-            for doc_id, idxs in tqdm(self._doc_id_to_idx.items())
+            for doc_id, idxs in tqdm(self._doc_id_to_idx.items(), desc="loading documents", total=len(self._doc_id_to_idx))
             for idx in idxs
         }
         idx_to_psg_id = {
-            idx: psg_id for psg_id, idx in tqdm(self._psg_id_to_idx.items())
+            idx: psg_id for psg_id, idx in tqdm(self._psg_id_to_idx.items(), desc="loading passages", total=len(self._psg_id_to_idx))
         }
 
         num_vectors = len(self)

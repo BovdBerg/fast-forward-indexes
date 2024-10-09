@@ -267,10 +267,16 @@ class OnDiskIndex(Index):
                 id_to_idxs[id].append(id_idx)
 
             # reading all vectors at once slows h5py down significantly, so we read them in chunks and concatenate
+            total = len(vec_idxs) // self._ds_buffer_size + 1
             vectors = np.concatenate(
                 [
                     fp["vectors"][vec_idxs[i : i + self._ds_buffer_size]]
-                    for i in range(0, len(vec_idxs), self._ds_buffer_size)
+                    for i in tqdm(
+                        range(0, len(vec_idxs), self._ds_buffer_size), 
+                        desc="Reading vectors", 
+                        total=total, 
+                        disable=total == 1
+                    )
                 ]
             )
             return vectors, [id_to_idxs[id] for id in ids]
@@ -350,6 +356,7 @@ class OnDiskIndex(Index):
             psg_id_iter = fp["psg_ids"].asstr()[:num_vectors]
             for i, (doc_id, psg_id) in tqdm(
                 enumerate(zip(doc_id_iter, psg_id_iter)),
+                desc="Loading index",
                 total=num_vectors,
             ):
                 if len(doc_id) > 0:

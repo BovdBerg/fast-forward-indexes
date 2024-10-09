@@ -1,53 +1,43 @@
-# Fast-Forward Indexes
+# Re-Ranking Using Fast-Forward Indexes
 
-This is the implementation of [Fast-Forward indexes](https://dl.acm.org/doi/abs/10.1145/3485447.3511955).
+## Pre-requisites
+This implementation extends upon Fast-Forward Indexes by J. Leonhardt, et al.
 
-**Important**: As this library is still in its early stages, the API is subject to change!
+This original research is described by:
+
+- Original Paper "Efficient Neural Ranking using Forward Indexes"  
+by J. Leonhardt, et al.  
+[Link](https://dl.acm.org/doi/abs/10.1145/3485447.3511955)
+
+- Extended Paper "Efficient Neural Ranking using Forward Indexes and Lightweight Encoders" (pre-print)  
+by J. Leonhardt, et al.  
+[Link](https://arxiv.org/abs/2311.01263)
+
+- Accompanying slide deck by by J. Leonhardt  
+[Link](https://mrjleo.github.io/slides/2023-phd/).
+
+- [GitHub repository](https://github.com/mrjleo/fast-forward-indexes)
+
+    - [Docs](https://mrjleo.github.io/fast-forward-indexes/docs)
+
 
 ## Installation
 
 Install the package via `pip`:
 
+<!-- TODO: improve installation instructions -->
 ```bash
 pip install fast-forward-indexes
 ```
 
-## Getting Started
 
-Using a Fast-Forward index is as simple as providing a TREC run with retrieval scores:
+## Instructions
 
-```python
-from pathlib import Path
-from fast_forward import OnDiskIndex, Mode, Ranking
-from fast_forward.encoder import TCTColBERTQueryEncoder
-
-# choose a pre-trained query encoder
-encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco")
-
-# load an index on disk
-ff_index = OnDiskIndex.load(Path("/path/to/index.h5"), encoder, mode=Mode.MAXP)
-
-# load a run (TREC format) and attach all required queries
-first_stage_ranking = (
-    Ranking.from_file(Path("/path/to/input/run.tsv"))
-    .attach_queries(
-        {
-            "q1": "query 1",
-            "q2": "query 2",
-            # ...
-            "qn": "query n",
-        }
-    )
-    .cut(5000)
-)
-
-# compute the corresponding semantic scores
-out = ff_index(first_stage_ranking)
-
-# interpolate scores and create a new TREC runfile
-first_stage_ranking.interpolate(out, 0.1).save(Path("/path/to/output/run.tsv"))
+Re-ranking can be done by running this code:
+```bash
+python usage/rerank.py \
+--ranking_path path/to/ranking_path.txt \
+--index_path path/to/index_path.h5
 ```
 
-## Documentation
-
-A more detailed documentation is available [here](https://mrjleo.github.io/fast-forward-indexes/docs).
+Full details on the program arguments can be found in the `usage/rerank.py::parse_args` method.

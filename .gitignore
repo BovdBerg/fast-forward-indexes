@@ -110,3 +110,7 @@ venv.bak/
 
 # Profiling
 profiling/profiles/
+
+# Indexing
+**.h5
+dense_ranking.tsv
