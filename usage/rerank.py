@@ -29,6 +29,8 @@ if __name__ == '__main__':
     use_traditional_enc: bool = False
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    eval_metrics: list[str] = [nDCG@10]
+    alphas: list[float] = [0, 0.1, 0.25, 0.5, 0.75, 1]
 
 
     # load the index
@@ -88,8 +90,6 @@ if __name__ == '__main__':
     dense_ranking.save(ranking_output_path)
 
     # Compare original [sparse, dense, interpolated] rankings, printing the results
-    eval_metrics: list[str] = [nDCG@10]
-    alphas: list[float] = [0, 0.1, 0.25, 0.5, 0.75, 1]
     print(f"\nResults (top_k docs={top_k}, ranking={ranking_path.name}, index={index_path.name}, use_default_encoding={use_traditional_enc}):")
     for alpha in alphas:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
