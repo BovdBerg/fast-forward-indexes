@@ -9,7 +9,7 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from tqdm import tqdm
 import ir_datasets
-from ir_measures import calc_aggregate
+from ir_measures import calc_aggregate, measures
 from fast_forward.util import to_ir_measures
 import pandas as pd
 import argparse
@@ -230,6 +230,28 @@ def print_settings(
     print("\nSettings:\n\t" + ",\n\t".join(settings_description))
 
 
+def get_measure(
+        metric_str: str
+    ) -> measures.Measure:
+    """
+    Parses a metric string and returns the corresponding measure function.
+
+    Args:
+        metric_str (str): A string representing the metric and its parameter, 
+                            formatted as 'metric_name@value'.
+
+    Returns:
+        function: The measure function corresponding to the metric name, 
+                    parameterized by the given value.
+
+    Raises:
+        AttributeError: If the metric name does not correspond to an attribute in `measures`.
+        ValueError: If the metric string is not properly formatted or the value is not an integer.
+    """
+    metric_name, at_value = metric_str.split('@')
+    return getattr(measures, metric_name) @ int(at_value)
+
+
 def print_results(
     alphas: List[float], 
     sparse_ranking: Ranking, 
@@ -247,10 +269,12 @@ def print_results(
     eval_metrics (List[str]): Metrics used for evaluation.
     dataset: Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
     """
+    eval_metrics_objects = [get_measure(metric_str) for metric_str in eval_metrics]
+
     print('Results:')
     for alpha in alphas:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
-        score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
+        score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
         ranking_type = (
             "Sparse" if alpha == 1 else 
             "Dense" if alpha == 0 else 
