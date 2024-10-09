@@ -160,7 +160,7 @@ class OnDiskIndex(Index):
         )
         with h5py.File(self._index_file, "r") as fp:
             buffer_size = buffer_size or fp.attrs["num_vectors"]
-            for i_low in tqdm(range(0, fp.attrs["num_vectors"], buffer_size), desc="Loading index into memory"):
+            for i_low in range(0, fp.attrs["num_vectors"], buffer_size):
                 i_up = min(i_low + buffer_size, fp.attrs["num_vectors"])
 
                 # IDs that don't exist will be returned as empty strings here
