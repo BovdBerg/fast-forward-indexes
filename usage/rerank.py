@@ -46,12 +46,13 @@ def parse_args():
         --alphas (list of float, default=[0, 0.25, 0.5, 0.75, 1]): List of interpolation parameters for evaluation.
     """
     parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
-    parser.add_argument("--ranking_path", type=Path, required=True, help="Path to the first-stage ranking file.")
-    parser.add_argument("--index_path", type=Path, required=True, help="Path to the index file.")
-    parser.add_argument("--ranking_output_path", type=Path, required=True, help="Path to save the re-ranked ranking.")
-    parser.add_argument("--dataset", type=str, required=True, help="Dataset to evaluate the re-ranked ranking.")
+    # TODO: Remove default paths (ranking_path, index_path) form the arguments
+    parser.add_argument("--ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt", help="Path to the first-stage ranking file.")
+    parser.add_argument("--index_path", type=Path, default="/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5", help="Path to the index file.")
+    parser.add_argument("--ranking_output_path", type=Path, default="dense_ranking.tsv", help="Path to save the re-ranked ranking.")
+    parser.add_argument("--dataset", type=str, default="msmarco-passage/trec-dl-2019", help="Dataset (using package ir-datasets).")
     parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
-    parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), required=True, help="Method to estimate query embeddings.")
+    parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default=EncodingMethod.AVERAGE, help="Method to estimate query embeddings.")
     parser.add_argument("--k_top_docs", type=int, default=10, help="Number of top-ranked documents to use for EncodingMethod.AVERAGE.")
     parser.add_argument("--in_memory", action="store_true", help="Whether to load the index in memory.")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use for encoding queries.")
