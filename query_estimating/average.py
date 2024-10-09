@@ -84,6 +84,11 @@ if __name__ == '__main__':
         is_sorted=False,
     )
 
+    sparse_ranking: Ranking = Ranking.from_file(
+        ranking_path,
+        queries={q.query_id: q.text for q in dataset.queries_iter()},
+    )
+
     # Save dense ranking to output file
     dense_ranking.save(ranking_output_path)
 
