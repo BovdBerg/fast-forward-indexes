@@ -107,16 +107,25 @@ if __name__ == '__main__':
         queries={q.query_id: q.text for q in dataset.queries_iter()},
     )
 
-    # Compare original [sparse, dense, interpolated] rankings, printing the results
+    # Print settings
     settings_description: List[str] = [
         f"ranking={ranking_path.name}",
         f"index={index_path.name}",
         f"rerank_cutoff={rerank_cutoff}",
         f"encoding_method={encoding_method}",
-        f"k_top_docs={k_top_docs}" if encoding_method == EncodingMethod.AVERAGE else "",
     ]
-    settings_description = [s for s in settings_description if s]  # Remove empty strings
-    print("\nSettings:\n\t" + ",\n\t".join(settings_description) + "\n")
+    match encoding_method: # Append method-specific settings
+        case EncodingMethod.TCTColBERT:
+            settings_description.append([
+                f"device={device}"
+            ])
+        case EncodingMethod.AVERAGE:
+            settings_description.append([
+                f"k_top_docs={k_top_docs}"
+            ])
+    print("\nSettings:\n\t" + ",\n\t".join(settings_description))
+
+    # Print results
     print('Results:')
     for alpha in alphas:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
