@@ -40,7 +40,7 @@ if __name__ == '__main__':
     index_path: Path = Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
     ranking_output_path: Path = Path("rerank-avg.tsv")
     dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
-    top_k: int = 10
+    rerank_cutoff: int = 1000
     encoding_method = EncodingMethod.AVERAGE
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     sparse_ranking: Ranking = Ranking.from_file(
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
-    ).cut(top_k) # Cutoff to top_k docs per query
+    ).cut(rerank_cutoff) # Cutoff to top_k docs per query
     sparse_ranking._df["q_no"] = pd.Categorical(sparse_ranking._df["q_id"][::-1]).codes # Map queries to numerical categories in q_no column
     print('sparse_ranking._df shape:', sparse_ranking._df.shape, 'head:\n', sparse_ranking._df.head())
 
@@ -86,6 +86,7 @@ if __name__ == '__main__':
                 q_reps[q_no] = np.mean(d_reps, axis=0)
     print('q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
 
+    # TODO: Check if only docs up until the cutoff are re-ranked
     result = index._compute_scores(sparse_ranking._df, q_reps)
     result["score"] = result["ff_score"]
 
@@ -107,7 +108,7 @@ if __name__ == '__main__':
     dense_ranking.save(ranking_output_path)
 
     # Compare original [sparse, dense, interpolated] rankings, printing the results
-    print(f"\nResults (encoding_method={encoding_method.name}, top_k={top_k}, ranking={ranking_path.name}, index={index_path.name}):")
+    print(f"\nResults (encoding_method={encoding_method.name}, top_k={rerank_cutoff}, ranking={ranking_path.name}, index={index_path.name}):")
     for alpha in alphas:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
         score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
