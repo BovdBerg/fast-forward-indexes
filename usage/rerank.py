@@ -162,13 +162,9 @@ if __name__ == '__main__':
     ]
     match encoding_method: # Append method-specific settings
         case EncodingMethod.TCTColBERT:
-            settings_description.append([
-                f"device={device}"
-            ])
+            settings_description.append(f"device={device}")
         case EncodingMethod.AVERAGE:
-            settings_description.append([
-                f"k_top_docs={k_top_docs}"
-            ])
+            settings_description.append(f"k_top_docs={k_top_docs}")
     print("\nSettings:\n\t" + ",\n\t".join(settings_description))
 
     # Print results
