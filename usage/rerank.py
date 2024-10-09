@@ -26,42 +26,62 @@ class EncodingMethod(Enum):
 
 # TODO: split this code into functions
 if __name__ == '__main__':
-    """Re-ranking stage: Create query embeddings and re-rank documents based on similarity to queries embeddings.
-    
+    """
+    Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
+
+    This script takes the initial ranking of documents and re-ranks them based on the similarity to the query embeddings.
+    It uses various encoding methods and evaluation metrics to achieve this.
+
     Args:
-    - ranking_path: Path = path to the first-stage ranking.
-        - E.g. Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
-    - index_path: Path = path to the index.
-        - E.g. Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
-    - ranking_output_path: Path = path to save the re-ranked ranking.
-        - E.g. Path("rerank-avg.tsv")
-    - dataset: dataset to evaluate the re-ranked ranking (provided by ir_datasets package)
-        - E.g. ir_datasets.load("msmarco-passage/trec-dl-2019")
-    - rerank_cutoff: int = number of documents to re-rank per query.
-    - encoding_method: EncodingMethod = method to estimate query embeddings.
-        - E.g. EncodingMethod.AVERAGE.
-    - k_top_docs: int = number of top-ranked documents to use for EncodingMethod.AVERAGE.
-        - E.g. 10
-    - in_memory: bool = whether to load the index in memory.
-        - E.g. True or False
-    - device: str = device to use for encoding queries.
-        - E.g. "cuda" or "cpu".
-    - eval_metrics: List[str] = metrics used for evaluation.
-        - E.g. ["nDCG@10"]
-    - alphas: List[float] = list of interpolation parameters for evaluation
-        - E.g. [0, 0.25, 0.5, 0.75, 1]
-        - a = 0: dense score, 
-        - 0 < a < 1: interpolated score, 
-        - a = 1: sparse score
-    
-    Input (from first-stage retrieval):
-    - ranking: a ranking of documents for each given query
-        - format: (q_id, q0, d_id, rank, score, name)
-    - ff_index: used to retrieve document embeddings
+        ranking_path (Path): Path to the first-stage ranking file.
+            - Example: Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
+        index_path (Path): Path to the index file.
+            - Example: Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
+        ranking_output_path (Path): Path to save the re-ranked ranking.
+            - Example: Path("rerank-avg.tsv")
+        dataset (Dataset): Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
+            - Example: ir_datasets.load("msmarco-passage/trec-dl-2019")
+        rerank_cutoff (int): Number of documents to re-rank per query.
+            - Example: 1000
+        encoding_method (EncodingMethod): Method to estimate query embeddings.
+            - Example: EncodingMethod.AVERAGE
+        k_top_docs (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+            - Example: 10
+        in_memory (bool): Whether to load the index in memory.
+            - Allowed: True or False
+        device (str): Device to use for encoding queries.
+            - Allowed: "cuda" or "cpu"
+        eval_metrics (List[str]): Metrics used for evaluation.
+            - Example: ["nDCG@10"]
+        alphas (List[float]): List of interpolation parameters for evaluation.
+            - Example: [0, 0.25, 0.5, 0.75, 1]
+            - a = 0: dense score
+            - 0 < a < 1: interpolated score
+            - a = 1: sparse score
+
+    Input:
+        ranking (List[Tuple]): A ranking of documents for each given query.
+            - Format: (q_id, q0, d_id, rank, score, name)
+        ff_index (Index): Used to retrieve document embeddings.
 
     Output:
-    - ranking: a re-ranked ranking of documents for each given query
-        - saved to ranking_output_path
+        ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
+            - Saved to ranking_output_path
+
+    Example(s):
+        ```python
+        ranking_path = Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
+        index_path = Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
+        ranking_output_path = Path("rerank-avg.tsv")
+        dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
+        rerank_cutoff = 100
+        encoding_method = EncodingMethod.AVERAGE
+        k_top_docs = 10
+        in_memory = True
+        device = "cuda"
+        eval_metrics = ["nDCG@10"]
+        alphas = [0, 0.25, 0.5, 0.75, 1]
+        ```
     """
     ### PARAMETERS (SETTINGS)
     ranking_path: Path = Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
