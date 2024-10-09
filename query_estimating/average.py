@@ -41,12 +41,8 @@ if __name__ == '__main__':
     if in_memory:
         index = index.to_memory()
 
-
-    # Get each query (q_id, query text) and assign a unique int id q_no
-    reindexed_q_df = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
-    reindexed_q_df["q_no"] = reindexed_q_df.index
-    print('reindexed_q_df shape:', reindexed_q_df.shape, 'head:\n', reindexed_q_df.head())
-    sparse_ranking._df = sparse_ranking._df.merge(reindexed_q_df, on="q_id", suffixes=[None, "_"])
+    # Add a new column q_no that maps q_id to numerical categories
+    sparse_ranking._df["q_no"] = pd.Categorical(sparse_ranking._df["q_id"][::-1]).codes
     print('sparse_ranking._df shape:', sparse_ranking._df.shape, 'head:\n', sparse_ranking._df.head())
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
