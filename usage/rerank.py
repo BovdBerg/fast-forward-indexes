@@ -125,7 +125,6 @@ if __name__ == '__main__':
             q_reps = index.encode_queries(uniq_q["query"])
         case EncodingMethod.AVERAGE:
             # Estimate the query embeddings as the average of the top-ranked document embeddings
-            # TODO: This task can probably be parallelized
             top_docs = sparse_ranking.cut(k_top_docs)
             for q_id, query, q_no in tqdm(
                 uniq_q.itertuples(index=False), 
@@ -142,7 +141,6 @@ if __name__ == '__main__':
                 q_reps[q_no] = np.mean(d_reps, axis=0)
     print(f"qreps shape: {q_reps.shape}, head:\n{pd.DataFrame(q_reps).head()}")
 
-    # TODO: Check if only docs up until the cutoff are re-ranked
     result = index._compute_scores(sparse_ranking._df, q_reps)
     result["score"] = result["ff_score"]
 
