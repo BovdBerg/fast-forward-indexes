@@ -114,3 +114,4 @@ profiling/profiles/
 # Indexing
 **.h5
 rerank-avg.tsv
+dense_ranking.tsv
