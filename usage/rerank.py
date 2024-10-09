@@ -110,11 +110,11 @@ if __name__ == '__main__':
     # Find unique queries and save their index in q_no column
     uniq_q = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
     uniq_q["q_no"] = uniq_q.index
-    print('uniq_ranking._df shape:', uniq_q.shape, 'head:\n', uniq_q.head())
+    print(f"uniq_q shape: {uniq_q.shape}, head:\n{uniq_q.head()}")
 
     # Merge q_no into the sparse ranking
     sparse_ranking._df = sparse_ranking._df.merge(uniq_q, on=["q_id", "query"])
-    print('sparse_ranking._df shape:', sparse_ranking._df.shape, 'head:\n', sparse_ranking._df.head())
+    print(f"sparse_ranking._df shape: {sparse_ranking._df.shape}, head:\n{sparse_ranking._df.head()}")
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
     q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
@@ -140,7 +140,7 @@ if __name__ == '__main__':
 
                 # calculate the average of the embeddings and save it
                 q_reps[q_no] = np.mean(d_reps, axis=0)
-    print('q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
+    print(f"qreps shape: {q_reps.shape}, head:\n{pd.DataFrame(q_reps).head()}")
 
     # TODO: Check if only docs up until the cutoff are re-ranked
     result = index._compute_scores(sparse_ranking._df, q_reps)
