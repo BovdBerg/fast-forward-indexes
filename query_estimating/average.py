@@ -30,16 +30,16 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
+    # load the index
+    index: Index = OnDiskIndex.load(index_path)
+    if in_memory:
+        index = index.to_memory()
+
     # load the ranking and attach the queries
     sparse_ranking: Ranking = Ranking.from_file(
         ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
     ).cut(top_k) # Cutoff to top_k docs per query
-
-    # load the index
-    index: Index = OnDiskIndex.load(index_path)
-    if in_memory:
-        index = index.to_memory()
 
     # Add a new column q_no that maps q_id to numerical categories
     sparse_ranking._df["q_no"] = pd.Categorical(sparse_ranking._df["q_id"][::-1]).codes
