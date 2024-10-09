@@ -21,12 +21,12 @@ import pandas as pd
 if __name__ == '__main__':
     ### PARAMETERS
     ranking_path: Path = Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
-    index_path: Path = Path("/home/bvdb9/indices/msm-psg/ff/ff_index_TCTColBERT_opq.h5")
+    index_path: Path = Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
     ranking_output_path: Path = Path("rerank-avg.tsv")
     dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
     top_k: int = 10
-    use_default_encoding: bool = True
-    default_encoding_k_s: int = 1000
+    use_traditional_enc: bool = True
+    traditional_enc_k_s: int = 1000
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -42,22 +42,23 @@ if __name__ == '__main__':
     if in_memory:
         index = index.to_memory()
 
+    if use_traditional_enc:
+        sparse_ranking = sparse_ranking.cut(traditional_enc_k_s)
+
     # Get each query (q_id, query text) and assign a unique int id q_no
     query_df = (sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True))
     query_df["q_no"] = query_df.index
-    df = sparse_ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
+    sparse_ranking_df = sparse_ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
     q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
-    top_sparse_ranking = sparse_ranking.cut(top_k) # keep only the top_k docs per query
-
-    if use_default_encoding:
+    if use_traditional_enc:
         # Default approach: encode queries using a query_encoder
-        sparse_ranking = sparse_ranking.cut(default_encoding_k_s)
         index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
         q_reps = index.encode_queries(list(query_df["query"]))
     else:
         # Estimate the query embeddings as the average of the top-ranked document embeddings
+        top_sparse_ranking = sparse_ranking.cut(top_k) # keep only the top_k docs per query
         # TODO: Should this for-loop go over the newly indexed query_df instead?
         for i, q_id in enumerate(tqdm(top_sparse_ranking, desc="Estimating query embeddings", total=len(sparse_ranking))):
             # get the embeddings of the top_docs from the index
@@ -69,7 +70,7 @@ if __name__ == '__main__':
             q_reps[int(q_id) - 1] = np.mean(d_reps, axis=0)
     print('q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
 
-    result = index._compute_scores(df, q_reps)
+    result = index._compute_scores(sparse_ranking_df, q_reps)
     result["score"] = result["ff_score"]
 
     dense_ranking = Ranking(
@@ -86,7 +87,7 @@ if __name__ == '__main__':
     # Compare original [sparse, dense, interpolated] rankings, printing the results
     eval_metrics: list[str] = [nDCG@10]
     alphas: list[float] = [0, 0.1, 0.25, 0.5, 0.75, 1]
-    print(f"\nResults (top_k docs={top_k}, ranking={ranking_path.name}, index={index_path.name}, use_default_encoding={use_default_encoding}):")
+    print(f"\nResults (top_k docs={top_k}, ranking={ranking_path.name}, index={index_path.name}, use_default_encoding={use_traditional_enc}):")
     for alpha in alphas:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
         score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
