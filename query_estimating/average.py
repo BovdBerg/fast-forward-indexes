@@ -24,9 +24,8 @@ if __name__ == '__main__':
     index_path: Path = Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
     ranking_output_path: Path = Path("rerank-avg.tsv")
     dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
-    top_k: int = 10
+    top_k: int = 1000
     use_traditional_enc: bool = True
-    traditional_enc_k_s: int = 1000
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -42,23 +41,22 @@ if __name__ == '__main__':
     if in_memory:
         index = index.to_memory()
 
-    if use_traditional_enc:
-        # Cutoff the ranking to the top k documents per query
-        sparse_ranking = sparse_ranking.cut(traditional_enc_k_s)
+    # Cutoff ranking to just top_k docs per query
+    sparse_ranking = sparse_ranking.cut(top_k)
 
     # Get each query (q_id, query text) and assign a unique int id q_no
     reindexed_q_df = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
     reindexed_q_df["q_no"] = reindexed_q_df.index
     print('reindexed_q_df shape:', reindexed_q_df.shape, 'head:\n', reindexed_q_df.head())
     sparse_ranking._df = sparse_ranking._df.merge(reindexed_q_df, on="q_id", suffixes=[None, "_"])
-    print('sparse_ranking_df shape:', sparse_ranking._df.shape, 'head:\n', sparse_ranking._df.head())
+    print('sparse_ranking._df shape:', sparse_ranking._df.shape, 'head:\n', sparse_ranking._df.head())
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
     q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
     if use_traditional_enc:
         # Default approach: encode queries using a query_encoder
         index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
-        q_reps = index.encode_queries(list(reindexed_q_df["query"]))
+        q_reps = index.encode_queries(list(sparse_ranking._df["query"].drop_duplicates()))
     else:
         # Estimate the query embeddings as the average of the top-ranked document embeddings
         top_sparse_ranking = sparse_ranking.cut(top_k) # keep only the top_k docs per query
