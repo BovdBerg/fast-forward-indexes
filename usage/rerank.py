@@ -286,10 +286,5 @@ if __name__ == '__main__':
     q_reps = create_query_representations(sparse_ranking, uniq_q, index, encoding_method, k_top_docs, device)
     dense_ranking = rerank(index, sparse_ranking, q_reps, ranking_output_path)
 
-    sparse_ranking: Ranking = Ranking.from_file(
-        ranking_path,
-        queries={q.query_id: q.text for q in dataset.queries_iter()},
-    )
-
     print_settings(ranking_path, index_path, rerank_cutoff, encoding_method, device, k_top_docs)
     print_results(alphas, sparse_ranking, dense_ranking, eval_metrics, dataset)
