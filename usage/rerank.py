@@ -113,7 +113,7 @@ if __name__ == '__main__':
     print('uniq_ranking._df shape:', uniq_q.shape, 'head:\n', uniq_q.head())
 
     # Merge q_no into the sparse ranking
-    sparse_ranking._df = sparse_ranking._df.merge(uniq_q, on="q_id")
+    sparse_ranking._df = sparse_ranking._df.merge(uniq_q, on=["q_id", "query"])
     print('sparse_ranking._df shape:', sparse_ranking._df.shape, 'head:\n', sparse_ranking._df.head())
 
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
