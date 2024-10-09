@@ -1,5 +1,6 @@
 from enum import Enum
 from pathlib import Path
+from typing import List
 import numpy as np
 import torch
 from fast_forward.encoder import TCTColBERTQueryEncoder
@@ -45,7 +46,7 @@ if __name__ == '__main__':
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
     eval_metrics: list[str] = [nDCG@10]
-    alphas: list[float] = [0, 0.1, 0.25, 0.5, 0.75, 1]
+    alphas: list[float] = [0, 0.25, 0.5, 0.75, 1] # a=0: dense, 0 < a < 1: interpolated, a=1: sparse
 
 
     # load the index
@@ -108,7 +109,16 @@ if __name__ == '__main__':
     dense_ranking.save(ranking_output_path)
 
     # Compare original [sparse, dense, interpolated] rankings, printing the results
-    print(f"\nResults (encoding_method={encoding_method.name}, top_k={rerank_cutoff}, ranking={ranking_path.name}, index={index_path.name}):")
+    settings_description: List[str] = [
+        f"ranking={ranking_path.name}",
+        f"index={index_path.name}",
+        f"rerank_cutoff={rerank_cutoff}",
+        f"encoding_method={encoding_method}",
+        f"k_top_docs={k_top_docs}" if encoding_method == EncodingMethod.AVERAGE else "",
+    ]
+    settings_description = [s for s in settings_description if s]  # Remove empty strings
+    print("\nSettings:\n\t" + ",\n\t".join(settings_description) + "\n")
+    print('Results:')
     for alpha in alphas:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
         score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
