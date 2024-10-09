@@ -122,7 +122,7 @@ if __name__ == '__main__':
         case EncodingMethod.TCTColBERT:
             # Default approach: encode queries using a query_encoder
             index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
-            q_reps = index.encode_queries(list(uniq_q["query"]))
+            q_reps = index.encode_queries(uniq_q["query"])
         case EncodingMethod.AVERAGE:
             # Estimate the query embeddings as the average of the top-ranked document embeddings
             # TODO: This task can probably be parallelized
