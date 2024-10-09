@@ -113,9 +113,23 @@ def rerank(
         q_reps: np.ndarray,
         ranking_output_path: Path
     ) -> Ranking:
+    """
+    Re-ranks a given sparse ranking using dense representations and saves the result.
+
+    Args:
+        index (Index): The index object used to compute scores.
+        sparse_ranking (Ranking): The initial sparse ranking to be re-ranked.
+        q_reps (np.ndarray): Query representations used for re-ranking.
+        ranking_output_path (Path): The file path where the re-ranked results will be saved.
+
+    Returns:
+        Ranking: The re-ranked results as a Ranking object.
+    """
+    # Compute scores
     result = index._compute_scores(sparse_ranking._df, q_reps)
     result["score"] = result["ff_score"]
 
+    # Create dense ranking object
     dense_ranking = Ranking(
         result,
         name="fast-forward",
@@ -123,7 +137,9 @@ def rerank(
         copy=False,
         is_sorted=False,
     )
-    dense_ranking.save(ranking_output_path) # Save dense ranking to file
+
+    # Save dense ranking to output file
+    dense_ranking.save(ranking_output_path)
 
     return dense_ranking
 
