@@ -15,7 +15,36 @@ import pandas as pd
 import argparse
 
 
+class EncodingMethod(Enum):
+    """Enum for encoding method.
+
+    TCTColBERT: Use the TCTColBERT query encoder.
+    AVERAGE: Estimate the query embeddings as the average of the top-ranked document embeddings.
+    """
+    TCTColBERT = 1
+    AVERAGE = 2
+
+
 def parse_args():
+    """
+    Parse command-line arguments for the re-ranking script.
+
+    Returns:
+        argparse.Namespace: Parsed command-line arguments.
+
+    Arguments:
+        --ranking_path (Path, required): Path to the first-stage ranking file.
+        --index_path (Path, required): Path to the index file.
+        --ranking_output_path (Path, required): Path to save the re-ranked ranking.
+        --dataset (str, required): Dataset to evaluate the re-ranked ranking.
+        --rerank_cutoff (int, default=1000): Number of documents to re-rank per query.
+        --encoding_method (EncodingMethod, required): Method to estimate query embeddings.
+        --k_top_docs (int, default=10): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+        --in_memory (bool): Whether to load the index in memory.
+        --device (str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"): Device to use for encoding queries.
+        --eval_metrics (list of str, default=["nDCG@10"]): Metrics used for evaluation.
+        --alphas (list of float, default=[0, 0.25, 0.5, 0.75, 1]): List of interpolation parameters for evaluation.
+    """
     parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
     parser.add_argument("--ranking_path", type=Path, required=True, help="Path to the first-stage ranking file.")
     parser.add_argument("--index_path", type=Path, required=True, help="Path to the index file.")
@@ -29,16 +58,6 @@ def parse_args():
     parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
     parser.add_argument("--alphas", type=float, nargs='+', default=[0, 0.25, 0.5, 0.75, 1], help="List of interpolation parameters for evaluation.")
     return parser.parse_args()
-
-
-class EncodingMethod(Enum):
-    """Enum for encoding method.
-
-    TCTColBERT: Use the TCTColBERT query encoder.
-    AVERAGE: Estimate the query embeddings as the average of the top-ranked document embeddings.
-    """
-    TCTColBERT = 1
-    AVERAGE = 2
 
 
 def load_index(index_path: Path, in_memory: bool) -> Index:
@@ -240,39 +259,14 @@ def print_results(
         print(f"\t{ranking_type} ranking (alpha={alpha}): {score}")
 
 
-if __name__ == '__main__':
+def main():
     """
     Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
 
     This script takes the initial ranking of documents and re-ranks them based on the similarity to the query embeddings.
     It uses various encoding methods and evaluation metrics to achieve this.
 
-    Args:
-        ranking_path (Path): Path to the first-stage ranking file.
-            - Example: Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
-        index_path (Path): Path to the index file.
-            - Example: Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
-        ranking_output_path (Path): Path to save the re-ranked ranking.
-            - Example: Path("rerank-avg.tsv")
-        dataset (Dataset): Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
-            - Example: ir_datasets.load("msmarco-passage/trec-dl-2019")
-        rerank_cutoff (int): Number of documents to re-rank per query.
-            - Example: 1000
-        encoding_method (EncodingMethod): Method to estimate query embeddings.
-            - Example: EncodingMethod.AVERAGE
-        k_top_docs (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
-            - Example: 10
-        in_memory (bool): Whether to load the index in memory.
-            - Allowed: True or False
-        device (str): Device to use for encoding queries.
-            - Allowed: "cuda" or "cpu"
-        eval_metrics (List[str]): Metrics used for evaluation.
-            - Example: ["nDCG@10"]
-        alphas (List[float]): List of interpolation parameters for evaluation.
-            - Example: [0, 0.25, 0.5, 0.75, 1]
-            - a = 0: dense score
-            - 0 < a < 1: interpolated score
-            - a = 1: sparse score
+    See parse_args() for command-line arguments.
 
     Input:
         ranking (List[Tuple]): A ranking of documents for each given query.
@@ -282,21 +276,6 @@ if __name__ == '__main__':
     Output:
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
             - Saved to ranking_output_path
-
-    Example(s):
-        ```python
-        ranking_path = Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
-        index_path = Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
-        ranking_output_path = Path("rerank-avg.tsv")
-        dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
-        rerank_cutoff = 100
-        encoding_method = EncodingMethod.AVERAGE
-        k_top_docs = 10
-        in_memory = True
-        device = "cuda"
-        eval_metrics = ["nDCG@10"]
-        alphas = [0, 0.25, 0.5, 0.75, 1]
-        ```
     """
     args = parse_args()
 
@@ -310,3 +289,7 @@ if __name__ == '__main__':
 
     print_settings(args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_top_docs)
     print_results(args.alphas, sparse_ranking, dense_ranking, args.eval_metrics, dataset)
+
+
+if __name__ == '__main__':
+    main()
