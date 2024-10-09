@@ -18,6 +18,7 @@ from fast_forward.util import to_ir_measures
 import pandas as pd
 
 
+# TODO: split this code into functions
 if __name__ == '__main__':
     ### PARAMETERS
     ranking_path: Path = Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
@@ -25,7 +26,7 @@ if __name__ == '__main__':
     ranking_output_path: Path = Path("rerank-avg.tsv")
     dataset = ir_datasets.load("msmarco-passage/trec-dl-2019")
     top_k: int = 1000
-    use_traditional_enc: bool = True
+    use_traditional_enc: bool = False
     in_memory: bool = False
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -51,14 +52,20 @@ if __name__ == '__main__':
         q_reps = index.encode_queries(list(sparse_ranking._df["query"].drop_duplicates()))
     else:
         # Estimate the query embeddings as the average of the top-ranked document embeddings
-        for i, q_id in enumerate(tqdm(top_sparse_ranking, desc="Estimating query embeddings", total=len(sparse_ranking))):
+        # TODO: This task can probably be parallelized
+        for q_no, q_id in tqdm(
+            sparse_ranking._df[["q_no", "q_id"]].drop_duplicates().itertuples(index=False), 
+            desc="Estimating query embeddings", 
+            total=len(sparse_ranking)
+        ):
             # get the embeddings of the top_docs from the index
-            top_docs_ids = top_sparse_ranking[q_id].keys()
+            top_docs_ids = list(sparse_ranking._df[sparse_ranking._df["q_id"] == q_id]["id"])
             d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
+            if index.quantizer is not None:
+                d_reps = index.quantizer.decode(d_reps)
 
             # calculate the average of the embeddings and save it
-            # TODO: should I use q_id - 1 or i as index? index 451601 is out of bounds for axis 0 with size 43 <-- 451601 is the q_id
-            q_reps[int(q_id) - 1] = np.mean(d_reps, axis=0)
+            q_reps[q_no] = np.mean(d_reps, axis=0)
     print('q_reps shape', q_reps.shape, 'head:\n', pd.DataFrame(q_reps).head())
 
     result = index._compute_scores(sparse_ranking._df, q_reps)
