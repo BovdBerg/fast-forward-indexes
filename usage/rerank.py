@@ -301,8 +301,6 @@ def main():
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
             - Saved to ranking_output_path
     """
-    args = parse_args()
-
     # Convert dataset argument to actual dataset object
     dataset = ir_datasets.load(args.dataset)
 
@@ -316,4 +314,5 @@ def main():
 
 
 if __name__ == '__main__':
+    args = parse_args()
     main()
