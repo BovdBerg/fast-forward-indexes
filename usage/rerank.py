@@ -83,7 +83,7 @@ if __name__ == '__main__':
         alphas = [0, 0.25, 0.5, 0.75, 1]
         ```
     """
-    ### PARAMETERS (SETTINGS)
+    # Arguments
     ranking_path: Path = Path("/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt")
     index_path: Path = Path("/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5")
     ranking_output_path: Path = Path("rerank-avg.tsv")
@@ -95,7 +95,6 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     eval_metrics: list[str] = [nDCG@10]
     alphas: list[float] = [0, 0.25, 0.5, 0.75, 1]
-
 
     # load the index
     index: Index = OnDiskIndex.load(index_path)
