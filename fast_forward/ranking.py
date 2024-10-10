@@ -65,6 +65,8 @@ class Ranking(object):
         cols = ["q_id", "id", "score"]
         if "query" in df.columns:
             cols += ["query"]
+        if "q_no" in df.columns:
+            cols += ["q_no"]
         self._df = df.loc[:, cols].dropna()
         if copy:
             self._df = self._df.copy()
