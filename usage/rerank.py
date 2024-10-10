@@ -39,7 +39,7 @@ def parse_args():
         --dataset (str, required): Dataset to evaluate the re-ranked ranking.
         --rerank_cutoff (int, default=1000): Number of documents to re-rank per query.
         --encoding_method (EncodingMethod, required): Method to estimate query embeddings.
-        --k_top_docs (int, default=10): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+        --k_avg (int, default=10): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
         --in_memory (bool): Whether to load the index in memory.
         --device (str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"): Device to use for encoding queries.
         --eval_metrics (list of str, default=["nDCG@10"]): Metrics used for evaluation.
@@ -53,7 +53,7 @@ def parse_args():
     parser.add_argument("--dataset", type=str, default="msmarco-passage/trec-dl-2019", help="Dataset (using package ir-datasets).")
     parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
     parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default=EncodingMethod.AVERAGE, help="Method to estimate query embeddings.")
-    parser.add_argument("--k_top_docs", type=int, default=10, help="Number of top-ranked documents to use for EncodingMethod.AVERAGE.")
+    parser.add_argument("--k_avg", type=int, default=10, help="Number of top-ranked documents to use for EncodingMethod.AVERAGE.")
     parser.add_argument("--in_memory", action="store_true", help="Whether to load the index in memory.")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use for encoding queries.")
     parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
@@ -117,7 +117,7 @@ def create_query_representations(
         uniq_q: pd.DataFrame, 
         index: Index, 
         encoding_method: EncodingMethod, 
-        k_top_docs: int, 
+        k_avg: int, 
         device: str
     ) -> np.ndarray:
     """
@@ -128,7 +128,7 @@ def create_query_representations(
         uniq_q (pd.DataFrame): DataFrame containing unique queries and their indices.
         index (Index): The index used to retrieve document embeddings.
         encoding_method (EncodingMethod): Method to estimate query embeddings.
-        k_top_docs (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+        k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
         device (str): Device to use for encoding queries.
 
     Returns:
@@ -143,7 +143,7 @@ def create_query_representations(
             q_reps = index.encode_queries(uniq_q["query"])
         case EncodingMethod.AVERAGE:
             # Estimate the query embeddings as the average of the top-ranked document embeddings
-            top_docs = sparse_ranking.cut(k_top_docs)
+            top_docs = sparse_ranking.cut(k_avg)
             for q_id, query, q_no in tqdm(
                 uniq_q.itertuples(index=False), 
                 desc="Estimating query embeddings", 
@@ -204,7 +204,7 @@ def print_settings(
     rerank_cutoff: int, 
     encoding_method: EncodingMethod, 
     device: str, 
-    k_top_docs: int
+    k_avg: int
     ) -> None:
     """
     Print the settings used for re-ranking.
@@ -215,7 +215,7 @@ def print_settings(
     rerank_cutoff (int): Number of documents to re-rank per query.
     encoding_method (EncodingMethod): Method to estimate query embeddings.
     device (str): Device to use for encoding queries.
-    k_top_docs (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+    k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
     """
     settings_description: List[str] = [
         f"ranking={ranking_path.name}",
@@ -227,7 +227,7 @@ def print_settings(
         case EncodingMethod.TCTColBERT:
             settings_description.append(f"device={device}")
         case EncodingMethod.AVERAGE:
-            settings_description.append(f"k_top_docs={k_top_docs}")
+            settings_description.append(f"k_avg={k_avg}")
     print("\nSettings:\n\t" + ",\n\t".join(settings_description))
 
 
@@ -307,10 +307,10 @@ def main():
 
     index = load_index(args.index_path, args.in_memory)
     sparse_ranking, uniq_q = load_and_prepare_ranking(args.ranking_path, dataset, args.rerank_cutoff)
-    q_reps = create_query_representations(sparse_ranking, uniq_q, index, args.encoding_method, args.k_top_docs, args.device)
+    q_reps = create_query_representations(sparse_ranking, uniq_q, index, args.encoding_method, args.k_avg, args.device)
     dense_ranking = rerank(index, sparse_ranking, q_reps, args.ranking_output_path)
 
-    print_settings(args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_top_docs)
+    print_settings(args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg)
     print_results(args.alphas, sparse_ranking, dense_ranking, args.eval_metrics, dataset)
 
 
