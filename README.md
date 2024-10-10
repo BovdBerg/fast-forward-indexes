@@ -40,4 +40,6 @@ python usage/rerank.py \
 --index_path path/to/index_path.h5
 ```
 
-Full details on the program arguments can be found in the `usage/rerank.py::parse_args` method.
+For a detailed description of the program arguments:
+- Look in the `usage/rerank.py::parse_args` method.
+- Or run: ```python usage/rerank.py -h```
