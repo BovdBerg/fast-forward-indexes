@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from fast_forward.encoder import LambdaEncoder
+from fast_forward.encoder.lambda_ import LambdaEncoder
 from fast_forward.index.memory import InMemoryIndex
 from fast_forward.indexer import Indexer
 
