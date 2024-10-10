@@ -10,6 +10,7 @@ from typing import Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from fast_forward.encoder import Encoder
 from fast_forward.quantizer import Quantizer
@@ -76,7 +77,11 @@ class Index(abc.ABC):
             raise RuntimeError("Index does not have a query encoder.")
 
         result = []
-        for i in range(0, len(queries), self._encoder_batch_size):
+        for i in tqdm(
+            range(0, len(queries), self._encoder_batch_size),
+            desc="Encoding queries per batch",
+            total=(len(queries) + self._encoder_batch_size - 1) // self._encoder_batch_size,
+        ):
             batch = queries[i : i + self._encoder_batch_size]
             result.append(self.query_encoder(batch))
         return np.concatenate(result)
