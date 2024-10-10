@@ -287,7 +287,9 @@ def print_results(
         print(f"\t{ranking_type} ranking (alpha={alpha}): {score}")
 
 
-def main():
+def main(
+        args: argparse.Namespace
+    ) -> None:
     """
     Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
 
@@ -319,4 +321,4 @@ def main():
 
 if __name__ == '__main__':
     args = parse_args()
-    main()
+    main(args)
