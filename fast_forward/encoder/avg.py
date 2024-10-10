@@ -2,21 +2,19 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from fast_forward.encoder import Encoder
 from fast_forward.index import Index
 from fast_forward.ranking import Ranking
 
 
-class AvgEncoder(Encoder):
+class Estimator(Encoder):
     """
-    AvgEncoder estimates the query embeddings as the average of the top-ranked document embeddings.
+    Estimator is an abstract class for estimating query embeddings based on top-ranked documents.
 
     Attributes:
-        top_ranking (Ranking): The top-ranked documents used for averaging.
-        index (Index): The index containing document embeddings.
+        index (Index): An index object containing document embeddings.
+        top_ranking (TopRanking): An object containing the top-ranked documents.
     """
-
     def __init__(
         self,
         sparse_ranking: Ranking,
@@ -24,7 +22,7 @@ class AvgEncoder(Encoder):
         k_avg: int,
     ) -> None:
         """
-        Initialize the AvgEncoder with the given sparse ranking, index, and number of top documents to average.
+        Initialize the Estimator with the given sparse ranking, index, and number of top documents to average.
 
         Args:
             sparse_ranking (Ranking): The initial sparse ranking of documents.
@@ -36,6 +34,14 @@ class AvgEncoder(Encoder):
         self.index = index
 
 
+class AvgEncoder(Estimator):
+    """
+    AvgEncoder estimates the query embeddings as the average of the top-ranked document embeddings.
+
+    Attributes:
+        top_ranking (Ranking): The top-ranked documents used for averaging.
+        index (Index): The index containing document embeddings.
+    """
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
         """
         Estimate query embeddings by averaging the embeddings of the top-ranked documents.
