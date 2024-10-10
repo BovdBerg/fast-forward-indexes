@@ -307,11 +307,9 @@ def main(
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
             - Saved to ranking_output_path
     """
-    # Convert dataset argument to actual dataset object
     dataset = ir_datasets.load(args.dataset)
-
-    index = load_index(args.index_path, args.in_memory)
     sparse_ranking, uniq_q = load_and_prepare_ranking(args.ranking_path, dataset, args.rerank_cutoff)
+    index = load_index(args.index_path, args.in_memory)
     q_reps = create_query_representations(sparse_ranking, uniq_q, index, args.encoding_method, args.k_avg, args.device)
     dense_ranking = rerank(index, sparse_ranking, q_reps, args.ranking_output_path)
 
