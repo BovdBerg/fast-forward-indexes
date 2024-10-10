@@ -114,7 +114,7 @@ def load_and_prepare_ranking(
     return sparse_ranking, uniq_q
 
 
-def create_query_representations(
+def encode_queries(
         sparse_ranking: Ranking, 
         uniq_q: pd.DataFrame, 
         index: Index, 
@@ -315,7 +315,7 @@ def main(
     dataset = ir_datasets.load(args.dataset)
     sparse_ranking, uniq_q = load_and_prepare_ranking(args.ranking_path, dataset, args.rerank_cutoff)
     index = load_index(args.index_path, args.in_memory)
-    q_reps = create_query_representations(sparse_ranking, uniq_q, index, args.encoding_method, args.k_avg, args.device)
+    q_reps = encode_queries(sparse_ranking, uniq_q, index, args.encoding_method, args.k_avg, args.device)
     dense_ranking = rerank(index, sparse_ranking, q_reps, args.ranking_output_path)
 
     print_settings(args.dataset, args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg)
