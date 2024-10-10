@@ -202,12 +202,13 @@ def rerank(
         Ranking: The re-ranked ranking of documents.
     """
     # Compute scores
-    result = index._compute_scores(sparse_ranking._df, q_reps)
-    result["score"] = result["ff_score"]
+    dense_df = index._compute_scores(sparse_ranking._df, q_reps)
+    dense_df["score"] = dense_df["ff_score"]
+    print(f"dense_df:\n{dense_df}")
 
     # Create dense ranking object
     dense_ranking = Ranking(
-        result,
+        dense_df,
         name="fast-forward",
         dtype=sparse_ranking._df.dtypes["score"],
         copy=False,
