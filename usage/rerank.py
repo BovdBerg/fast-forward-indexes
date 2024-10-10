@@ -114,6 +114,36 @@ def load_and_prepare_ranking(
     return sparse_ranking, uniq_q
 
 
+def load_and_prepare_data(
+        dataset: str,
+        ranking_path: Path,
+        rerank_cutoff: int,
+        index_path: Path,
+        in_memory: bool
+    ) -> tuple[ir_datasets.Dataset, Ranking, pd.DataFrame, Index]:
+    """
+    Load and prepare the dataset, initial ranking, and index for re-ranking.
+
+    Args:
+        dataset (str): The name of the dataset to load (using the ir_datasets package).
+        ranking_path (Path): Path to the first-stage ranking file.
+        rerank_cutoff (int): Number of documents to re-rank per query.
+        index_path (Path): Path to the index file.
+        in_memory (bool): Whether to load the index in memory.
+
+    Returns:
+        tuple[ir_datasets.Dataset, Ranking, pd.DataFrame, Index]: 
+            - The loaded dataset.
+            - The initial sparse ranking of documents.
+            - A DataFrame containing unique query IDs.
+            - The loaded index.
+    """
+    dataset = ir_datasets.load(dataset)
+    sparse_ranking, uniq_q = load_and_prepare_ranking(ranking_path, dataset, rerank_cutoff)
+    index = load_index(index_path, in_memory)
+    return dataset, sparse_ranking, uniq_q, index
+
+
 def encode_queries(
         sparse_ranking: Ranking, 
         uniq_q: pd.DataFrame, 
@@ -312,9 +342,7 @@ def main(
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
             - Saved to ranking_output_path
     """
-    dataset = ir_datasets.load(args.dataset)
-    sparse_ranking, uniq_q = load_and_prepare_ranking(args.ranking_path, dataset, args.rerank_cutoff)
-    index = load_index(args.index_path, args.in_memory)
+    dataset, sparse_ranking, uniq_q, index = load_and_prepare_data(args.dataset, args.ranking_path, args.rerank_cutoff, args.index_path, args.in_memory)
     q_reps = encode_queries(sparse_ranking, uniq_q, index, args.encoding_method, args.k_avg, args.device)
     dense_ranking = rerank(index, sparse_ranking, q_reps, args.ranking_output_path)
 
