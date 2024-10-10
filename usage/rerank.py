@@ -179,7 +179,7 @@ def encode_queries(
 
     # Encode queries and print the embeddings
     q_reps = index.encode_queries(uniq_q["query"])
-    print(f"qreps shape: {q_reps.shape}, head:\n{pd.DataFrame(q_reps).head()}")
+    print(f"q_reps shape: {q_reps.shape}, head:\n{pd.DataFrame(q_reps).head()}")
     return q_reps
 
 
