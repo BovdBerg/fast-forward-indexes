@@ -199,6 +199,7 @@ def rerank(
 
 
 def print_settings(
+    dataset: str,
     ranking_path: Path, 
     index_path: Path, 
     rerank_cutoff: int, 
@@ -210,6 +211,7 @@ def print_settings(
     Print the settings used for re-ranking.
 
     Args:
+    dataset (str): Dataset to evaluate the re-ranked ranking.
     ranking_path (Path): Path to the first-stage ranking file.
     index_path (Path): Path to the index file.
     rerank_cutoff (int): Number of documents to re-rank per query.
@@ -218,6 +220,7 @@ def print_settings(
     k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
     """
     settings_description: List[str] = [
+        f"dataset={dataset}",
         f"ranking={ranking_path.name}",
         f"index={index_path.name}",
         f"rerank_cutoff={rerank_cutoff}",
@@ -310,7 +313,7 @@ def main():
     q_reps = create_query_representations(sparse_ranking, uniq_q, index, args.encoding_method, args.k_avg, args.device)
     dense_ranking = rerank(index, sparse_ranking, q_reps, args.ranking_output_path)
 
-    print_settings(args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg)
+    print_settings(args.dataset, args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg)
     print_results(args.alphas, sparse_ranking, dense_ranking, args.eval_metrics, dataset)
 
 
