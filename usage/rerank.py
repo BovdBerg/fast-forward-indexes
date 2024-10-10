@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List
 import numpy as np
 import torch
+from fast_forward.encoder.avg import AvgEncoder
 from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
@@ -166,29 +167,18 @@ def encode_queries(
     Returns:
         Dict[str, np.ndarray]: Dictionary of query IDs to their corresponding embeddings.
     """
-    # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
-    q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
+    # Choose query encoder based on encoding_method
     match encoding_method:
         case EncodingMethod.TCTColBERT:
-            # Default approach: encode queries using a query_encoder
             index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
-            q_reps = index.encode_queries(uniq_q["query"])
         case EncodingMethod.AVERAGE:
-            # Estimate the query embeddings as the average of the top-ranked document embeddings
-            top_docs = sparse_ranking.cut(k_avg)
-            for q_id, query, q_no in tqdm(
-                uniq_q.itertuples(index=False), 
-                desc="Estimating query embeddings", 
-                total=len(uniq_q)
-            ):
-                # get the embeddings of the top_docs from the index
-                top_docs_ids = top_docs[q_id].keys()
-                d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
-                if index.quantizer is not None:
-                    d_reps = index.quantizer.decode(d_reps)
+            index.query_encoder = AvgEncoder(sparse_ranking, index, k_avg)
+        case _:
+            raise ValueError(f"Unsupported encoding method: {encoding_method}")
+    assert index.query_encoder is not None, "Query encoder not set in index."
 
-                # calculate the average of the embeddings and save it
-                q_reps[q_no] = np.mean(d_reps, axis=0)
+    # Encode queries and print the embeddings
+    q_reps = index.encode_queries(uniq_q["query"])
     print(f"qreps shape: {q_reps.shape}, head:\n{pd.DataFrame(q_reps).head()}")
     return q_reps
 
