@@ -106,11 +106,11 @@ def load_and_prepare_ranking(
     # Find unique queries and save their index in q_no column
     uniq_q = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
     uniq_q["q_no"] = uniq_q.index
-    print(f"uniq_q shape: {uniq_q.shape}, head:\n{uniq_q.head()}")
+    print(f"uniq_q:\n{uniq_q}")
 
     # Merge q_no into the sparse ranking
     sparse_ranking._df = sparse_ranking._df.merge(uniq_q, on=["q_id", "query"])
-    print(f"sparse_ranking._df shape: {sparse_ranking._df.shape}, head:\n{sparse_ranking._df.head()}")
+    print(f"sparse_ranking._df:\n{sparse_ranking._df}")
 
     return sparse_ranking, uniq_q
 
@@ -179,7 +179,7 @@ def encode_queries(
 
     # Encode queries and print the embeddings
     q_reps = index.encode_queries(uniq_q["query"])
-    print(f"q_reps shape: {q_reps.shape}, head:\n{pd.DataFrame(q_reps).head()}")
+    print(f"q_reps: {pd.DataFrame(q_reps)}")
     return q_reps
 
 
