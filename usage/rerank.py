@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List
 import numpy as np
 import torch
+from fast_forward.encoder.avg import AvgEncoder
 from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
@@ -105,11 +106,11 @@ def load_and_prepare_ranking(
     # Find unique queries and save their index in q_no column
     uniq_q = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
     uniq_q["q_no"] = uniq_q.index
-    print(f"uniq_q shape: {uniq_q.shape}, head:\n{uniq_q.head()}")
+    print(f"uniq_q:\n{uniq_q}")
 
     # Merge q_no into the sparse ranking
     sparse_ranking._df = sparse_ranking._df.merge(uniq_q, on=["q_id", "query"])
-    print(f"sparse_ranking._df shape: {sparse_ranking._df.shape}, head:\n{sparse_ranking._df.head()}")
+    print(f"sparse_ranking._df:\n{sparse_ranking._df}")
 
     return sparse_ranking, uniq_q
 
@@ -166,30 +167,19 @@ def encode_queries(
     Returns:
         Dict[str, np.ndarray]: Dictionary of query IDs to their corresponding embeddings.
     """
-    # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
-    q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
+    # Choose query encoder based on encoding_method
     match encoding_method:
         case EncodingMethod.TCTColBERT:
-            # Default approach: encode queries using a query_encoder
             index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
-            q_reps = index.encode_queries(uniq_q["query"])
         case EncodingMethod.AVERAGE:
-            # Estimate the query embeddings as the average of the top-ranked document embeddings
-            top_docs = sparse_ranking.cut(k_avg)
-            for q_id, query, q_no in tqdm(
-                uniq_q.itertuples(index=False), 
-                desc="Estimating query embeddings", 
-                total=len(uniq_q)
-            ):
-                # get the embeddings of the top_docs from the index
-                top_docs_ids = top_docs[q_id].keys()
-                d_reps: np.ndarray = index._get_vectors(top_docs_ids)[0]
-                if index.quantizer is not None:
-                    d_reps = index.quantizer.decode(d_reps)
+            index.query_encoder = AvgEncoder(sparse_ranking, index, k_avg)
+        case _:
+            raise ValueError(f"Unsupported encoding method: {encoding_method}")
+    assert index.query_encoder is not None, "Query encoder not set in index."
 
-                # calculate the average of the embeddings and save it
-                q_reps[q_no] = np.mean(d_reps, axis=0)
-    print(f"qreps shape: {q_reps.shape}, head:\n{pd.DataFrame(q_reps).head()}")
+    # Encode queries and print the embeddings
+    q_reps = index.encode_queries(uniq_q["query"])
+    print(f"q_reps: {pd.DataFrame(q_reps)}")
     return q_reps
 
 
@@ -212,12 +202,13 @@ def rerank(
         Ranking: The re-ranked ranking of documents.
     """
     # Compute scores
-    result = index._compute_scores(sparse_ranking._df, q_reps)
-    result["score"] = result["ff_score"]
+    dense_df = index._compute_scores(sparse_ranking._df, q_reps)
+    dense_df["score"] = dense_df["ff_score"]
+    print(f"dense_df:\n{dense_df}")
 
     # Create dense ranking object
     dense_ranking = Ranking(
-        result,
+        dense_df,
         name="fast-forward",
         dtype=sparse_ranking._df.dtypes["score"],
         copy=False,
