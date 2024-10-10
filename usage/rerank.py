@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 from pathlib import Path
 from typing import List
 import numpy as np
@@ -21,8 +21,8 @@ class EncodingMethod(Enum):
     TCTColBERT: Use the TCTColBERT query encoder.
     AVERAGE: Estimate the query embeddings as the average of the top-ranked document embeddings.
     """
-    TCTColBERT = 1
-    AVERAGE = 2
+    TCTColBERT = auto()
+    AVERAGE = auto()
 
 
 def parse_args():
