@@ -33,17 +33,17 @@ def parse_args():
         argparse.Namespace: Parsed command-line arguments.
 
     Arguments:
-        --ranking_path (Path, required): Path to the first-stage ranking file.
-        --index_path (Path, required): Path to the index file.
-        --ranking_output_path (Path, required): Path to save the re-ranked ranking.
-        --dataset (str, required): Dataset to evaluate the re-ranked ranking.
-        --rerank_cutoff (int, default=1000): Number of documents to re-rank per query.
-        --encoding_method (EncodingMethod, required): Method to estimate query embeddings.
-        --k_avg (int, default=10): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+        --ranking_path (Path): Path to the first-stage ranking file.
+        --index_path (Path): Path to the index file.
+        --ranking_output_path (Path): Path to save the re-ranked ranking.
+        --dataset (str): Dataset to evaluate the re-ranked ranking.
+        --rerank_cutoff (int): Number of documents to re-rank per query.
+        --encoding_method (EncodingMethod): Method to estimate query embeddings.
+        --k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
         --in_memory (bool): Whether to load the index in memory.
         --device (str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"): Device to use for encoding queries.
-        --eval_metrics (list of str, default=["nDCG@10"]): Metrics used for evaluation.
-        --alphas (list of float, default=[0, 0.25, 0.5, 0.75, 1]): List of interpolation parameters for evaluation.
+        --eval_metrics (list of str): Metrics used for evaluation.
+        --alphas (list of float): List of interpolation parameters for evaluation.
     """
     parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
     # TODO [at hand-in]: Remove default paths (ranking_path, index_path) form the arguments
