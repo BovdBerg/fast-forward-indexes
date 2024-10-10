@@ -1,18 +1,15 @@
 from enum import Enum, auto
 from pathlib import Path
 from typing import List
-import numpy as np
 import torch
 from fast_forward.encoder.avg import AvgEncoder
 from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
-from tqdm import tqdm
 import ir_datasets
 from ir_measures import calc_aggregate, measures
 from fast_forward.util import to_ir_measures
-import pandas as pd
 import argparse
 
 
@@ -64,163 +61,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_index(index_path: Path, in_memory: bool) -> Index:
-    """
-    Load the index from the specified path.
-
-    Args:
-        index_path (Path): Path to the index file.
-        in_memory (bool): Whether to load the index in memory.
-
-    Returns:
-        Index: The loaded index.
-    """
-    index: Index = OnDiskIndex.load(index_path)
-    if in_memory:
-        index = index.to_memory()
-    return index
-
-
-def load_and_prepare_ranking(
-        ranking_path: Path, 
-        dataset, 
-        rerank_cutoff: int
-    ) -> Ranking:
-    """
-    Load and prepare the initial ranking of documents.
-
-    Args:
-        ranking_path (Path): Path to the first-stage ranking file.
-        dataset: Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
-        rerank_cutoff (int): Number of documents to re-rank per query.
-
-    Returns:
-        Tuple[Ranking, Set[str]]: The initial ranking and a set of unique query IDs.
-    """
-    # Load the ranking and attach the queries
-    sparse_ranking: Ranking = Ranking.from_file(
-        ranking_path,
-        queries={q.query_id: q.text for q in dataset.queries_iter()},
-    ).cut(rerank_cutoff)  # Cutoff to top_k docs per query
-
-    # Find unique queries and save their index in q_no column
-    uniq_q = sparse_ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
-    uniq_q["q_no"] = uniq_q.index
-    print(f"uniq_q:\n{uniq_q}")
-
-    # Merge q_no into the sparse ranking
-    sparse_ranking._df = sparse_ranking._df.merge(uniq_q, on=["q_id", "query"])
-    print(f"sparse_ranking._df:\n{sparse_ranking._df}")
-
-    return sparse_ranking, uniq_q
-
-
-def load_and_prepare_data(
-        dataset: str,
-        ranking_path: Path,
-        rerank_cutoff: int,
-        index_path: Path,
-        in_memory: bool
-    ) -> tuple[ir_datasets.Dataset, Ranking, pd.DataFrame, Index]:
-    """
-    Load and prepare the dataset, initial ranking, and index for re-ranking.
-
-    Args:
-        dataset (str): The name of the dataset to load (using the ir_datasets package).
-        ranking_path (Path): Path to the first-stage ranking file.
-        rerank_cutoff (int): Number of documents to re-rank per query.
-        index_path (Path): Path to the index file.
-        in_memory (bool): Whether to load the index in memory.
-
-    Returns:
-        tuple[ir_datasets.Dataset, Ranking, pd.DataFrame, Index]: 
-            - The loaded dataset.
-            - The initial sparse ranking of documents.
-            - A DataFrame containing unique query IDs.
-            - The loaded index.
-    """
-    dataset = ir_datasets.load(dataset)
-    sparse_ranking, uniq_q = load_and_prepare_ranking(ranking_path, dataset, rerank_cutoff)
-    index = load_index(index_path, in_memory)
-    return dataset, sparse_ranking, uniq_q, index
-
-
-def encode_queries(
-        sparse_ranking: Ranking, 
-        uniq_q: pd.DataFrame, 
-        index: Index, 
-        encoding_method: EncodingMethod, 
-        k_avg: int, 
-        device: str
-    ) -> np.ndarray:
-    """
-    Create query representations based on the specified encoding method.
-
-    Args:
-        sparse_ranking (Ranking): The initial sparse ranking of documents.
-        uniq_q (Set[str]): Set of unique query IDs.
-        index (Index): The loaded index.
-        encoding_method (EncodingMethod): Method to estimate query embeddings.
-        k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
-        device (str): Device to use for encoding queries.
-
-    Returns:
-        Dict[str, np.ndarray]: Dictionary of query IDs to their corresponding embeddings.
-    """
-    # Choose query encoder based on encoding_method
-    match encoding_method:
-        case EncodingMethod.TCTColBERT:
-            index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=device)
-        case EncodingMethod.AVERAGE:
-            index.query_encoder = AvgEncoder(sparse_ranking, index, k_avg)
-        case _:
-            raise ValueError(f"Unsupported encoding method: {encoding_method}")
-    assert index.query_encoder is not None, "Query encoder not set in index."
-
-    # Encode queries and print the embeddings
-    q_reps = index.encode_queries(uniq_q["query"])
-    print(f"q_reps: {pd.DataFrame(q_reps)}")
-    return q_reps
-
-
-def rerank(
-        index: Index, 
-        sparse_ranking: Ranking, 
-        q_reps: np.ndarray,
-        ranking_output_path: Path
-    ) -> Ranking:
-    """
-    Re-rank documents based on the similarity to query embeddings.
-
-    Args:
-        index (Index): The loaded index.
-        sparse_ranking (Ranking): The initial sparse ranking of documents.
-        q_reps (Dict[str, np.ndarray]): Dictionary of query IDs to their corresponding embeddings.
-        ranking_output_path (Path): Path to save the re-ranked ranking.
-
-    Returns:
-        Ranking: The re-ranked ranking of documents.
-    """
-    # Compute scores
-    dense_df = index._compute_scores(sparse_ranking._df, q_reps)
-    dense_df["score"] = dense_df["ff_score"]
-    print(f"dense_df:\n{dense_df}")
-
-    # Create dense ranking object
-    dense_ranking = Ranking(
-        dense_df,
-        name="fast-forward",
-        dtype=sparse_ranking._df.dtypes["score"],
-        copy=False,
-        is_sorted=False,
-    )
-
-    # Save dense ranking to output file
-    dense_ranking.save(ranking_output_path)
-
-    return dense_ranking
-
-
 def print_settings(
     dataset: str,
     ranking_path: Path, 
@@ -257,28 +97,6 @@ def print_settings(
     print("\nSettings:\n\t" + ",\n\t".join(settings_description))
 
 
-def get_measure(
-        metric_str: str
-    ) -> measures.Measure:
-    """
-    Parses a metric string and returns the corresponding measure function.
-
-    Args:
-        metric_str (str): A string representing the metric and its parameter, 
-                          formatted as 'metric_name@value'.
-
-    Returns:
-        measures.Measure: The measure function corresponding to the metric name, 
-                          parameterized by the given value.
-
-    Raises:
-        AttributeError: If the metric name does not correspond to an attribute in `measures`.
-        ValueError: If the metric string is not properly formatted or the value is not an integer.
-    """
-    metric_name, at_value = metric_str.split('@')
-    return getattr(measures, metric_name) @ int(at_value)
-
-
 def print_results(
     alphas: List[float], 
     sparse_ranking: Ranking, 
@@ -296,7 +114,10 @@ def print_results(
         eval_metrics (List[str]): Metrics used for evaluation.
         dataset: Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
     """
-    eval_metrics_objects = [get_measure(metric_str) for metric_str in eval_metrics]
+    eval_metrics_objects = []
+    for metric_str in eval_metrics:
+        metric_name, at_value = metric_str.split('@')
+        eval_metrics_objects.append(getattr(measures, metric_name) @ int(at_value))
 
     print('Results:')
     for alpha in alphas:
@@ -333,9 +154,34 @@ def main(
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
             - Saved to ranking_output_path
     """
-    dataset, sparse_ranking, uniq_q, index = load_and_prepare_data(args.dataset, args.ranking_path, args.rerank_cutoff, args.index_path, args.in_memory)
-    q_reps = encode_queries(sparse_ranking, uniq_q, index, args.encoding_method, args.k_avg, args.device)
-    dense_ranking = rerank(index, sparse_ranking, q_reps, args.ranking_output_path)
+    # Load dataset
+    dataset = ir_datasets.load(args.dataset)
+
+    # Load ranking and attach queries
+    sparse_ranking: Ranking = Ranking.from_file(
+        args.ranking_path,
+        queries={q.query_id: q.text for q in dataset.queries_iter()},
+    )
+    sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
+
+    # Load index
+    index: Index = OnDiskIndex.load(args.index_path)
+    if args.in_memory:
+        index = index.to_memory()
+
+    # Choose query encoder based on encoding_method
+    match args.encoding_method:
+        case EncodingMethod.TCTColBERT:
+            index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
+        case EncodingMethod.AVERAGE:
+            index.query_encoder = AvgEncoder(sparse_ranking_cut, index, args.k_avg)
+        case _:
+            raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
+    assert index.query_encoder is not None, "Query encoder not set in index."
+
+    # Create and save dense_ranking by ranking on similarity between (q_rep, d_rep)
+    dense_ranking = index(sparse_ranking_cut)
+    dense_ranking.save(args.ranking_output_path)
 
     print_settings(args.dataset, args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg)
     print_results(args.alphas, sparse_ranking, dense_ranking, args.eval_metrics, dataset)
