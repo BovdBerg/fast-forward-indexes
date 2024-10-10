@@ -46,9 +46,9 @@ class AvgEncoder(Encoder):
         Returns:
             np.ndarray: An array of query embeddings.
         """
-        q_reps: np.ndarray = np.zeros((len(self.top_ranking), self.index.dim), dtype=np.float32)
+        q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
 
-        for query in tqdm(queries, desc="Estimating query embeddings", total=len(queries)):
+        for i, query in enumerate(tqdm(queries, desc="Estimating query embeddings", total=len(queries))):
             # Get the ids of the top-ranked documents for the query
             top_docs: pd.DataFrame = self.top_ranking._df.query("query == @query")
             top_docs_ids: Sequence[int] = top_docs["id"].values
@@ -59,7 +59,6 @@ class AvgEncoder(Encoder):
                 d_reps = self.index.quantizer.decode(d_reps)
 
             # Calculate the average of the embeddings and save it to q_no index in q_reps
-            q_no = top_docs["q_no"].iloc[0]
-            q_reps[q_no] = np.mean(d_reps, axis=0)
+            q_reps[i] = np.mean(d_reps, axis=0)
 
         return q_reps
