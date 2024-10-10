@@ -16,10 +16,12 @@ import argparse
 
 
 class EncodingMethod(Enum):
-    """Enum for encoding method.
+    """
+    Enumeration for different methods to estimate query embeddings.
 
-    TCTColBERT: Use the TCTColBERT query encoder.
-    AVERAGE: Estimate the query embeddings as the average of the top-ranked document embeddings.
+    Attributes:
+        TCTColBERT: Use TCT-ColBERT method for encoding queries.
+        AVERAGE: Use average of top-ranked documents for encoding queries.
     """
     TCTColBERT = auto()
     AVERAGE = auto()
@@ -63,7 +65,7 @@ def parse_args():
 
 def load_index(index_path: Path, in_memory: bool) -> Index:
     """
-    Load the index from disk and optionally move it to memory.
+    Load the index from the specified path.
 
     Args:
         index_path (Path): Path to the index file.
@@ -84,7 +86,7 @@ def load_and_prepare_ranking(
         rerank_cutoff: int
     ) -> Ranking:
     """
-    Load the ranking, attach the queries, and prepare the data for re-ranking.
+    Load and prepare the initial ranking of documents.
 
     Args:
         ranking_path (Path): Path to the first-stage ranking file.
@@ -92,7 +94,7 @@ def load_and_prepare_ranking(
         rerank_cutoff (int): Number of documents to re-rank per query.
 
     Returns:
-        Ranking: Prepared ranking with unique queries and their indices.
+        Tuple[Ranking, Set[str]]: The initial ranking and a set of unique query IDs.
     """
     # Load the ranking and attach the queries
     sparse_ranking: Ranking = Ranking.from_file(
@@ -124,15 +126,15 @@ def create_query_representations(
     Create query representations based on the specified encoding method.
 
     Args:
-        sparse_ranking (Ranking): The initial ranking of documents.
-        uniq_q (pd.DataFrame): DataFrame containing unique queries and their indices.
-        index (Index): The index used to retrieve document embeddings.
+        sparse_ranking (Ranking): The initial sparse ranking of documents.
+        uniq_q (Set[str]): Set of unique query IDs.
+        index (Index): The loaded index.
         encoding_method (EncodingMethod): Method to estimate query embeddings.
         k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
         device (str): Device to use for encoding queries.
 
     Returns:
-        np.ndarray: Query representations.
+        Dict[str, np.ndarray]: Dictionary of query IDs to their corresponding embeddings.
     """
     # Create q_reps as np.ndarray with shape (len(ranking), index.dim) where index.dim is the dimension of the embeddings, often 768.
     q_reps: np.ndarray = np.zeros((len(sparse_ranking), index.dim), dtype=np.float32)
@@ -168,16 +170,16 @@ def rerank(
         ranking_output_path: Path
     ) -> Ranking:
     """
-    Re-ranks a given sparse ranking using dense representations and saves the result.
+    Re-rank documents based on the similarity to query embeddings.
 
     Args:
-        index (Index): The index object used to compute scores.
-        sparse_ranking (Ranking): The initial sparse ranking to be re-ranked.
-        q_reps (np.ndarray): Query representations used for re-ranking.
-        ranking_output_path (Path): The file path where the re-ranked results will be saved.
+        index (Index): The loaded index.
+        sparse_ranking (Ranking): The initial sparse ranking of documents.
+        q_reps (Dict[str, np.ndarray]): Dictionary of query IDs to their corresponding embeddings.
+        ranking_output_path (Path): Path to save the re-ranked ranking.
 
     Returns:
-        Ranking: The re-ranked results as a Ranking object.
+        Ranking: The re-ranked ranking of documents.
     """
     # Compute scores
     result = index._compute_scores(sparse_ranking._df, q_reps)
@@ -211,13 +213,13 @@ def print_settings(
     Print the settings used for re-ranking.
 
     Args:
-    dataset (str): Dataset to evaluate the re-ranked ranking.
-    ranking_path (Path): Path to the first-stage ranking file.
-    index_path (Path): Path to the index file.
-    rerank_cutoff (int): Number of documents to re-rank per query.
-    encoding_method (EncodingMethod): Method to estimate query embeddings.
-    device (str): Device to use for encoding queries.
-    k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+        dataset (str): Dataset to evaluate the re-ranked ranking.
+        ranking_path (Path): Path to the first-stage ranking file.
+        index_path (Path): Path to the index file.
+        rerank_cutoff (int): Number of documents to re-rank per query.
+        encoding_method (EncodingMethod): Method to estimate query embeddings.
+        device (str): Device to use for encoding queries.
+        k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
     """
     settings_description: List[str] = [
         f"dataset={dataset}",
@@ -242,11 +244,11 @@ def get_measure(
 
     Args:
         metric_str (str): A string representing the metric and its parameter, 
-                            formatted as 'metric_name@value'.
+                          formatted as 'metric_name@value'.
 
     Returns:
-        function: The measure function corresponding to the metric name, 
-                    parameterized by the given value.
+        measures.Measure: The measure function corresponding to the metric name, 
+                          parameterized by the given value.
 
     Raises:
         AttributeError: If the metric name does not correspond to an attribute in `measures`.
@@ -267,11 +269,11 @@ def print_results(
     Print the evaluation results for different interpolation parameters.
 
     Args:
-    alphas (List[float]): List of interpolation parameters for evaluation.
-    sparse_ranking (Ranking): The initial sparse ranking of documents.
-    dense_ranking (Ranking): The re-ranked dense ranking of documents.
-    eval_metrics (List[str]): Metrics used for evaluation.
-    dataset: Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
+        alphas (List[float]): List of interpolation parameters for evaluation.
+        sparse_ranking (Ranking): The initial sparse ranking of documents.
+        dense_ranking (Ranking): The re-ranked dense ranking of documents.
+        eval_metrics (List[str]): Metrics used for evaluation.
+        dataset: Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
     """
     eval_metrics_objects = [get_measure(metric_str) for metric_str in eval_metrics]
 
@@ -297,6 +299,9 @@ def main(
     It uses various encoding methods and evaluation metrics to achieve this.
 
     See parse_args() for command-line arguments.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line arguments.
 
     Input:
         ranking (List[Tuple]): A ranking of documents for each given query.
