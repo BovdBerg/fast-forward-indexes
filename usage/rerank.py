@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List
 import numpy as np
 import torch
-from fast_forward.encoder import TCTColBERTQueryEncoder
+from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking

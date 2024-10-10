@@ -1,6 +1,6 @@
 from pathlib import Path
 import torch
-from fast_forward.encoder import TCTColBERTQueryEncoder, TCTColBERTDocumentEncoder
+from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder, TCTColBERTDocumentEncoder
 from fast_forward import Indexer
 from fast_forward.index.disk import OnDiskIndex
 import pyterrier as pt

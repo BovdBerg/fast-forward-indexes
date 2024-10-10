@@ -39,7 +39,7 @@ Using a Fast-Forward index is as simple as providing a TREC run with sparse scor
 ```python
 from pathlib import Path
 from fast_forward import OnDiskIndex, Mode, Ranking
-from fast_forward.encoder import TCTColBERTQueryEncoder
+from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder
 
 # choose a pre-trained query encoder
 encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco")
