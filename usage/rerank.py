@@ -2,7 +2,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import List
 import torch
-from fast_forward.encoder.avg import AvgEncoder
+from fast_forward.encoder.avg import AvgEncoder, WeightedAvgEncoder
 from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
@@ -23,6 +23,7 @@ class EncodingMethod(Enum):
     """
     TCTColBERT = auto()
     AVERAGE = auto()
+    WEIGHTED_AVERAGE = auto()
 
 
 def parse_args():
@@ -175,6 +176,10 @@ def main(
             index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
         case EncodingMethod.AVERAGE:
             index.query_encoder = AvgEncoder(sparse_ranking_cut, index, args.k_avg)
+        case EncodingMethod.WEIGHTED_AVERAGE:
+            # TODO: decide how to determine alphas, maybe give alphas mode as program argument.
+            alphas = [0, 0.25, 0.5, 0.75, 1]
+            index.query_encoder = WeightedAvgEncoder(sparse_ranking_cut, index, args.k_avg, alphas)
         case _:
             raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
     assert index.query_encoder is not None, "Query encoder not set in index."
