@@ -1,8 +1,8 @@
-from enum import Enum, auto
+from enum import Enum
 from pathlib import Path
 from typing import List
 import torch
-from fast_forward.encoder.avg import AvgEncoder, DistributionMethod, WeightedAvgEncoder
+from fast_forward.encoder.avg import DistributionMethod, WeightedAvgEncoder
 from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
@@ -19,10 +19,9 @@ class EncodingMethod(Enum):
 
     Attributes:
         TCTColBERT: Use TCT-ColBERT method for encoding queries.
-        AVERAGE: Use average of top-ranked documents for encoding queries.
+        WEIGHTED_AVERAGE: Use weighted average method for encoding queries. Averages over top-ranked document embeddings.
     """
     TCTCOLBERT = "TCTCOLBERT"
-    AVERAGE = "AVERAGE"
     WEIGHTED_AVERAGE = "WEIGHTED_AVERAGE"
 
 
@@ -83,9 +82,9 @@ def print_settings(
         index_path (Path): Path to the index file.
         rerank_cutoff (int): Number of documents to re-rank per query.
         encoding_method (EncodingMethod): Method to estimate query embeddings.
-        device (str): Device to use for encoding queries.
-        k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
-        distribution_method (DistributionMethod): Method to estimate query embeddings.
+        device (str): Device to use for encoding queries. Only used for query_encoder based EncodingMethods.
+        k_avg (int): Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.
+        distribution_method (DistributionMethod): Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.
     """
     settings_description: List[str] = [
         f"dataset={dataset}",
@@ -99,7 +98,7 @@ def print_settings(
             settings_description.extend([
                 f"device={device}",
             ])
-        case EncodingMethod.AVERAGE | EncodingMethod.WEIGHTED_AVERAGE:
+        case EncodingMethod.WEIGHTED_AVERAGE:
             settings_description.extend([
                 f"k_avg={k_avg}",
                 f"distribution_method={distribution_method.name}",
@@ -183,8 +182,6 @@ def main(
     match args.encoding_method:
         case EncodingMethod.TCTCOLBERT:
             index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
-        case EncodingMethod.AVERAGE:
-            index.query_encoder = AvgEncoder(sparse_ranking_cut, index, args.k_avg)
         case EncodingMethod.WEIGHTED_AVERAGE:
             index.query_encoder = WeightedAvgEncoder(sparse_ranking_cut, index, args.k_avg, args.distribution_method)
         case _:
