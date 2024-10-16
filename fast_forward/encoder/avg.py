@@ -78,7 +78,7 @@ class WeightedAvgEncoder(Encoder):
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
         """
-        Estimate query embeddings by averaging the embeddings of the top-ranked documents with interpolation.
+        Estimate query embeddings by weighted averaging the embeddings of the top-ranked documents.
 
         Args:
             queries (Sequence[str]): A sequence of query strings.
