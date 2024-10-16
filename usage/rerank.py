@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List
 import torch
 from fast_forward.encoder.avg import ProbDist, WeightedAvgEncoder
-from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder
+from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
