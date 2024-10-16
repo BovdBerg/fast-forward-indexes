@@ -83,7 +83,7 @@ class WeightedAvgEncoder(Estimator):
         sparse_ranking: Ranking,
         index: Index,
         k_avg: int,
-        alphas: Sequence[float],
+        weights: Sequence[float],
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
@@ -92,9 +92,9 @@ class WeightedAvgEncoder(Estimator):
             sparse_ranking (Ranking): The initial sparse ranking of documents.
             index (Index): The index containing document embeddings.
             k_avg (int): Number of top-ranked documents to use for averaging.
-            alphas (Sequence[float]): A sequence of interpolation parameters.
+            weights (Sequence[float]): A sequence of interpolation parameters.
         """
-        self.alphas = alphas
+        self.weights = weights
         super().__init__(sparse_ranking, index, k_avg)
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
@@ -120,6 +120,6 @@ class WeightedAvgEncoder(Estimator):
                 d_reps = self.index.quantizer.decode(d_reps)
 
             # Calculate the weighted average of the embeddings and save it to q_no index in q_reps
-            q_reps[i] = np.average(d_reps, axis=0, weights=self.alphas)
+            q_reps[i] = np.average(d_reps, axis=0, weights=self.weights)
 
         return q_reps
