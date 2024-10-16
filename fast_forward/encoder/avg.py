@@ -14,8 +14,14 @@ class DistributionMethod(Enum):
 
     Attributes:
         UNIFORM: all top-ranked documents are weighted equally.
+        GEOMETRIC: weights decrease geometrically with rank.
+        EXPONENTIAL: weights decrease exponentially with rank.
+        HALF_NORMAL: weights decrease with the half-normal distribution.
     """
     UNIFORM = "UNIFORM"
+    GEOMETRIC = "GEOMETRIC"
+    EXPONENTIAL = "EXPONENTIAL"
+    HALF_NORMAL = "HALF_NORMAL"
 
 
 class WeightedAvgEncoder(Encoder):
@@ -60,6 +66,12 @@ class WeightedAvgEncoder(Encoder):
         match self.distribution_method:
             case DistributionMethod.UNIFORM:
                 return np.ones(self.k_avg) / self.k_avg
+            case DistributionMethod.GEOMETRIC:
+                return np.geomspace(1, 0.1, self.k_avg)
+            case DistributionMethod.EXPONENTIAL:
+                return np.exp(-np.linspace(0, 1, self.k_avg))
+            case DistributionMethod.HALF_NORMAL:
+                return np.flip(np.exp(-np.linspace(0, 1, self.k_avg) ** 2))
             case _:
                 raise ValueError(f"Unknown distribution method: {self.distribution_method}")
 
