@@ -1,6 +1,8 @@
 from enum import Enum
 from pathlib import Path
 from typing import List
+import numpy as np
+from scipy import sparse
 import torch
 from fast_forward.encoder.avg import ProbDist, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
@@ -123,12 +125,32 @@ def print_results(
         eval_metrics (List[str]): Metrics used for evaluation.
         dataset: Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
     """
+    print('Results:')
     eval_metrics_objects = []
     for metric_str in eval_metrics:
         metric_name, at_value = metric_str.split('@')
         eval_metrics_objects.append(getattr(measures, metric_name) @ int(at_value))
 
-    print('Results:')
+    dense_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(dense_ranking))
+    print(f"\tDense ranking (alpha=0): {dense_score}")
+
+    sparse_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(sparse_ranking))
+    print(f"\tSparse ranking (alpha=1): {sparse_score}")
+
+    # Estimate best interpolation alpha as weighted average of sparse- and dense-nDCG scores
+    dense_nDCG10 = dense_score[measures.nDCG @ 10]
+    sparse_nDCG10 = sparse_score[measures.nDCG @ 10]
+    weights = [dense_nDCG10, sparse_nDCG10]
+    if sparse_nDCG10 == dense_nDCG10:
+        best_alpha = 0.5
+    elif dense_nDCG10 > sparse_nDCG10:
+        best_alpha = np.average([0, 0.5], weights=weights)
+    else:
+        best_alpha = np.average([0.5, 1], weights=weights)
+    assert 0 <= best_alpha <= 1, f"Invalid best_alpha: {best_alpha}"
+    best_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(sparse_ranking.interpolate(dense_ranking, best_alpha)))
+    print(f"\tEstimated best-nDCG@10 interpolated ranking (alpha~={best_alpha}): {best_score}")
+
     for alpha in alphas:
         interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
         score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
