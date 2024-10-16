@@ -2,7 +2,6 @@ from enum import Enum
 from pathlib import Path
 from typing import List
 import numpy as np
-from scipy import sparse
 import torch
 from fast_forward.encoder.avg import ProbDist, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
@@ -61,7 +60,7 @@ def parse_args():
     parser.add_argument("--in_memory", action="store_true", help="Whether to load the index in memory.")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use for encoding queries.")
     parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
-    parser.add_argument("--alphas", type=float, nargs='+', default=[0, 0.25, 0.5, 0.75, 1], help="List of interpolation parameters for evaluation.")
+    parser.add_argument("--alphas", type=float, nargs='+', required=False, help="List of interpolation parameters for evaluation.")
     return parser.parse_args()
 
 
@@ -151,15 +150,16 @@ def print_results(
     best_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(sparse_ranking.interpolate(dense_ranking, best_alpha)))
     print(f"\tEstimated best-nDCG@10 interpolated ranking (alpha~={best_alpha}): {best_score}")
 
-    for alpha in alphas:
-        interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
-        score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
-        ranking_type = (
-            "Sparse" if alpha == 1 else 
-            "Dense" if alpha == 0 else 
-            "Interpolated"
-        )
-        print(f"\t{ranking_type} ranking (alpha={alpha}): {score}")
+    if alphas is not None:
+        for alpha in alphas:
+            interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
+            score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
+            ranking_type = (
+                "Sparse" if alpha == 1 else 
+                "Dense" if alpha == 0 else 
+                "Interpolated"
+            )
+            print(f"\t{ranking_type} ranking (alpha={alpha}): {score}")
 
 
 def main(
