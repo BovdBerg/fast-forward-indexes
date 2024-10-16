@@ -21,9 +21,9 @@ class EncodingMethod(Enum):
         TCTColBERT: Use TCT-ColBERT method for encoding queries.
         AVERAGE: Use average of top-ranked documents for encoding queries.
     """
-    TCTColBERT = auto()
-    AVERAGE = auto()
-    WEIGHTED_AVERAGE = auto()
+    TCTCOLBERT = "TCTCOLBERT"
+    AVERAGE = "AVERAGE"
+    WEIGHTED_AVERAGE = "WEIGHTED_AVERAGE"
 
 
 def parse_args():
@@ -40,7 +40,8 @@ def parse_args():
         --dataset (str): Dataset to evaluate the re-ranked ranking.
         --rerank_cutoff (int): Number of documents to re-rank per query.
         --encoding_method (EncodingMethod): Method to estimate query embeddings.
-        --k_avg (int): Number of top-ranked documents to use for EncodingMethod.AVERAGE.
+        --k_avg (int): Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.
+        --distribution_method (DistributionMethod): Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.
         --in_memory (bool): Whether to load the index in memory.
         --device (str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"): Device to use for encoding queries.
         --eval_metrics (list of str): Metrics used for evaluation.
@@ -94,8 +95,10 @@ def print_settings(
         f"encoding_method={encoding_method.name}",
     ]
     match encoding_method:  # Append method-specific settings
-        case EncodingMethod.TCTColBERT:
-            settings_description.append(f"device={device}")
+        case EncodingMethod.TCTCOLBERT:
+            settings_description.extend([
+                f"device={device}",
+            ])
         case EncodingMethod.AVERAGE | EncodingMethod.WEIGHTED_AVERAGE:
             settings_description.extend([
                 f"k_avg={k_avg}",
@@ -178,12 +181,11 @@ def main(
 
     # Choose query encoder based on encoding_method
     match args.encoding_method:
-        case EncodingMethod.TCTColBERT:
+        case EncodingMethod.TCTCOLBERT:
             index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
         case EncodingMethod.AVERAGE:
             index.query_encoder = AvgEncoder(sparse_ranking_cut, index, args.k_avg)
         case EncodingMethod.WEIGHTED_AVERAGE:
-            # TODO: decide how to determine alphas, maybe give alphas mode as program argument.
             index.query_encoder = WeightedAvgEncoder(sparse_ranking_cut, index, args.k_avg, args.distribution_method)
         case _:
             raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
