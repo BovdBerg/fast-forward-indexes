@@ -14,10 +14,8 @@ class DistributionMethod(Enum):
 
     Attributes:
         UNIFORM: all top-ranked documents are weighted equally.
-        GAUSSIAN: top-ranked documents are weighted by a Gaussian distribution.
     """
     UNIFORM = "UNIFORM"
-    GAUSSIAN = "GAUSSIAN"
 
 
 class WeightedAvgEncoder(Encoder):
@@ -62,8 +60,6 @@ class WeightedAvgEncoder(Encoder):
         match self.distribution_method:
             case DistributionMethod.UNIFORM:
                 return np.ones(self.k_avg) / self.k_avg
-            case DistributionMethod.GAUSSIAN:
-                return np.exp(-np.arange(self.k_avg) ** 2 / (2 * (self.k_avg / 2) ** 2))
             case _:
                 raise ValueError(f"Unknown distribution: {self.distribution}")
 
