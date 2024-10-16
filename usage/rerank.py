@@ -2,7 +2,7 @@ from enum import Enum
 from pathlib import Path
 from typing import List
 import torch
-from fast_forward.encoder.avg import DistributionMethod, WeightedAvgEncoder
+from fast_forward.encoder.avg import ProbDist, WeightedAvgEncoder
 from fast_forward.encoder.tctcolbert import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
@@ -40,7 +40,7 @@ def parse_args():
         --rerank_cutoff (int): Number of documents to re-rank per query.
         --encoding_method (EncodingMethod): Method to estimate query embeddings.
         --k_avg (int): Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.
-        --distribution_method (DistributionMethod): Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.
+        --prob_dist (DistributionMethod): Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.
         --in_memory (bool): Whether to load the index in memory.
         --device (str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"): Device to use for encoding queries.
         --eval_metrics (list of str): Metrics used for evaluation.
@@ -53,9 +53,9 @@ def parse_args():
     parser.add_argument("--ranking_output_path", type=Path, default="dense_ranking.tsv", help="Path to save the re-ranked ranking.")
     parser.add_argument("--dataset", type=str, default="msmarco-passage/trec-dl-2019", help="Dataset (using package ir-datasets).")
     parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
-    parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default=EncodingMethod.WEIGHTED_AVERAGE, help="Method to estimate query embeddings.")
+    parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default="WEIGHTED_AVERAGE", help="Method to estimate query embeddings.")
     parser.add_argument("--k_avg", type=int, default=8, help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
-    parser.add_argument("--distribution_method", type=DistributionMethod, choices=list(DistributionMethod), default=DistributionMethod.UNIFORM, help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
+    parser.add_argument("--prob_dist", type=ProbDist, choices=list(ProbDist), default="UNIFORM", help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     parser.add_argument("--in_memory", action="store_true", help="Whether to load the index in memory.")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use for encoding queries.")
     parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
@@ -71,7 +71,7 @@ def print_settings(
     encoding_method: EncodingMethod, 
     device: str, 
     k_avg: int,
-    distribution_method: DistributionMethod,
+    prob_dist: ProbDist,
     ) -> None:
     """
     Print the settings used for re-ranking.
@@ -84,7 +84,7 @@ def print_settings(
         encoding_method (EncodingMethod): Method to estimate query embeddings.
         device (str): Device to use for encoding queries. Only used for query_encoder based EncodingMethods.
         k_avg (int): Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.
-        distribution_method (DistributionMethod): Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.
+        prob_dist (DistributionMethod): Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.
     """
     settings_description: List[str] = [
         f"dataset={dataset}",
@@ -101,7 +101,7 @@ def print_settings(
         case EncodingMethod.WEIGHTED_AVERAGE:
             settings_description.extend([
                 f"k_avg={k_avg}",
-                f"distribution_method={distribution_method.name}",
+                f"prob_dist={prob_dist.name}",
             ])
     print("\nSettings:\n\t" + ",\n\t".join(settings_description))
 
@@ -183,7 +183,7 @@ def main(
         case EncodingMethod.TCTCOLBERT:
             index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
         case EncodingMethod.WEIGHTED_AVERAGE:
-            index.query_encoder = WeightedAvgEncoder(sparse_ranking_cut, index, args.k_avg, args.distribution_method)
+            index.query_encoder = WeightedAvgEncoder(sparse_ranking_cut, index, args.k_avg, args.prob_dist)
         case _:
             raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
     assert index.query_encoder is not None, "Query encoder not set in index."
@@ -192,7 +192,7 @@ def main(
     dense_ranking = index(sparse_ranking_cut)
     dense_ranking.save(args.ranking_output_path)
 
-    print_settings(args.dataset, args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg, args.distribution_method)
+    print_settings(args.dataset, args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg, args.prob_dist)
     print_results(args.alphas, sparse_ranking, dense_ranking, args.eval_metrics, dataset)
 
 

@@ -8,9 +8,9 @@ from fast_forward.index import Index
 from fast_forward.ranking import Ranking
 
 
-class DistributionMethod(Enum):
+class ProbDist(Enum):
     """
-    Enumeration for different distributions to estimate query embeddings.
+    Enumeration for different types of probability distributions used to assign weights to top-ranked documents in the WeightedAvgEncoder.
 
     Attributes:
         UNIFORM: all top-ranked documents are weighted equally.
@@ -37,7 +37,7 @@ class WeightedAvgEncoder(Encoder):
         sparse_ranking: Ranking,
         index: Index,
         k_avg: int,
-        distribution_method: DistributionMethod,
+        prob_dist: ProbDist,
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
@@ -50,7 +50,7 @@ class WeightedAvgEncoder(Encoder):
         """
         self.top_ranking = sparse_ranking.cut(k_avg)
         self.index = index
-        self.distribution_method: DistributionMethod = distribution_method
+        self.prob_dist: ProbDist = prob_dist
         self.k_avg: int = k_avg
         self.weights: Sequence[float] = self._get_weights()
         super().__init__()
@@ -58,22 +58,22 @@ class WeightedAvgEncoder(Encoder):
 
     def _get_weights(self) -> Sequence[float]:
         """
-        Get the weights for the top-ranked documents based on the distribution.
+        Get the weights for the top-ranked documents based on the probability distribution type.
 
         Returns:
             Sequence[float]: A sequence of interpolation parameters.
         """
-        match self.distribution_method:
-            case DistributionMethod.UNIFORM:
+        match self.prob_dist:
+            case ProbDist.UNIFORM:
                 return np.ones(self.k_avg) / self.k_avg
-            case DistributionMethod.GEOMETRIC:
+            case ProbDist.GEOMETRIC:
                 return np.geomspace(1, 0.1, self.k_avg)
-            case DistributionMethod.EXPONENTIAL:
+            case ProbDist.EXPONENTIAL:
                 return np.exp(-np.linspace(0, 1, self.k_avg))
-            case DistributionMethod.HALF_NORMAL:
+            case ProbDist.HALF_NORMAL:
                 return np.flip(np.exp(-np.linspace(0, 1, self.k_avg) ** 2))
             case _:
-                raise ValueError(f"Unknown distribution method: {self.distribution_method}")
+                raise ValueError(f"Unknown probability distribution type: {self.prob_dist}")
 
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
