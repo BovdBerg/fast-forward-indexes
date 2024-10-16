@@ -34,7 +34,7 @@ def parse_args():
         argparse.Namespace: Parsed command-line arguments.
 
     Arguments:
-        --ranking_path (Path): Path to the first-stage ranking file.
+        --sparse_ranking_path (Path): Path to the first-stage ranking file.
         --index_path (Path): Path to the index file.
         --ranking_output_path (Path): Path to save the re-ranked ranking.
         --dataset (str): Dataset to evaluate the re-ranked ranking.
@@ -48,8 +48,8 @@ def parse_args():
         --alphas (list of float): List of interpolation parameters for evaluation.
     """
     parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
-    # TODO [at hand-in]: Remove default paths (ranking_path, index_path) form the arguments
-    parser.add_argument("--ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt", help="Path to the first-stage ranking file (.tsv or .txt).")
+    # TODO [at hand-in]: Remove default paths (sparse_ranking_path, index_path) form the arguments
+    parser.add_argument("--sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco-passage-test2019-sparse10000.txt", help="Path to the first-stage ranking file (.tsv or .txt).")
     parser.add_argument("--index_path", type=Path, default="/home/bvdb9/indices/msm-psg/ff/ff_index_msmpsg_TCTColBERT_opq.h5", help="Path to the index file.")
     parser.add_argument("--ranking_output_path", type=Path, default="dense_ranking.tsv", help="Path to save the re-ranked ranking.")
     parser.add_argument("--dataset", type=str, default="msmarco-passage/trec-dl-2019", help="Dataset (using package ir-datasets).")
@@ -66,7 +66,7 @@ def parse_args():
 
 def print_settings(
     dataset: str,
-    ranking_path: Path, 
+    sparse_ranking_path: Path, 
     index_path: Path, 
     rerank_cutoff: int, 
     encoding_method: EncodingMethod, 
@@ -79,7 +79,7 @@ def print_settings(
 
     Args:
         dataset (str): Dataset to evaluate the re-ranked ranking.
-        ranking_path (Path): Path to the first-stage ranking file.
+        sparse_ranking_path (Path): Path to the first-stage ranking file.
         index_path (Path): Path to the index file.
         rerank_cutoff (int): Number of documents to re-rank per query.
         encoding_method (EncodingMethod): Method to estimate query embeddings.
@@ -89,7 +89,7 @@ def print_settings(
     """
     settings_description: List[str] = [
         f"dataset={dataset}",
-        f"ranking={ranking_path.name}",
+        f"sparse_ranking={sparse_ranking_path.name}",
         f"index={index_path.name}",
         f"rerank_cutoff={rerank_cutoff}",
         f"encoding_method={encoding_method.name}",
@@ -190,7 +190,7 @@ def main(
 
     # Load ranking and attach queries
     sparse_ranking: Ranking = Ranking.from_file(
-        args.ranking_path,
+        args.sparse_ranking_path,
         queries={q.query_id: q.text for q in dataset.queries_iter()},
     )
     sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
@@ -214,7 +214,7 @@ def main(
     dense_ranking = index(sparse_ranking_cut)
     dense_ranking.save(args.ranking_output_path)
 
-    print_settings(args.dataset, args.ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg, args.prob_dist)
+    print_settings(args.dataset, args.sparse_ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg, args.prob_dist)
     print_results(args.alphas, sparse_ranking, dense_ranking, args.eval_metrics, dataset)
 
 
