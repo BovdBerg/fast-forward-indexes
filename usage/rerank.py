@@ -55,10 +55,13 @@ def parse_args():
     parser.add_argument("--dataset", type=str, default="msmarco-passage/trec-dl-2019", help="Dataset (using package ir-datasets).")
     parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
     parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default="WEIGHTED_AVERAGE", help="Method to estimate query embeddings.")
+    parser.add_argument("--in_memory", action="store_true", help="Whether to load the index in memory.")
+    # Arguments for QueryEncoder-based encoding_method (e.g. EncodingMethod.TCTCOLBERT)
+    parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use for encoding queries.")
+    # Arguments for EncodingMethod.WEIGHTED_AVERAGE
     parser.add_argument("--k_avg", type=int, default=8, help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     parser.add_argument("--prob_dist", type=ProbDist, choices=list(ProbDist), default="UNIFORM", help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
-    parser.add_argument("--in_memory", action="store_true", help="Whether to load the index in memory.")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use for encoding queries.")
+    # EVALUATION
     parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
     parser.add_argument("--alphas", type=float, nargs='+', required=False, help="List of interpolation parameters for evaluation.")
     return parser.parse_args()
