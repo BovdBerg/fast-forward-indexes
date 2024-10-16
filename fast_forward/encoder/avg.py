@@ -61,7 +61,7 @@ class WeightedAvgEncoder(Encoder):
             case DistributionMethod.UNIFORM:
                 return np.ones(self.k_avg) / self.k_avg
             case _:
-                raise ValueError(f"Unknown distribution: {self.distribution}")
+                raise ValueError(f"Unknown distribution method: {self.distribution_method}")
 
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
