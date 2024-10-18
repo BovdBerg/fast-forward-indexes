@@ -106,6 +106,15 @@ def print_results(
     sparse_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(sparse_ranking))
     print(f"\tSparse ranking (alpha=1): {sparse_score}")
 
+    # Print interpolated results for all different alpha values
+    if args.alphas is not None:
+        for alpha in args.alphas:
+            if alpha == 0 or alpha == 1:
+                continue
+            interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
+            score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
+            print(f"\tInterpolated ranking (alpha={alpha}): {score}")
+
     # Estimate best interpolation alpha as weighted average of sparse- and dense-nDCG scores
     dense_nDCG10 = dense_score[measures.nDCG @ 10]
     sparse_nDCG10 = sparse_score[measures.nDCG @ 10]
@@ -119,17 +128,6 @@ def print_results(
     assert 0 <= best_alpha <= 1, f"Invalid best_alpha: {best_alpha}"
     best_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(sparse_ranking.interpolate(dense_ranking, best_alpha)))
     print(f"\tEstimated best-nDCG@10 interpolated ranking (alpha~={best_alpha}): {best_score}")
-
-    if args.alphas is not None:
-        for alpha in args.alphas:
-            interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
-            score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
-            ranking_type = (
-                "Sparse" if alpha == 1 else 
-                "Dense" if alpha == 0 else 
-                "Interpolated"
-            )
-            print(f"\t{ranking_type} ranking (alpha={alpha}): {score}")
 
 
 def main(
