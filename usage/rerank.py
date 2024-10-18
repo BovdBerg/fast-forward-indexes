@@ -34,18 +34,7 @@ def parse_args():
         argparse.Namespace: Parsed command-line arguments.
 
     Arguments:
-        --sparse_ranking_path (Path): Path to the first-stage ranking file.
-        --index_path (Path): Path to the index file.
-        --ranking_output_path (Path): Path to save the re-ranked ranking.
-        --dataset (str): Dataset to evaluate the re-ranked ranking.
-        --rerank_cutoff (int): Number of documents to re-rank per query.
-        --encoding_method (EncodingMethod): Method to estimate query embeddings.
-        --k_avg (int): Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.
-        --prob_dist (DistributionMethod): Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.
-        --in_memory (bool): Whether to load the index in memory.
-        --device (str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"): Device to use for encoding queries.
-        --eval_metrics (list of str): Metrics used for evaluation.
-        --alphas (list of float): List of interpolation parameters for evaluation.
+        Run the script with --help or -h to see the full list of arguments.
     """
     parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
     # TODO [at hand-in]: Remove default paths (sparse_ranking_path, index_path) form the arguments
@@ -68,68 +57,46 @@ def parse_args():
 
 
 def print_settings(
-    dataset: str,
-    sparse_ranking_path: Path, 
-    index_path: Path, 
-    rerank_cutoff: int, 
-    encoding_method: EncodingMethod, 
-    device: str, 
-    k_avg: int,
-    prob_dist: ProbDist,
     ) -> None:
     """
     Print the settings used for re-ranking.
-
-    Args:
-        dataset (str): Dataset to evaluate the re-ranked ranking.
-        sparse_ranking_path (Path): Path to the first-stage ranking file.
-        index_path (Path): Path to the index file.
-        rerank_cutoff (int): Number of documents to re-rank per query.
-        encoding_method (EncodingMethod): Method to estimate query embeddings.
-        device (str): Device to use for encoding queries. Only used for query_encoder based EncodingMethods.
-        k_avg (int): Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.
-        prob_dist (DistributionMethod): Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.
     """
     settings_description: List[str] = [
-        f"dataset={dataset}",
-        f"sparse_ranking={sparse_ranking_path.name}",
-        f"index={index_path.name}",
-        f"rerank_cutoff={rerank_cutoff}",
-        f"encoding_method={encoding_method.name}",
+        f"dataset={args.dataset}",
+        f"sparse_ranking={args.sparse_ranking_path.name}",
+        f"index={args.index_path.name}",
+        f"rerank_cutoff={args.rerank_cutoff}",
+        f"encoding_method={args.encoding_method.name}",
     ]
-    match encoding_method:  # Append method-specific settings
+    match args.encoding_method:  # Append method-specific settings
         case EncodingMethod.TCTCOLBERT:
             settings_description.extend([
-                f"device={device}",
+                f"device={args.device}",
             ])
         case EncodingMethod.WEIGHTED_AVERAGE:
             settings_description.extend([
-                f"k_avg={k_avg}",
-                f"prob_dist={prob_dist.name}",
+                f"k_avg={args.k_avg}",
+                f"prob_dist={args.prob_dist.name}",
             ])
     print("\nSettings:\n\t" + ",\n\t".join(settings_description))
 
 
 def print_results(
-    alphas: List[float], 
     sparse_ranking: Ranking, 
     dense_ranking: Ranking, 
-    eval_metrics: List[str], 
-    dataset
+    dataset: ir_datasets.Dataset,
     ) -> None:
     """
     Print the evaluation results for different interpolation parameters.
 
     Args:
-        alphas (List[float]): List of interpolation parameters for evaluation.
         sparse_ranking (Ranking): The initial sparse ranking of documents.
         dense_ranking (Ranking): The re-ranked dense ranking of documents.
-        eval_metrics (List[str]): Metrics used for evaluation.
-        dataset: Dataset to evaluate the re-ranked ranking (provided by ir_datasets package).
+        dataset (ir_datasets.Dataset): Dataset to evaluate the rankings.
     """
     print('Results:')
     eval_metrics_objects = []
-    for metric_str in eval_metrics:
+    for metric_str in args.eval_metrics:
         metric_name, at_value = metric_str.split('@')
         eval_metrics_objects.append(getattr(measures, metric_name) @ int(at_value))
 
@@ -153,8 +120,8 @@ def print_results(
     best_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(sparse_ranking.interpolate(dense_ranking, best_alpha)))
     print(f"\tEstimated best-nDCG@10 interpolated ranking (alpha~={best_alpha}): {best_score}")
 
-    if alphas is not None:
-        for alpha in alphas:
+    if args.alphas is not None:
+        for alpha in args.alphas:
             interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
             score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
             ranking_type = (
@@ -217,8 +184,8 @@ def main(
     dense_ranking = index(sparse_ranking_cut)
     dense_ranking.save(args.ranking_output_path)
 
-    print_settings(args.dataset, args.sparse_ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg, args.prob_dist)
-    print_results(args.alphas, sparse_ranking, dense_ranking, args.eval_metrics, dataset)
+    print_settings()
+    print_results(sparse_ranking, dense_ranking, dataset)
 
 
 if __name__ == '__main__':
