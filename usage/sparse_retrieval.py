@@ -1,6 +1,7 @@
 import argparse
 import pyterrier as pt
 import os
+from tqdm import tqdm
 
 
 def parse_args():
