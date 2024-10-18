@@ -215,7 +215,6 @@ def main(
 
     # Create and save dense_ranking by ranking on similarity between (q_rep, d_rep)
     dense_ranking = index(sparse_ranking_cut)
-    print(f"dense_ranking._df: {dense_ranking._df}")
     dense_ranking.save(args.ranking_output_path)
 
     print_settings(args.dataset, args.sparse_ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg, args.prob_dist)
