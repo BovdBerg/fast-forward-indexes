@@ -242,7 +242,7 @@ class Ranking(object):
         Args:
             target (Path): Output file.
         """
-        df_ranks = self._df.groupby("q_id").cumcount().to_frame()
+        df_ranks = self._df.groupby("q_id").cumcount().to_frame() + 1
         df_ranks.columns = ("rank",)
         df_out = self._df.join(df_ranks)
         df_out["name"] = str(self.name)
