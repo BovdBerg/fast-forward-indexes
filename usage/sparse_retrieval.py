@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument("--dataset", type=str, default="msmarco_passage", help="Dataset for testing (using package ir-datasets).")
     parser.add_argument("--retriever_variant", type=str, default="terrier_stemmed", help="Retriever variant.")
     parser.add_argument("--retriever_wmodel", type=str, default="BM25", help="Retriever weighting model.")
-    parser.add_argument("--topics_variant", type=str, default="trec-dl-2019", help="Topics variant.")
+    parser.add_argument("--topics_variant", type=str, default="test-2019", help="Topics variant.")
     parser.add_argument("--k", type=int, default=10000, help="Number of documents to re-rank per query.")
     parser.add_argument("--out_dir", type=str, default="/home/bvdb9/sparse_rankings", help="Output directory.")
     return parser.parse_args()
