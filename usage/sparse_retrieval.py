@@ -59,7 +59,7 @@ def main(
     print("\nWriting to", output_file)
     with open(output_file, "w") as f:
         # top_ranked_docs.to_csv("sparse_runfile.csv", sep=" ", header=False, index=False)
-        for i, row in top_ranked_docs.iterrows():
+        for i, row in tqdm(top_ranked_docs.iterrows(), total=len(top_ranked_docs), desc=f"Writing results to {output_file}"):
             f.write(f"{row['qid']}\tQ0\t{row['docno']}\t{i + 1}\t{row['score']}\tsparse\n")
 
 
