@@ -63,7 +63,7 @@ def parse_args():
     parser.add_argument("--prob_dist", type=ProbDist, choices=list(ProbDist), default="UNIFORM", help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     # EVALUATION
     parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
-    parser.add_argument("--alphas", type=float, nargs='+', required=False, help="List of interpolation parameters for evaluation.")
+    parser.add_argument("--alphas", type=float, nargs='+', default=list(range(0, 1, 0.2)), help="List of interpolation parameters for evaluation.")
     return parser.parse_args()
 
 
