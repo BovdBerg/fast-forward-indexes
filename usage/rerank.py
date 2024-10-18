@@ -63,7 +63,7 @@ def parse_args():
     parser.add_argument("--prob_dist", type=ProbDist, choices=list(ProbDist), default="UNIFORM", help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     # EVALUATION
     parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
-    parser.add_argument("--alphas", type=float, nargs='+', default=list(range(0, 1, 0.2)), help="List of interpolation parameters for evaluation.")
+    parser.add_argument("--alphas", type=float, nargs='+', default=np.arange(0.0, 1.00001, 0.2).tolist(), help="List of interpolation parameters for evaluation.")
     return parser.parse_args()
 
 
@@ -215,6 +215,7 @@ def main(
 
     # Create and save dense_ranking by ranking on similarity between (q_rep, d_rep)
     dense_ranking = index(sparse_ranking_cut)
+    print(f"dense_ranking._df: {dense_ranking._df}")
     dense_ranking.save(args.ranking_output_path)
 
     print_settings(args.dataset, args.sparse_ranking_path, args.index_path, args.rerank_cutoff, args.encoding_method, args.device, args.k_avg, args.prob_dist)
