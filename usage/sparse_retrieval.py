@@ -1,55 +1,68 @@
-from types import SimpleNamespace
+import argparse
 import pyterrier as pt
 import os
 
 
-config_dict = {
-    "dataset": "msmarco_passage",
-    "retriever": {
-        "variant": "terrier_stemmed",
-        "wmodel": "BM25",
-    },
-    "topics_variant": "test-2019", # e.g. "test-2019", None
-    "k": 10000,
-    "out_dir": "/home/bvdb9/runs",
-}
+def parse_args():
+    """
+    Parse command-line arguments for the re-ranking script.
+
+    Returns:
+        argparse.Namespace: Parsed command-line arguments.
+
+    Arguments:
+        --dataset (str): Dataset for testing (using package ir-datasets).
+        --retriever_variant (str): Retriever variant.
+        --retriever_wmodel (str): Retriever weighting model.
+        --topics_variant (str): Topics variant.
+        --k (int): Number of documents to re-rank per query.
+        --out_dir (str): Output directory
+    """
+    parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
+    parser.add_argument("--dataset", type=str, default="msmarco_passage", help="Dataset for testing (using package ir-datasets).")
+    parser.add_argument("--retriever_variant", type=str, default="terrier_stemmed", help="Retriever variant.")
+    parser.add_argument("--retriever_wmodel", type=str, default="BM25", help="Retriever weighting model.")
+    parser.add_argument("--topics_variant", type=str, default="trec-dl-2019", help="Topics variant.")
+    parser.add_argument("--k", type=int, default=10000, help="Number of documents to re-rank per query.")
+    parser.add_argument("--out_dir", type=str, default="/home/bvdb9/runs", help="Output directory.")
+    return parser.parse_args()
 
 
-def dict_to_namespace(d):
-    for k, v in d.items():
-        if isinstance(v, dict):
-            d[k] = dict_to_namespace(v)
-    return SimpleNamespace(**d)
+def main(
+        args: argparse.Namespace
+    ) -> None:
+    """
+    Main function for re-ranking documents based on query embeddings.
 
-
-if __name__ == "__main__":
+    Arguments:
+        args (argparse.Namespace): Parsed command-line arguments.
+    """
     if not pt.started():
         pt.init()
 
-    config = dict_to_namespace(config_dict)
-
     # Retrieve BM25 model from the batchretrieve index
-    bm25 = pt.BatchRetrieve.from_dataset(config.dataset, config.retriever.variant, wmodel=config.retriever.wmodel)
+    print(f"Retrieving {args.retriever_wmodel} model from {args.dataset} dataset...")
+    bm25 = pt.BatchRetrieve.from_dataset(args.dataset, args.retriever_variant, wmodel=args.retriever_wmodel, verbose=True)
 
     # Get the test topics (dataframe with columns=['qid', 'query'])
-    if config.topics_variant is None:
-        topics = pt.get_dataset(config.dataset).get_topics()
+    if args.topics_variant is None:
+        topics = pt.get_dataset(args.dataset).get_topics()
     else:
-        topics = pt.get_dataset(config.dataset).get_topics(config.topics_variant)
-    print("topics:")
-    print(f"Length: {len(topics)}")
-    print(f"Head:\n{topics.head()}")
+        topics = pt.get_dataset(args.dataset).get_topics(args.topics_variant)
+    print(f"topics:\n{topics}")
 
-    topics = pt.get_dataset(config.dataset).get_topics(config.topics_variant)
-    top_ranked_docs = (bm25 % config.k)(topics)
-    print("\ntop_ranked_docs:")
-    print(f"Length: {len(topics)} topics * {config.k} docs = {len(top_ranked_docs)}")
-    print(f"Head:\n{top_ranked_docs.head()}")
+    top_ranked_docs = (bm25 % args.k)(topics)
+    print(f"top_ranked_docs (Length: {len(topics)} topics * {args.k} docs = {len(top_ranked_docs)}):\n{top_ranked_docs}")
 
     # Write to the sparse_runfile.tsv
-    output_file = os.path.join(config.out_dir, f"{config.dataset}-{config.topics_variant}-{config.retriever.wmodel}-top{config.k}.tsv")
+    output_file = os.path.join(args.out_dir, f"{args.dataset}-{args.topics_variant}-{args.retriever_wmodel}-top{args.k}.tsv")
     print("\nWriting to", output_file)
     with open(output_file, "w") as f:
         # top_ranked_docs.to_csv("sparse_runfile.csv", sep=" ", header=False, index=False)
         for i, row in top_ranked_docs.iterrows():
             f.write(f"{row['qid']}\tQ0\t{row['docno']}\t{i + 1}\t{row['score']}\tsparse\n")
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    main(args)
