@@ -81,9 +81,9 @@ def print_settings(
 
 
 def results(
-    sparse_ranking: Ranking, 
-    dense_ranking: Ranking, 
-    dataset: ir_datasets.Dataset,
+        sparse_ranking: Ranking, 
+        dense_ranking: Ranking, 
+        dataset: ir_datasets.Dataset,
     ) -> None:
     """
     Calculate and print the evaluation results for different interpolation parameters.
