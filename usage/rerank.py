@@ -81,13 +81,13 @@ def print_settings(
     print("\nSettings:\n\t" + ",\n\t".join(settings_description))
 
 
-def print_results(
+def results(
     sparse_ranking: Ranking, 
     dense_ranking: Ranking, 
     dataset: ir_datasets.Dataset,
     ) -> None:
     """
-    Print the evaluation results for different interpolation parameters.
+    Calculate and print the evaluation results for different interpolation parameters.
 
     Args:
         sparse_ranking (Ranking): The initial sparse ranking of documents.
@@ -181,7 +181,7 @@ def main(
     dense_ranking.save(args.ranking_output_path)
 
     print_settings()
-    print_results(sparse_ranking, dense_ranking, dataset)
+    results(sparse_ranking, dense_ranking, dataset)
 
 
 if __name__ == '__main__':
