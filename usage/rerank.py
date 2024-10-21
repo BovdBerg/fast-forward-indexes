@@ -12,6 +12,7 @@ import ir_datasets
 from ir_measures import calc_aggregate, measures
 from fast_forward.util import to_ir_measures
 import argparse
+import pyterrier as pt
 
 
 class EncodingMethod(Enum):
@@ -38,8 +39,7 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
     # TODO [at hand-in]: Remove default paths (sparse_ranking_path, index_path) form the arguments
-    parser.add_argument("--sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top100.tsv", help="Path to the first-stage ranking file (.tsv or .txt). Must match the dataset.")
-    parser.add_argument("--dataset", type=str, default="msmarco-passage/trec-dl-2019/judged", help="Dataset (using package ir-datasets). Must match the sparse_ranking.")
+    parser.add_argument("--dataset", type=str, default="msmarco-passage", help="Dataset (using package ir-datasets). Must match the sparse_ranking.")
     parser.add_argument("--index_path", type=Path, default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5", help="Path to the index file.")
     parser.add_argument("--ranking_output_path", type=Path, default="dense_ranking.tsv", help="Path to save the re-ranked ranking.")
     parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
@@ -62,7 +62,6 @@ def print_settings(
     """
     settings_description: List[str] = [
         f"dataset={args.dataset}",
-        f"sparse_ranking={args.sparse_ranking_path.name}",
         f"index={args.index_path.name}",
         f"rerank_cutoff={args.rerank_cutoff}",
         f"encoding_method={args.encoding_method.name}",
@@ -150,20 +149,27 @@ def main(
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
             - Saved to ranking_output_path
     """
-    # Load dataset
-    dataset = ir_datasets.load(args.dataset)
-
-    # Load ranking and attach queries
-    sparse_ranking: Ranking = Ranking.from_file(
-        args.sparse_ranking_path,
-        queries={q.query_id: q.text for q in dataset.queries_iter()},
-    )
-    sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
-
     # Load index
     index: Index = OnDiskIndex.load(args.index_path)
     if args.in_memory:
         index = index.to_memory()
+
+    pt.init()
+
+    eval_metrics = []
+    for metric_str in args.eval_metrics:
+        metric_name, at_value = metric_str.split('@')
+        eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
+
+    ## Evaluation on test set
+    # Load dataset, ranking, and attach queries
+    dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
+    sparse_ranking_path = Path("/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv")
+    sparse_ranking: Ranking = Ranking.from_file(
+        sparse_ranking_path,
+        queries={q.qid: q.query for q in dataset.get_topics().itertuples()}
+    )
+    sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
 
     # Choose query encoder based on encoding_method
     match args.encoding_method:
@@ -177,10 +183,15 @@ def main(
 
     # Create and save dense_ranking by ranking on similarity between (q_rep, d_rep)
     dense_ranking = index(sparse_ranking_cut)
-    dense_ranking.save(args.ranking_output_path)
 
-    print_settings()
-    results(sparse_ranking, dense_ranking, dataset)
+    results = pt.Experiment(
+        [to_ir_measures(sparse_ranking), to_ir_measures(dense_ranking)],
+        dataset.get_topics(),
+        dataset.get_qrels(),
+        eval_metrics=eval_metrics,
+        names=["BM25", "BM25 >> FF"],
+    )
+    print(f"Results:\n{results}")
 
 
 if __name__ == '__main__':
