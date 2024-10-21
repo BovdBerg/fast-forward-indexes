@@ -22,8 +22,7 @@ jobs:
           python-version: "3.11"
       - name: Install packages
         run: |
-          python -m pip install .[pyterrier] pdoc
-          pip install -e .
+          python -m pip install . .[pyterrier] pdoc
       - name: Check out gh-pages
         uses: actions/checkout@v4
         with:
@@ -34,7 +33,7 @@ jobs:
           rm -f docs/index.html
       - name: Run pdoc
         run: |
-          PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/fast_forward pdoc fast_forward -d google -o docs/${{ github.ref_name }}
+          pdoc fast_forward -d google -o docs/${{ github.ref_name }}
       - name: Generate directory listing
         uses: jayanta525/github-pages-directory-listing@v4.0.0
         with:
