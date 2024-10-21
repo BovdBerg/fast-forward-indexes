@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 import numpy as np
 import warnings
 import torch
@@ -149,6 +149,51 @@ def results(
     print(f"\tEstimated best-nDCG@10 interpolated ranking (alpha~={best_alpha}): {best_score}")
 
 
+def load_data(
+        dataset_path: Path,
+        ranking_path: Path,
+    ) -> Tuple[ir_datasets.Dataset, Ranking]:
+    """
+    Load the dataset and the initial sparse ranking of documents.
+
+    Args:
+        dataset_path (Path): Path to the dataset.
+        ranking_path (Path): Path to the initial sparse ranking of documents.
+
+    Returns:
+        Tuple[ir_datasets.Dataset, Ranking]: The dataset and the initial sparse ranking of documents.
+    """
+    dataset = pt.get_dataset(dataset_path)
+    sparse_ranking = Ranking.from_file(
+        ranking_path,
+        queries={q.qid: q.query for q in dataset.get_topics().itertuples()}
+    )
+    return dataset, sparse_ranking
+
+
+def rerank(
+        index: Index,
+        sparse_ranking: Ranking,
+    ) -> Ranking:
+    """
+    Re-rank the documents based on the similarity to query embeddings.
+
+    Args:
+        index (Index): The index containing document embeddings.
+        sparse_ranking (Ranking): The initial sparse ranking of documents.
+    
+    Returns:
+        Ranking: The re-ranked dense ranking of documents.
+    """
+    sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff)
+
+    if isinstance(index.query_encoder, WeightedAvgEncoder):
+        index.query_encoder.sparse_ranking = sparse_ranking_cut.cut(args.k_avg)
+
+    dense_ranking = index(sparse_ranking_cut)
+    return dense_ranking
+
+
 def main(
         args: argparse.Namespace
     ) -> None:
@@ -195,51 +240,25 @@ def main(
     assert index.query_encoder is not None, "Query encoder not set in index."
 
     if args.enable_validation:
-        ## Validation and parameter tuning on dev set
-        # Load dataset, ranking, and attach queries
-        dataset = ir_datasets.load(args.dev_dataset)
-        sparse_ranking: Ranking = Ranking.from_file(
-            args.dev_sparse_ranking_path,
-            queries={q.query_id: q.text for q in dataset.queries_iter()},
-        )
-        sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
-
-        # Create dense_ranking by ranking on similarity between (q_rep, d_rep)
-        if isinstance(index.query_encoder, WeightedAvgEncoder):
-            index.query_encoder.sparse_ranking = sparse_ranking_cut.cut(args.k_avg)
-
-        dense_ranking = index(sparse_ranking_cut)
-
-        # Validation and parameter tuning on dev set
+        ### Validation and parameter tuning on dev set
+        dev_dataset, dev_sparse_ranking = load_data(args.dev_dataset, args.dev_sparse_ranking_path)
+        dev_dense_ranking = rerank(index, dev_sparse_ranking)
         ff_int = FFInterpolate(alpha=0.5)
-
         pt.GridSearch(
-            to_ir_measures(dense_ranking),
+            to_ir_measures(dev_dense_ranking),
             {ff_int: {"alpha": args.alphas}},
-            dataset.queries_iter(),
-            dataset.qrels_iter(),
+            dev_dataset.queries_iter(),
+            dev_dataset.qrels_iter(),
             verbose=True,
         )
 
-    ## Evaluation on test set
-    # Load dataset, ranking, and attach queries
-    dataset = pt.get_dataset(args.test_dataset)
-    sparse_ranking: Ranking = Ranking.from_file(
-        args.test_sparse_ranking_path,
-        queries={q.qid: q.query for q in dataset.get_topics().itertuples()}
-    )
-    sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
-
-    # Create dense_ranking by ranking on similarity between (q_rep, d_rep)
-    if isinstance(index.query_encoder, WeightedAvgEncoder):
-        index.query_encoder.sparse_ranking = sparse_ranking_cut.cut(args.k_avg)
-
-    dense_ranking = index(sparse_ranking_cut)
-
+    ### Evaluation on test set
+    test_dataset, test_sparse_ranking = load_data(args.test_dataset, args.test_sparse_ranking_path)
+    test_dense_ranking = rerank(index, test_sparse_ranking)
     results = pt.Experiment(
-        [to_ir_measures(sparse_ranking), to_ir_measures(dense_ranking)],
-        dataset.get_topics(),
-        dataset.get_qrels(),
+        [to_ir_measures(test_sparse_ranking), to_ir_measures(test_dense_ranking)],
+        test_dataset.get_topics(),
+        test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
         names=["Sparse", "Sparse >> FF"],
     )
