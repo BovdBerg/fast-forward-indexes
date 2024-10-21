@@ -226,7 +226,7 @@ def main(
         dataset.get_topics(),
         dataset.get_qrels(),
         eval_metrics=eval_metrics,
-        names=["BM25", "BM25 >> FF"],
+        names=["Sparse", "Sparse >> FF"],
     )
     print(f"Results:\n{results}")
 
