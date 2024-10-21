@@ -29,29 +29,29 @@ class WeightedAvgEncoder(Encoder):
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.
 
     Attributes:
-        top_ranking (Ranking): The top-ranked documents used for averaging.
+        sparse_ranking (Ranking): The top-ranked documents used for averaging.
         index (Index): The index containing document embeddings.
     """
     def __init__(
         self,
-        sparse_ranking: Ranking,
         index: Index,
         k_avg: int,
         prob_dist: ProbDist,
+        sparse_ranking: Ranking = None,
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
 
         Args:
-            sparse_ranking (Ranking): The initial sparse ranking of documents.
             index (Index): The index containing document embeddings.
             k_avg (int): Number of top-ranked documents to use for averaging.
             prob_dist (ProbDist): The probability distribution type used to assign weights to top-ranked documents.
+            sparse_ranking (Ranking): The initial sparse ranking of documents.
         """
-        self.top_ranking = sparse_ranking.cut(k_avg)
         self.index = index
         self.prob_dist: ProbDist = prob_dist
         self.k_avg: int = k_avg
+        self.sparse_ranking = sparse_ranking.cut(k_avg) if sparse_ranking is not None else None
         super().__init__()
 
 
@@ -91,11 +91,16 @@ class WeightedAvgEncoder(Encoder):
         Returns:
             np.ndarray: An array of query embeddings.
         """
+        assert self.sparse_ranking is not None, "Please set the top_sparse_ranking attribute before calling the encoder."
+        assert self.k_avg is not None, "Please set the k_avg attribute before calling the encoder."
+        assert self.k_avg <= len(self.sparse_ranking), "k_avg must be less than or equal to the number of documents in the sparse ranking."
+        top_ranking = self.sparse_ranking.cut(self.k_avg)
+
         q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
 
         for i, query in enumerate(queries):
             # Get the ids of the top-ranked documents for the query
-            top_docs: pd.DataFrame = self.top_ranking._df.query("query == @query")
+            top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
             top_docs_ids: Sequence[int] = top_docs["id"].values
 
             # Get the embeddings of the top-ranked documents

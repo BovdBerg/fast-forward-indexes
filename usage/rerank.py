@@ -161,10 +161,21 @@ def main(
     if args.in_memory:
         index = index.to_memory()
 
+    # Parse eval_metrics to ir-measures' measure objects
     eval_metrics = []
     for metric_str in args.eval_metrics:
         metric_name, at_value = metric_str.split('@')
         eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
+
+    # Choose query encoder based on encoding_method
+    match args.encoding_method:
+        case EncodingMethod.TCTCOLBERT:
+            index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
+        case EncodingMethod.WEIGHTED_AVERAGE:
+            index.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.prob_dist)
+        case _:
+            raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
+    assert index.query_encoder is not None, "Query encoder not set in index."
 
     if args.enable_validation:
         ## Validation and parameter tuning on dev set
@@ -176,17 +187,10 @@ def main(
         )
         sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
 
-        # Choose query encoder based on encoding_method
-        match args.encoding_method:
-            case EncodingMethod.TCTCOLBERT:
-                index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
-            case EncodingMethod.WEIGHTED_AVERAGE:
-                index.query_encoder = WeightedAvgEncoder(sparse_ranking_cut, index, args.k_avg, args.prob_dist)
-            case _:
-                raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
-        assert index.query_encoder is not None, "Query encoder not set in index."
+        # Create dense_ranking by ranking on similarity between (q_rep, d_rep)
+        if isinstance(index.query_encoder, WeightedAvgEncoder):
+            index.query_encoder.sparse_ranking = sparse_ranking_cut.cut(args.k_avg)
 
-        # Create and save dense_ranking by ranking on similarity between (q_rep, d_rep)
         dense_ranking = index(sparse_ranking_cut)
 
         # Validation and parameter tuning on dev set
@@ -200,7 +204,6 @@ def main(
             verbose=True,
         )
 
-
     ## Evaluation on test set
     # Load dataset, ranking, and attach queries
     dataset = pt.get_dataset(args.test_dataset)
@@ -210,17 +213,10 @@ def main(
     )
     sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
 
-    # Choose query encoder based on encoding_method
-    match args.encoding_method:
-        case EncodingMethod.TCTCOLBERT:
-            index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
-        case EncodingMethod.WEIGHTED_AVERAGE:
-            index.query_encoder = WeightedAvgEncoder(sparse_ranking_cut, index, args.k_avg, args.prob_dist)
-        case _:
-            raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
-    assert index.query_encoder is not None, "Query encoder not set in index."
+    # Create dense_ranking by ranking on similarity between (q_rep, d_rep)
+    if isinstance(index.query_encoder, WeightedAvgEncoder):
+        index.query_encoder.sparse_ranking = sparse_ranking_cut.cut(args.k_avg)
 
-    # Create and save dense_ranking by ranking on similarity between (q_rep, d_rep)
     dense_ranking = index(sparse_ranking_cut)
 
     results = pt.Experiment(
@@ -230,7 +226,7 @@ def main(
         eval_metrics=eval_metrics,
         names=["Sparse", "Sparse >> FF"],
     )
-    print(f"Results:\n{results}")
+    print(f"Results on {args.test_dataset}:\n{results}")
 
 
 if __name__ == '__main__':
