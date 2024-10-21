@@ -41,7 +41,6 @@ def parse_args():
     # TODO [at hand-in]: Remove default paths (sparse_ranking_path, index_path) form the arguments
     parser.add_argument("--dataset", type=str, default="msmarco-passage", help="Dataset (using package ir-datasets). Must match the sparse_ranking.")
     parser.add_argument("--index_path", type=Path, default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5", help="Path to the index file.")
-    parser.add_argument("--ranking_output_path", type=Path, default="dense_ranking.tsv", help="Path to save the re-ranked ranking.")
     parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
     parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default="WEIGHTED_AVERAGE", help="Method to estimate query embeddings.")
     parser.add_argument("--in_memory", action="store_true", help="Whether to load the index in memory.")
@@ -147,7 +146,6 @@ def main(
 
     Output:
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
-            - Saved to ranking_output_path
     """
     pt.init()
 
