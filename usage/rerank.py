@@ -2,6 +2,7 @@ from enum import Enum
 from pathlib import Path
 from typing import List
 import numpy as np
+import warnings
 import torch
 from fast_forward.encoder.avg import ProbDist, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
@@ -65,7 +66,15 @@ def print_settings(
     ) -> None:
     """
     Print the settings used for re-ranking.
+
+    Deprecated:
+        This method is deprecated and will be removed in future versions.
     """
+    warnings.warn(
+        "The print_settings() method is deprecated and will be removed in future versions.",
+        FutureWarning,
+    )
+
     settings_description: List[str] = [
         f"dataset={args.dataset}",
         f"index={args.index_path.name}",
@@ -97,7 +106,15 @@ def results(
         sparse_ranking (Ranking): The initial sparse ranking of documents.
         dense_ranking (Ranking): The re-ranked dense ranking of documents.
         dataset (ir_datasets.Dataset): Dataset to evaluate the rankings.
+
+    Deprecated:
+        This method is deprecated and will be removed in future versions.
     """
+    warnings.warn(
+        "The results() method is deprecated and will be removed in future versions.",
+        FutureWarning,
+    )
+
     print('Results:')
     eval_metrics_objects = []
     for metric_str in args.eval_metrics:
