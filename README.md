@@ -37,7 +37,8 @@ Re-ranking can be done by running this code:
 ```bash
 python usage/rerank.py \
 --ranking_path path/to/ranking_path.txt \
---index_path path/to/index_path.h5
+--index_path path/to/index_path.h5 \
+--in_memory
 ```
 
 For a detailed description of the program arguments:
