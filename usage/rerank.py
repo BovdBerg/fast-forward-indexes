@@ -48,7 +48,12 @@ def parse_args():
     # Arguments for EncodingMethod.WEIGHTED_AVERAGE
     parser.add_argument("--k_avg", type=int, default=8, help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     parser.add_argument("--prob_dist", type=ProbDist, choices=list(ProbDist), default="UNIFORM", help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
+    # VALIDATION
+    parser.add_argument("--dev_dataset", type=str, default="irds:msmarco-passage/dev/judged", help="Dataset to validate and tune parameters. May never be equal to test_dataset.")
+    parser.add_argument("--dev_sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-dev.judged-BM25-top100.tsv", help="Path to the sparse ranking file.")
     # EVALUATION
+    parser.add_argument("--test_dataset", type=str, default="irds:msmarco-passage/trec-dl-2019/judged", help="Dataset to evaluate the rankings. May never be equal to dev_dataset.")
+    parser.add_argument("--test_sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv", help="Path to the sparse ranking file.")
     parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
     parser.add_argument("--alphas", type=float, nargs='+', default=np.arange(0.0, 1.00001, 0.2).tolist(), help="List of interpolation parameters for evaluation.")
     return parser.parse_args()
@@ -161,10 +166,9 @@ def main(
 
     ## Evaluation on test set
     # Load dataset, ranking, and attach queries
-    dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
-    sparse_ranking_path = Path("/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv")
+    dataset = pt.get_dataset(args.test_dataset)
     sparse_ranking: Ranking = Ranking.from_file(
-        sparse_ranking_path,
+        args.test_sparse_ranking_path,
         queries={q.qid: q.query for q in dataset.get_topics().itertuples()}
     )
     sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
