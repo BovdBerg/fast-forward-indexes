@@ -27,6 +27,7 @@ class EncodingMethod(Enum):
     """
     TCTCOLBERT = "TCTCOLBERT"
     WEIGHTED_AVERAGE = "WEIGHTED_AVERAGE"
+    # TODO: Encode as weighted average of WeightedAvgEncoder and (lightweight) QueryEncoder
 
 
 def parse_args():
@@ -62,6 +63,7 @@ def parse_args():
     return parser.parse_args()
 
 
+# TODO: remove this method
 def print_settings(
     ) -> None:
     """
@@ -94,6 +96,7 @@ def print_settings(
     print("\nSettings:\n\t" + ",\n\t".join(settings_description))
 
 
+# TODO: remove this method
 def results(
         sparse_ranking: Ranking, 
         dense_ranking: Ranking, 
@@ -171,6 +174,7 @@ def load_data(
     return dataset, sparse_ranking
 
 
+# TODO: Add profiling to re-ranking step
 def rerank(
         index: Index,
         sparse_ranking: Ranking,
@@ -194,6 +198,7 @@ def rerank(
     return dense_ranking
 
 
+# TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 def main(
         args: argparse.Namespace
     ) -> None:
@@ -241,6 +246,7 @@ def main(
 
     if args.enable_validation:
         ### Validation and parameter tuning on dev set
+        # TODO: Tune k_avg for WeightedAvgEncoder
         dev_dataset, dev_sparse_ranking = load_data(args.dev_dataset, args.dev_sparse_ranking_path)
         dev_dense_ranking = rerank(index, dev_sparse_ranking)
         ff_int = FFInterpolate(alpha=0.5)

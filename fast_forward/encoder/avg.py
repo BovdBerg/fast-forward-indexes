@@ -22,6 +22,7 @@ class ProbDist(Enum):
     GEOMETRIC = "GEOMETRIC"
     EXPONENTIAL = "EXPONENTIAL"
     HALF_NORMAL = "HALF_NORMAL"
+    # TODO: Add LEARNED distribution, with learned model weights based on training/validation data
 
 
 class WeightedAvgEncoder(Encoder):
