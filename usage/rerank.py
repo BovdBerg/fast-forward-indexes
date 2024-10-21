@@ -50,6 +50,7 @@ def parse_args():
     parser.add_argument("--k_avg", type=int, default=8, help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     parser.add_argument("--prob_dist", type=ProbDist, choices=list(ProbDist), default="UNIFORM", help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     # VALIDATION
+    parser.add_argument("--enable_validation", action="store_true", default=False, help="Whether to validate and tune parameters.")
     parser.add_argument("--dev_dataset", type=str, default="irds:msmarco-passage/dev/judged", help="Dataset to validate and tune parameters. May never be equal to test_dataset.")
     parser.add_argument("--dev_sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-dev.judged-BM25-top100.tsv", help="Path to the sparse ranking file.")
     # EVALUATION
@@ -165,38 +166,39 @@ def main(
         metric_name, at_value = metric_str.split('@')
         eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
 
-    ## Validation and parameter tuning on dev set
-    # Load dataset, ranking, and attach queries
-    dataset = ir_datasets.load(args.dev_dataset)
-    sparse_ranking: Ranking = Ranking.from_file(
-        args.dev_sparse_ranking_path,
-        queries={q.query_id: q.text for q in dataset.queries_iter()},
-    )
-    sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
+    if args.enable_validation:
+        ## Validation and parameter tuning on dev set
+        # Load dataset, ranking, and attach queries
+        dataset = ir_datasets.load(args.dev_dataset)
+        sparse_ranking: Ranking = Ranking.from_file(
+            args.dev_sparse_ranking_path,
+            queries={q.query_id: q.text for q in dataset.queries_iter()},
+        )
+        sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff) # Cut ranking to rerank_cutoff
 
-    # Choose query encoder based on encoding_method
-    match args.encoding_method:
-        case EncodingMethod.TCTCOLBERT:
-            index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
-        case EncodingMethod.WEIGHTED_AVERAGE:
-            index.query_encoder = WeightedAvgEncoder(sparse_ranking_cut, index, args.k_avg, args.prob_dist)
-        case _:
-            raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
-    assert index.query_encoder is not None, "Query encoder not set in index."
+        # Choose query encoder based on encoding_method
+        match args.encoding_method:
+            case EncodingMethod.TCTCOLBERT:
+                index.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
+            case EncodingMethod.WEIGHTED_AVERAGE:
+                index.query_encoder = WeightedAvgEncoder(sparse_ranking_cut, index, args.k_avg, args.prob_dist)
+            case _:
+                raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
+        assert index.query_encoder is not None, "Query encoder not set in index."
 
-    # Create and save dense_ranking by ranking on similarity between (q_rep, d_rep)
-    dense_ranking = index(sparse_ranking_cut)
+        # Create and save dense_ranking by ranking on similarity between (q_rep, d_rep)
+        dense_ranking = index(sparse_ranking_cut)
 
-    # Validation and parameter tuning on dev set
-    ff_int = FFInterpolate(alpha=0.5)
+        # Validation and parameter tuning on dev set
+        ff_int = FFInterpolate(alpha=0.5)
 
-    pt.GridSearch(
-        to_ir_measures(dense_ranking),
-        {ff_int: {"alpha": args.alphas}},
-        dataset.queries_iter(),
-        dataset.qrels_iter(),
-        verbose=True,
-    )
+        pt.GridSearch(
+            to_ir_measures(dense_ranking),
+            {ff_int: {"alpha": args.alphas}},
+            dataset.queries_iter(),
+            dataset.qrels_iter(),
+            verbose=True,
+        )
 
 
     ## Evaluation on test set
