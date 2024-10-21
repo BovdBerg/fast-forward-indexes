@@ -149,12 +149,12 @@ def main(
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
             - Saved to ranking_output_path
     """
+    pt.init()
+
     # Load index
     index: Index = OnDiskIndex.load(args.index_path)
     if args.in_memory:
         index = index.to_memory()
-
-    pt.init()
 
     eval_metrics = []
     for metric_str in args.eval_metrics:
