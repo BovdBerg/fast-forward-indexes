@@ -32,12 +32,9 @@ jobs:
         run: |
           rm -rf docs/${{ github.ref_name }}
           rm -f docs/index.html
-      - name: Set PYTHONPATH to include the current directory
-        run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/fast_forward
       - name: Run pdoc
         run: |
-          pdoc fast_forward -d google -o docs/${{ github.ref_name }}
+          PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/fast_forward pdoc fast_forward -d google -o docs/${{ github.ref_name }}
       - name: Generate directory listing
         uses: jayanta525/github-pages-directory-listing@v4.0.0
         with:
