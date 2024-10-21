@@ -33,7 +33,7 @@ jobs:
           rm -f docs/index.html
       - name: Set PYTHONPATH to include the current directory
         run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          export PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/fast_forward
       - name: Run pdoc
         run: |
           pdoc fast_forward -d google -o docs/${{ github.ref_name }}
