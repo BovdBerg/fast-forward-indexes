@@ -46,7 +46,7 @@ def main(
 
     # Retrieve BM25 model from the batchretrieve index
     print(f"Retrieving {args.retriever_wmodel} model from {args.dataset} dataset...")
-    bm25 = pt.BatchRetrieve.from_dataset(args.dataset, args.retriever_variant, wmodel=args.retriever_wmodel, verbose=True)
+    retriever = pt.BatchRetrieve.from_dataset(args.dataset, args.retriever_variant, wmodel=args.retriever_wmodel, verbose=True)
 
     # Get the test topics (dataframe with columns=['qid', 'query'])
     if args.topics_variant is None:
@@ -59,7 +59,7 @@ def main(
         output_file_suffix = f"-{args.max_queries}queries"
     print(f"topics:\n{topics}")
 
-    top_ranked_docs = (bm25 % args.k)(topics)
+    top_ranked_docs = (retriever % args.k)(topics)
     print(f"top_ranked_docs (Length: {len(topics)} topics * {args.k} docs = {len(top_ranked_docs)}):\n{top_ranked_docs}")
 
     # Write to the sparse_runfile.tsv
