@@ -213,6 +213,7 @@ def main(
     ff_int = FFInterpolate(alpha=0.5)
     ff_score = FFScore(index)
     # TODO: Check if PyTerrier supports caching now.
+    # TODO: find bug when validating on WEIGHTED_AVERAGE
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
 
     # TODO: Tune k_avg for WeightedAvgEncoder
