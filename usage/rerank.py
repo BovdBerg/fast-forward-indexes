@@ -236,8 +236,8 @@ def add_ranking_to_enc(
 
 def run_test(
         index: Index,
-        bm25: pt.BatchRetrieve,
-        ff_pipeline: pt.Pipeline,
+        bm25: pt.Transformer,
+        ff_pipeline: any,
         eval_metrics: List[measures.Measure],
         ff_int: FFInterpolate,
     ) -> measures.Measure:
@@ -246,8 +246,8 @@ def run_test(
 
     Args:
         index (Index): The index containing document embeddings.
-        bm25 (pt.BatchRetrieve): Sparse retriever used for initial ranking.
-        ff_pipeline (pt.Pipeline): Pipeline for re-ranking.
+        bm25 (pt.Transformer): Sparse retriever for initial ranking.
+        ff_pipeline (pt.Pipeline): Pipeline for re-ranking. E.g. bm25 % 10 >> ff_score >> ff_int.
         eval_metrics (List[measures.Measure]): Evaluation metrics.
         ff_int (FFInterpolate): Interpolation method for re-ranking.
 
