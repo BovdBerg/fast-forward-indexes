@@ -44,11 +44,11 @@ def parse_args():
     # TODO [at hand-in]: Remove default paths (sparse_ranking_path, index_path) form the arguments
     parser.add_argument("--dataset", type=str, default="msmarco_passage", help="Dataset (using package ir-datasets). Must match the sparse_ranking.")
     parser.add_argument("--index_path", type=Path, default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5", help="Path to the index file.")
-    parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
-    parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default="WEIGHTED_AVERAGE", help="Method to estimate query embeddings.")
     parser.add_argument("--in_memory", action="store_true", help="Whether to load the index in memory.")
+    parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use for encoding queries.")
-    # Arguments for EncodingMethod.WEIGHTED_AVERAGE
+    parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default="WEIGHTED_AVERAGE", help="Method to estimate query embeddings.")
+    # EncodingMethod.WEIGHTED_AVERAGE
     parser.add_argument("--k_avg", type=int, default=8, help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     parser.add_argument("--prob_dist", type=ProbDist, choices=list(ProbDist), default="UNIFORM", help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     # VALIDATION
@@ -58,8 +58,8 @@ def parse_args():
     # EVALUATION
     parser.add_argument("--test_dataset", type=str, default="irds:msmarco-passage/trec-dl-2019/judged", help="Dataset to evaluate the rankings. May never be equal to dev_dataset.")
     parser.add_argument("--test_sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv", help="Path to the sparse ranking file.")
-    parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10"], help="Metrics used for evaluation.")
-    parser.add_argument("--alphas", type=float, nargs='+', default=np.arange(0.0, 1.00001, 0.2).tolist(), help="List of interpolation parameters for evaluation.")
+    parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10", "RR@10", "AP@10", "AP@1000"], help="Metrics used for evaluation.")
+    parser.add_argument("--alphas", type=float, nargs='+', default=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0], help="List of interpolation parameters for evaluation.")
     return parser.parse_args()
 
 
