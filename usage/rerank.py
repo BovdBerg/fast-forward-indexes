@@ -52,19 +52,18 @@ def parse_args():
     parser.add_argument("--prob_dist", type=ProbDist, choices=list(ProbDist), default="UNIFORM", help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     parser.add_argument("--k_avg", type=int, default=None, help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     # VALIDATION
-    parser.add_argument("--enable_validation", action="store_true", default=False, help="Whether to validate and tune parameters.")
     parser.add_argument("--dev_dataset", type=str, default="irds:msmarco-passage/dev/judged", help="Dataset to validate and tune parameters. May never be equal to test_dataset.")
     parser.add_argument("--dev_sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-dev.judged-BM25-top100.tsv", help="Path to the sparse ranking file.")
-    parser.add_argument("--sample_size", type=int, default=None, help="Number of queries to sample for validation.")
+    parser.add_argument("--dev_sample_size", type=int, default=32, help="Number of queries to sample for validation.")
+    parser.add_argument("--alphas", type=float, nargs='+', default=np.arange(0, 1.0001, 0.25).tolist(), help="List of interpolation parameters for evaluation.")
     # EVALUATION
     parser.add_argument("--test_dataset", type=str, default="irds:msmarco-passage/trec-dl-2019/judged", help="Dataset to evaluate the rankings. May never be equal to dev_dataset.")
     parser.add_argument("--test_sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv", help="Path to the sparse ranking file.")
     parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10", "RR@10", "AP@1000"], help="Metrics used for evaluation.")
-    parser.add_argument("--alphas", type=float, nargs='+', default=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0], help="List of interpolation parameters for evaluation.")
     return parser.parse_args()
 
 
-def print_general_settings(
+def print_settings(
     ) -> None:
     """
     Print general settings used for re-ranking.
@@ -73,6 +72,9 @@ def print_general_settings(
     settings_description: List[str] = [
         f"in_memory={args.in_memory}",
         f"rerank_cutoff={args.rerank_cutoff}",
+        f"dev_dataset={args.dev_dataset}",
+        f"dev_sample_size={args.dev_sample_size}",
+        f"alphas={args.alphas}",
     ]
 
     # Encoding method settings
@@ -87,14 +89,7 @@ def print_general_settings(
                 f"prob_dist={args.prob_dist.name}",
                 f"k_avg={args.k_avg}",
             ])
-    # Validation settings
-    settings_description.append(f"enable_validation={args.enable_validation}")
-    if args.enable_validation:
-        settings_description.extend([
-            f"dev_dataset={args.dev_dataset}",
-            f"dev_sparse_ranking_path={args.dev_sparse_ranking_path}",
-            f"sample_size={args.sample_size}",
-        ])
+
     print(f"Settings:\n\t{',\n\t'.join(settings_description)}")
 
 
@@ -153,40 +148,6 @@ def add_ranking_to_enc(
         )
 
 
-def run_test(
-        index: Index,
-        bm25: pt.Transformer,
-        ff_pipeline: any,
-        eval_metrics: List[measures.Measure],
-        ff_int: FFInterpolate,
-        description: str,
-    ) -> measures.Measure:
-    """
-    Run the test pipeline on the test dataset and evaluate the results.
-
-    Args:
-        index (Index): The index containing document embeddings.
-        bm25 (pt.Transformer): Sparse retriever for initial ranking.
-        ff_pipeline (pt.Pipeline): Pipeline for re-ranking. E.g. bm25 % 10 >> ff_score >> ff_int.
-        eval_metrics (List[measures.Measure]): Evaluation metrics.
-        ff_int (FFInterpolate): Interpolation method for re-ranking.
-        description (str): Description of the evaluation results.
-
-    Returns:
-        measures.Measure: The evaluation results.
-    """
-    test_dataset = pt.get_dataset(args.test_dataset)
-    add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
-    results = pt.Experiment(
-        [~bm25,  ff_pipeline],
-        test_dataset.get_topics(),
-        test_dataset.get_qrels(),
-        eval_metrics=eval_metrics,
-        names=["BM25", f"BM25 >> FFScore >> FFInt(α={ff_int.alpha})"],
-    )
-    print(f"\n{description}, on {args.test_dataset}:\n{results}\n")
-
-
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 def main(
         args: argparse.Namespace
@@ -210,7 +171,7 @@ def main(
     Output:
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
     """
-    print_general_settings()
+    print_settings()
     pt.init()
 
     # Load index
@@ -249,29 +210,39 @@ def main(
     # TODO: Add profiling to re-ranking step
     # Create pipeline for re-ranking
     ff_int = FFInterpolate(alpha=0.5)
-    ff_pipeline = ~bm25 % args.rerank_cutoff >> FFScore(index) >> ff_int
+    ff_score = FFScore(index)
+    ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
 
-    # Initial evaluation on test set, before hyperparameter tuning
-    run_test(index, bm25, ff_pipeline, eval_metrics, ff_int, "Initial results")
-
+    # TODO: Tune k_avg for WeightedAvgEncoder
     # Validation and parameter tuning on dev set
-    if args.enable_validation:
-        # TODO: Tune k_avg for WeightedAvgEncoder
-        dev_dataset = pt.get_dataset(args.dev_dataset)
-        add_ranking_to_enc(index, dev_dataset, args.dev_sparse_ranking_path)
-        dev_queries = dev_dataset.get_topics()
-        if args.sample_size is not None:
-            dev_queries = dev_queries.sample(n=args.sample_size)
-        pt.GridSearch(
-            ff_pipeline,
-            {ff_int: {"alpha": args.alphas}},
-            dev_queries,
-            dev_dataset.get_qrels(),
-            verbose=True,
-        )
+    dev_dataset = pt.get_dataset(args.dev_dataset)
+    add_ranking_to_enc(index, dev_dataset, args.dev_sparse_ranking_path)
 
-        # Final evaluation on test set
-        run_test(index, bm25, ff_pipeline, eval_metrics, ff_int, "Final results")
+    # Sample dev queries if dev_sample_size is set
+    dev_queries = dev_dataset.get_topics()
+    if args.dev_sample_size is not None:
+        dev_queries = dev_queries.sample(n=args.dev_sample_size)
+
+    pt.GridSearch(
+        ff_pipeline,
+        {ff_int: {"alpha": args.alphas}},
+        dev_queries,
+        dev_dataset.get_qrels(),
+        verbose=True,
+    )
+
+    # Final evaluation on test set
+    test_dataset = pt.get_dataset(args.test_dataset)
+    add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
+    results = pt.Experiment(
+        [~bm25,  ff_pipeline],
+        test_dataset.get_topics(),
+        test_dataset.get_qrels(),
+        eval_metrics=eval_metrics,
+        names=["BM25", f"BM25 >> FFScore >> FFInt(α={ff_int.alpha})"],
+    )
+    print_settings()
+    print(f"\nFinal results, on {args.test_dataset}:\n{results}\n")
 
 
 if __name__ == '__main__':
