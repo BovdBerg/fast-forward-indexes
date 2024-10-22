@@ -58,7 +58,7 @@ def parse_args():
     # EVALUATION
     parser.add_argument("--test_dataset", type=str, default="irds:msmarco-passage/trec-dl-2019/judged", help="Dataset to evaluate the rankings. May never be equal to dev_dataset.")
     parser.add_argument("--test_sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv", help="Path to the sparse ranking file.")
-    parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10", "RR@10", "AP@10", "AP@1000"], help="Metrics used for evaluation.")
+    parser.add_argument("--eval_metrics", type=str, nargs='+', default=["nDCG@10", "RR@10", "AP@1000"], help="Metrics used for evaluation.")
     parser.add_argument("--alphas", type=float, nargs='+', default=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0], help="List of interpolation parameters for evaluation.")
     return parser.parse_args()
 
