@@ -139,7 +139,8 @@ def add_ranking_to_enc(
 
     Args:
         index (Index): The index containing document embeddings.
-        test_dataset (ir_datasets.Dataset): Dataset to evaluate the rankings.
+        dataset (ir_datasets.Dataset): Dataset to evaluate the rankings.
+        sparse_ranking_path (Path): Path to the sparse ranking file.
     """
     if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
         index.query_encoder.sparse_ranking = Ranking.from_file(
