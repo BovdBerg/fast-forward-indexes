@@ -168,11 +168,11 @@ def run_test(
     test_dataset = pt.get_dataset(args.test_dataset)
     add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
     results = pt.Experiment(
-        [~bm25, ~bm25 >> FFScore(index), ff_pipeline],
+        [~bm25,  ff_pipeline],
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
-        names=["BM25", "BM25 >> FFScore", f"BM25 >> FFScore >> FFInt(α={ff_int.alpha})"],
+        names=["BM25", f"BM25 >> FFScore >> FFInt(α={ff_int.alpha})"],
     )
     print(f"\n{description}, on {args.test_dataset}:\n{results}\n")
 
