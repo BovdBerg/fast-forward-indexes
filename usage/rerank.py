@@ -55,6 +55,7 @@ def parse_args():
     parser.add_argument("--enable_validation", action="store_true", default=False, help="Whether to validate and tune parameters.")
     parser.add_argument("--dev_dataset", type=str, default="irds:msmarco-passage/dev/judged", help="Dataset to validate and tune parameters. May never be equal to test_dataset.")
     parser.add_argument("--dev_sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-dev.judged-BM25-top100.tsv", help="Path to the sparse ranking file.")
+    parser.add_argument("--sample_size", type=int, default=None, help="Number of queries to sample for validation.")
     # EVALUATION
     parser.add_argument("--test_dataset", type=str, default="irds:msmarco-passage/trec-dl-2019/judged", help="Dataset to evaluate the rankings. May never be equal to dev_dataset.")
     parser.add_argument("--test_sparse_ranking_path", type=Path, default="/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv", help="Path to the sparse ranking file.")
@@ -248,10 +249,13 @@ def main(
         # TODO: Tune k_avg for WeightedAvgEncoder
         dev_dataset = pt.get_dataset(args.dev_dataset)
         add_ranking_to_enc(index, dev_dataset, args.dev_sparse_ranking_path)
+        dev_queries = dev_dataset.get_topics()
+        if args.sample_size is not None:
+            dev_queries = dev_queries.sample(n=args.sample_size)
         pt.GridSearch(
             ff_pipeline,
             {ff_int: {"alpha": args.alphas}},
-            dev_dataset.get_topics(),
+            dev_queries,
             dev_dataset.get_qrels(),
             verbose=True,
         )
