@@ -19,7 +19,6 @@ class ProbDist(Enum):
         HALF_NORMAL: weights decrease with the half-normal distribution.
     """
     UNIFORM = "UNIFORM"
-    GEOMETRIC = "GEOMETRIC"
     EXPONENTIAL = "EXPONENTIAL"
     HALF_NORMAL = "HALF_NORMAL"
     # TODO: Add LEARNED distribution, with learned model weights based on training/validation data
@@ -72,8 +71,6 @@ class WeightedAvgEncoder(Encoder):
         match self.prob_dist:
             case ProbDist.UNIFORM:
                 return np.ones(n_docs) / n_docs
-            case ProbDist.GEOMETRIC:
-                return np.geomspace(1, 0.1, n_docs)
             case ProbDist.EXPONENTIAL:
                 return np.exp(-np.linspace(0, 1, n_docs))
             case ProbDist.HALF_NORMAL:
