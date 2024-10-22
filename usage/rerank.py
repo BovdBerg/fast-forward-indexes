@@ -316,23 +316,23 @@ def main(
             verbose=True,
         )
 
-    ### Final evaluation on test set
-    test_dataset = pt.get_dataset(args.test_dataset)
+        ### Final evaluation on test set
+        test_dataset = pt.get_dataset(args.test_dataset)
 
-    if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
-        index.query_encoder.sparse_ranking = Ranking.from_file(
-            args.test_sparse_ranking_path,
-            queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()}
+        if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
+            index.query_encoder.sparse_ranking = Ranking.from_file(
+                args.test_sparse_ranking_path,
+                queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()}
+            )
+
+        results = pt.Experiment(
+            [~bm25, ff_pipeline],
+            test_dataset.get_topics(),
+            test_dataset.get_qrels(),
+            eval_metrics=eval_metrics,
+            names=["BM25", f"BM25 >> FF (alpha={ff_int.alpha})"],
         )
-
-    results = pt.Experiment(
-        [~bm25, ff_pipeline],
-        test_dataset.get_topics(),
-        test_dataset.get_qrels(),
-        eval_metrics=eval_metrics,
-        names=["BM25", f"BM25 >> FF (alpha={ff_int.alpha})"],
-    )
-    print(f"Final results on {args.test_dataset}:\n{results}")
+        print(f"Final results on {args.test_dataset}:\n{results}")
 
 
 if __name__ == '__main__':
