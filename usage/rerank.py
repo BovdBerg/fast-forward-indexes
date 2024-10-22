@@ -321,7 +321,7 @@ def main(
             str(Path.cwd()),  # ignored but must be a valid path
             type=pt.index.IndexingType.MEMORY,
         )
-        index_ref = indexer.index(test_dataset.get_corpus_iter(), fields=["text"])
+        index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
         bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
 
     # Create pipeline for re-ranking
