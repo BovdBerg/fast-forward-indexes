@@ -32,13 +32,14 @@ pip install fast-forward-indexes
 
 
 ## Instructions
-
+<!-- TODO [final]: update run script in readme -->
 Re-ranking can be done by running this code:
 ```bash
 python usage/rerank.py \
---ranking_path path/to/ranking_path.txt \
---index_path path/to/index_path.h5 \
---in_memory
+    --index_path path/to/index_path.h5 \
+    --in_memory \
+    --test_dataset irds:msmarco-passage/trec-dl-2019/judged \
+    --test_sparse_ranking_path path/to/sparse_ranking.tsv \
 ```
 
 For a detailed description of the program arguments:
