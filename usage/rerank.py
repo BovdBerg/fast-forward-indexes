@@ -212,6 +212,7 @@ def main(
     # Create pipeline for re-ranking
     ff_int = FFInterpolate(alpha=0.5)
     ff_score = FFScore(index)
+    # TODO: Check if PyTerrier supports caching now.
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
 
     # TODO: Tune k_avg for WeightedAvgEncoder
