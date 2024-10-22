@@ -51,7 +51,7 @@ class WeightedAvgEncoder(Encoder):
         self.index = index
         self.prob_dist: ProbDist = prob_dist
         self.k_avg: int = k_avg
-        self.sparse_ranking = sparse_ranking.cut(k_avg) if sparse_ranking is not None else None
+        self.sparse_ranking = sparse_ranking if sparse_ranking is not None else None
         super().__init__()
 
 
@@ -90,9 +90,11 @@ class WeightedAvgEncoder(Encoder):
             np.ndarray: An array of query embeddings.
         """
         assert self.sparse_ranking is not None, "Please set the top_sparse_ranking attribute before calling the encoder."
-        assert self.k_avg is not None, "Please set the k_avg attribute before calling the encoder."
-        assert self.k_avg <= len(self.sparse_ranking), "k_avg must be less than or equal to the number of documents in the sparse ranking."
-        top_ranking = self.sparse_ranking.cut(self.k_avg)
+        top_ranking = self.sparse_ranking
+
+        if self.k_avg is not None:
+            assert self.k_avg <= len(self.sparse_ranking), "k_avg must be less than or equal to the number of documents in the sparse ranking."
+            top_ranking = top_ranking.cut(self.k_avg)
 
         q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
 
