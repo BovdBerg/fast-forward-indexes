@@ -215,6 +215,25 @@ def rerank(
     return dense_ranking
 
 
+def add_ranking_to_enc(
+        index: Index, 
+        dataset: ir_datasets.Dataset,
+        sparse_ranking_path: Path,
+    ) -> None:
+    """
+    Add the sparse ranking to the query encoder for re-ranking.
+
+    Args:
+        index (Index): The index containing document embeddings.
+        test_dataset (ir_datasets.Dataset): Dataset to evaluate the rankings.
+    """
+    if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
+        index.query_encoder.sparse_ranking = Ranking.from_file(
+            sparse_ranking_path,
+            queries={q.qid: q.query for q in dataset.get_topics().itertuples()}
+        )
+
+
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 def main(
         args: argparse.Namespace
@@ -279,15 +298,8 @@ def main(
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
 
     ### Initial evaluation on test set, before hyperparameter tuning
-    # TODO: Move duplicated code between 2x test + dev to seperate method
     test_dataset = pt.get_dataset(args.test_dataset)
-
-    if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
-        index.query_encoder.sparse_ranking = Ranking.from_file(
-            args.test_sparse_ranking_path,
-            queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()} # TODO: attaching queries might not be needed as they are not used (see also below 2x)
-        )
-
+    add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
     results = pt.Experiment(
         [~bm25, ff_pipeline],
         test_dataset.get_topics(),
@@ -301,13 +313,7 @@ def main(
     if args.enable_validation:
         # TODO: Tune k_avg for WeightedAvgEncoder
         dev_dataset = pt.get_dataset(args.dev_dataset)
-
-        if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
-            index.query_encoder.sparse_ranking = Ranking.from_file(
-                args.dev_sparse_ranking_path,
-                queries={q.qid: q.query for q in dev_dataset.get_topics().itertuples()}
-            )
-
+        add_ranking_to_enc(index, dev_dataset, args.dev_sparse_ranking_path)
         pt.GridSearch(
             ff_pipeline,
             {ff_int: {"alpha": args.alphas}},
@@ -318,13 +324,7 @@ def main(
 
         ### Final evaluation on test set
         test_dataset = pt.get_dataset(args.test_dataset)
-
-        if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
-            index.query_encoder.sparse_ranking = Ranking.from_file(
-                args.test_sparse_ranking_path,
-                queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()}
-            )
-
+        add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
         results = pt.Experiment(
             [~bm25, ff_pipeline],
             test_dataset.get_topics(),
