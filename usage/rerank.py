@@ -9,7 +9,7 @@ from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
-from fast_forward.util.pyterrier import FFInterpolate
+from fast_forward.util.pyterrier import FFInterpolate, FFScore
 import ir_datasets
 from ir_measures import calc_aggregate, measures
 from fast_forward.util import to_ir_measures
@@ -42,7 +42,7 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Re-rank documents based on query embeddings.")
     # TODO [at hand-in]: Remove default paths (sparse_ranking_path, index_path) form the arguments
-    parser.add_argument("--dataset", type=str, default="msmarco-passage", help="Dataset (using package ir-datasets). Must match the sparse_ranking.")
+    parser.add_argument("--dataset", type=str, default="msmarco_passage", help="Dataset (using package ir-datasets). Must match the sparse_ranking.")
     parser.add_argument("--index_path", type=Path, default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5", help="Path to the index file.")
     parser.add_argument("--rerank_cutoff", type=int, default=1000, help="Number of documents to re-rank per query.")
     parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default="WEIGHTED_AVERAGE", help="Method to estimate query embeddings.")
@@ -78,7 +78,6 @@ def print_settings(
     )
 
     settings_description: List[str] = [
-        f"dataset={args.dataset}",
         f"index={args.index_path.name}",
         f"rerank_cutoff={args.rerank_cutoff}",
         f"encoding_method={args.encoding_method.name}",
@@ -262,31 +261,77 @@ def main(
             raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
     assert index.query_encoder is not None, "Query encoder not set in index."
 
-    if args.enable_validation:
-        ### Validation and parameter tuning on dev set
-        # TODO: Tune k_avg for WeightedAvgEncoder
-        dev_dataset, dev_sparse_ranking = load_data(args.dev_dataset, args.dev_sparse_ranking_path)
-        dev_dense_ranking = rerank(index, dev_sparse_ranking)
-        ff_int = FFInterpolate(alpha=0.5)
-        pt.GridSearch(
-            to_ir_measures(dev_dense_ranking),
-            {ff_int: {"alpha": args.alphas}},
-            dev_dataset.queries_iter(),
-            dev_dataset.qrels_iter(),
-            verbose=True,
+    # Load dataset and create sparse retriever (e.g. BM25)
+    dataset = pt.get_dataset(args.dataset)
+    try:
+        bm25 = pt.BatchRetrieve.from_dataset(dataset, "terrier_stemmed", wmodel="BM25", verbose=True)
+    except:
+        indexer = pt.IterDictIndexer(
+            str(Path.cwd()),  # ignored but must be a valid path
+            type=pt.index.IndexingType.MEMORY,
+        )
+        index_ref = indexer.index(test_dataset.get_corpus_iter(), fields=["text"])
+        bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
+
+    # Create pipeline for re-ranking
+    ff_score = FFScore(index)
+    ff_int = FFInterpolate(alpha=0.5)
+    ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
+
+    ### Initial evaluation on test set, before hyperparameter tuning
+    test_dataset = pt.get_dataset(args.test_dataset)
+
+    if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
+        index.query_encoder.sparse_ranking = Ranking.from_file(
+            args.test_sparse_ranking_path,
+            queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()} # TODO: attaching queries might not be needed as they are not used (see also below 2x)
         )
 
-    ### Evaluation on test set
-    test_dataset, test_sparse_ranking = load_data(args.test_dataset, args.test_sparse_ranking_path)
-    test_dense_ranking = rerank(index, test_sparse_ranking)
     results = pt.Experiment(
-        [to_ir_measures(test_sparse_ranking), to_ir_measures(test_dense_ranking)],
+        [~bm25, ff_pipeline],
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
-        names=["Sparse", "Sparse >> FF"],
+        names=["BM25", f"BM25 >> FF (alpha={ff_int.alpha})"],
     )
-    print(f"Results on {args.test_dataset}:\n{results}")
+    print(f"Initial results on {args.test_dataset} - Before hyperparameter tuning:\n{results}")
+
+    ### Validation and parameter tuning on dev set
+    if args.enable_validation:
+        # TODO: Tune k_avg for WeightedAvgEncoder
+        dev_dataset = pt.get_dataset(args.dev_dataset)
+
+        if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
+            index.query_encoder.sparse_ranking = Ranking.from_file(
+                args.dev_sparse_ranking_path,
+                queries={q.qid: q.query for q in dev_dataset.get_topics().itertuples()}
+            )
+
+        pt.GridSearch(
+            ff_pipeline,
+            {ff_int: {"alpha": args.alphas}},
+            dev_dataset.get_topics(),
+            dev_dataset.get_qrels(),
+            verbose=True,
+        )
+
+    ### Final evaluation on test set
+    test_dataset = pt.get_dataset(args.test_dataset)
+
+    if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
+        index.query_encoder.sparse_ranking = Ranking.from_file(
+            args.test_sparse_ranking_path,
+            queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()}
+        )
+
+    results = pt.Experiment(
+        [~bm25, ff_pipeline],
+        test_dataset.get_topics(),
+        test_dataset.get_qrels(),
+        eval_metrics=eval_metrics,
+        names=["BM25", f"BM25 >> FF (alpha={ff_int.alpha})"],
+    )
+    print(f"Final results on {args.test_dataset}:\n{results}")
 
 
 if __name__ == '__main__':
