@@ -49,8 +49,8 @@ def parse_args():
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use for encoding queries.")
     parser.add_argument("--encoding_method", type=EncodingMethod, choices=list(EncodingMethod), default="WEIGHTED_AVERAGE", help="Method to estimate query embeddings.")
     # EncodingMethod.WEIGHTED_AVERAGE
-    parser.add_argument("--k_avg", type=int, default=8, help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     parser.add_argument("--prob_dist", type=ProbDist, choices=list(ProbDist), default="UNIFORM", help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
+    parser.add_argument("--k_avg", type=int, default=8, help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.")
     # VALIDATION
     parser.add_argument("--enable_validation", action="store_true", default=False, help="Whether to validate and tune parameters.")
     parser.add_argument("--dev_dataset", type=str, default="irds:msmarco-passage/dev/judged", help="Dataset to validate and tune parameters. May never be equal to test_dataset.")
@@ -81,8 +81,8 @@ def print_general_settings(
             ])
         case EncodingMethod.WEIGHTED_AVERAGE:
             settings_description.extend([
-                f"k_avg={args.k_avg}",
                 f"prob_dist={args.prob_dist.name}",
+                f"k_avg={args.k_avg}",
             ])
     print(f"Settings:\n\t{',\n\t'.join(settings_description)}")
 
