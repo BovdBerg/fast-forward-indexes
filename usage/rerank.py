@@ -240,7 +240,6 @@ def main(
     ff_score = FFScore(index)
     ff_int = FFInterpolate(alpha=0.5)
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
-    # TODO: validate that rerank_cutoff works as expected by using very small value and printing the ranking
 
     # Initial evaluation on test set, before hyperparameter tuning
     run_test(index, bm25, ff_pipeline, eval_metrics, ff_int, "Initial results")
