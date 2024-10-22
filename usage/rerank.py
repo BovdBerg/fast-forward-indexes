@@ -69,12 +69,14 @@ def print_general_settings(
     """
     Print general settings used for re-ranking.
     """
+    # General settings
     settings_description: List[str] = [
         f"in_memory={args.in_memory}",
         f"rerank_cutoff={args.rerank_cutoff}",
-        f"enable_validation={args.enable_validation}",
-        f"encoding_method={args.encoding_method.name}",
     ]
+
+    # Encoding method settings
+    settings_description.append(f"encoding_method={args.encoding_method.name}")
     match args.encoding_method:  # Append method-specific settings
         case EncodingMethod.TCTCOLBERT:
             settings_description.extend([
@@ -85,6 +87,14 @@ def print_general_settings(
                 f"prob_dist={args.prob_dist.name}",
                 f"k_avg={args.k_avg}",
             ])
+    # Validation settings
+    settings_description.append(f"enable_validation={args.enable_validation}")
+    if args.enable_validation:
+        settings_description.extend([
+            f"dev_dataset={args.dev_dataset}",
+            f"dev_sparse_ranking_path={args.dev_sparse_ranking_path}",
+            f"sample_size={args.sample_size}",
+        ])
     print(f"Settings:\n\t{',\n\t'.join(settings_description)}")
 
 
