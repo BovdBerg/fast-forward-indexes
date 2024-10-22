@@ -167,11 +167,11 @@ def run_test(
     test_dataset = pt.get_dataset(args.test_dataset)
     add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
     results = pt.Experiment(
-        [~bm25, ff_pipeline],
+        [~bm25, ~bm25 >> FFScore(index), ff_pipeline],
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
-        names=["BM25", f"BM25 >> FF(α={ff_int.alpha})"],
+        names=["BM25", "BM25 >> FFScore", f"BM25 >> FFScore >> FFInt(α={ff_int.alpha})"],
     )
     print(f"\n{description}, on {args.test_dataset}:\n{results}\n")
 
@@ -237,9 +237,8 @@ def main(
 
     # TODO: Add profiling to re-ranking step
     # Create pipeline for re-ranking
-    ff_score = FFScore(index)
     ff_int = FFInterpolate(alpha=0.5)
-    ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
+    ff_pipeline = ~bm25 % args.rerank_cutoff >> FFScore(index) >> ff_int
 
     # Initial evaluation on test set, before hyperparameter tuning
     run_test(index, bm25, ff_pipeline, eval_metrics, ff_int, "Initial results")
