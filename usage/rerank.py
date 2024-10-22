@@ -152,6 +152,7 @@ def results(
     print(f"\tEstimated best-nDCG@10 interpolated ranking (alpha~={best_alpha}): {best_score}")
 
 
+# TODO: remove this method
 def load_data(
         dataset_path: Path,
         ranking_path: Path,
@@ -165,7 +166,15 @@ def load_data(
 
     Returns:
         Tuple[ir_datasets.Dataset, Ranking]: The dataset and the initial sparse ranking of documents.
+
+    Deprecated:
+        This method is deprecated and will be removed in future versions.
     """
+    warnings.warn(
+        "The results() method is deprecated and will be removed in future versions.",
+        FutureWarning,
+    )
+
     dataset = pt.get_dataset(dataset_path)
     sparse_ranking = Ranking.from_file(
         ranking_path,
@@ -174,6 +183,7 @@ def load_data(
     return dataset, sparse_ranking
 
 
+# TODO: remove this method
 # TODO: Add profiling to re-ranking step
 def rerank(
         index: Index,
@@ -188,7 +198,15 @@ def rerank(
     
     Returns:
         Ranking: The re-ranked dense ranking of documents.
+
+    Deprecated:
+        This method is deprecated and will be removed in future versions.
     """
+    warnings.warn(
+        "The results() method is deprecated and will be removed in future versions.",
+        FutureWarning,
+    )
+
     sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff)
 
     if isinstance(index.query_encoder, WeightedAvgEncoder):
