@@ -279,6 +279,7 @@ def main(
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
 
     ### Initial evaluation on test set, before hyperparameter tuning
+    # TODO: Move duplicated code between 2x test + dev to seperate method
     test_dataset = pt.get_dataset(args.test_dataset)
 
     if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
