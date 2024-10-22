@@ -63,23 +63,15 @@ def parse_args():
     return parser.parse_args()
 
 
-# TODO: remove this method
-def print_settings(
+def print_general_settings(
     ) -> None:
     """
-    Print the settings used for re-ranking.
-
-    Deprecated:
-        This method is deprecated and will be removed in future versions.
+    Print general settings used for re-ranking.
     """
-    warnings.warn(
-        "The print_settings() method is deprecated and will be removed in future versions.",
-        FutureWarning,
-    )
-
     settings_description: List[str] = [
-        f"index={args.index_path.name}",
+        f"in_memory={args.in_memory}",
         f"rerank_cutoff={args.rerank_cutoff}",
+        f"enable_validation={args.enable_validation}",
         f"encoding_method={args.encoding_method.name}",
     ]
     match args.encoding_method:  # Append method-specific settings
@@ -92,14 +84,14 @@ def print_settings(
                 f"k_avg={args.k_avg}",
                 f"prob_dist={args.prob_dist.name}",
             ])
-    print("\nSettings:\n\t" + ",\n\t".join(settings_description))
+    print(f"Settings:\n\t{',\n\t'.join(settings_description)}")
 
 
-# TODO: remove this method
-def results(
+def estimate_best_alpha(
         sparse_ranking: Ranking, 
         dense_ranking: Ranking, 
         dataset: ir_datasets.Dataset,
+        eval_metrics: List[measures.Measure],
     ) -> None:
     """
     Calculate and print the evaluation results for different interpolation parameters.
@@ -108,35 +100,15 @@ def results(
         sparse_ranking (Ranking): The initial sparse ranking of documents.
         dense_ranking (Ranking): The re-ranked dense ranking of documents.
         dataset (ir_datasets.Dataset): Dataset to evaluate the rankings.
-
-    Deprecated:
-        This method is deprecated and will be removed in future versions.
+        eval_metrics (List[measures.Measure]): Evaluation metrics.
     """
     warnings.warn(
-        "The results() method is deprecated and will be removed in future versions.",
-        FutureWarning,
+        "This method is still experimental and may not work as expected."
     )
 
-    print('Results:')
-    eval_metrics_objects = []
-    for metric_str in args.eval_metrics:
-        metric_name, at_value = metric_str.split('@')
-        eval_metrics_objects.append(getattr(measures, metric_name) @ int(at_value))
-
-    # Print interpolated results for all different alpha values
-    for alpha in args.alphas:
-        interpolated_ranking = sparse_ranking.interpolate(dense_ranking, alpha)
-        score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(interpolated_ranking))
-        ranking_type = (
-            "Sparse" if alpha == 1 else 
-            "Dense" if alpha == 0 else 
-            "Interpolated"
-        )
-        print(f"\t{ranking_type} ranking (alpha={alpha}): {score}")
-
     # Estimate best interpolation alpha as weighted average of sparse- and dense-nDCG scores
-    dense_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(dense_ranking))
-    sparse_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(sparse_ranking))
+    dense_score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(dense_ranking))
+    sparse_score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(sparse_ranking))
     dense_nDCG10 = dense_score[measures.nDCG @ 10]
     sparse_nDCG10 = sparse_score[measures.nDCG @ 10]
     weights = [dense_nDCG10, sparse_nDCG10]
@@ -147,72 +119,8 @@ def results(
     else:
         best_alpha = np.average([0.5, 1], weights=weights)
     assert 0 <= best_alpha <= 1, f"Invalid best_alpha: {best_alpha}"
-    best_score = calc_aggregate(eval_metrics_objects, dataset.qrels_iter(), to_ir_measures(sparse_ranking.interpolate(dense_ranking, best_alpha)))
-    print(f"\tEstimated best-nDCG@10 interpolated ranking (alpha~={best_alpha}): {best_score}")
-
-
-# TODO: remove this method
-def load_data(
-        dataset_path: Path,
-        ranking_path: Path,
-    ) -> Tuple[ir_datasets.Dataset, Ranking]:
-    """
-    Load the dataset and the initial sparse ranking of documents.
-
-    Args:
-        dataset_path (Path): Path to the dataset.
-        ranking_path (Path): Path to the initial sparse ranking of documents.
-
-    Returns:
-        Tuple[ir_datasets.Dataset, Ranking]: The dataset and the initial sparse ranking of documents.
-
-    Deprecated:
-        This method is deprecated and will be removed in future versions.
-    """
-    warnings.warn(
-        "The results() method is deprecated and will be removed in future versions.",
-        FutureWarning,
-    )
-
-    dataset = pt.get_dataset(dataset_path)
-    sparse_ranking = Ranking.from_file(
-        ranking_path,
-        queries={q.qid: q.query for q in dataset.get_topics().itertuples()}
-    )
-    return dataset, sparse_ranking
-
-
-# TODO: remove this method
-# TODO: Add profiling to re-ranking step
-def rerank(
-        index: Index,
-        sparse_ranking: Ranking,
-    ) -> Ranking:
-    """
-    Re-rank the documents based on the similarity to query embeddings.
-
-    Args:
-        index (Index): The index containing document embeddings.
-        sparse_ranking (Ranking): The initial sparse ranking of documents.
-    
-    Returns:
-        Ranking: The re-ranked dense ranking of documents.
-
-    Deprecated:
-        This method is deprecated and will be removed in future versions.
-    """
-    warnings.warn(
-        "The results() method is deprecated and will be removed in future versions.",
-        FutureWarning,
-    )
-
-    sparse_ranking_cut = sparse_ranking.cut(args.rerank_cutoff)
-
-    if isinstance(index.query_encoder, WeightedAvgEncoder):
-        index.query_encoder.sparse_ranking = sparse_ranking_cut.cut(args.k_avg)
-
-    dense_ranking = index(sparse_ranking_cut)
-    return dense_ranking
+    best_score = calc_aggregate(eval_metrics, dataset.qrels_iter(), to_ir_measures(sparse_ranking.interpolate(dense_ranking, best_alpha)))
+    print(f"\tEstimated best-nDCG@10 interpolated ranking (α~={best_alpha}): {best_score}")
 
 
 def add_ranking_to_enc(
@@ -240,6 +148,7 @@ def run_test(
         ff_pipeline: any,
         eval_metrics: List[measures.Measure],
         ff_int: FFInterpolate,
+        description: str,
     ) -> measures.Measure:
     """
     Run the test pipeline on the test dataset and evaluate the results.
@@ -250,6 +159,7 @@ def run_test(
         ff_pipeline (pt.Pipeline): Pipeline for re-ranking. E.g. bm25 % 10 >> ff_score >> ff_int.
         eval_metrics (List[measures.Measure]): Evaluation metrics.
         ff_int (FFInterpolate): Interpolation method for re-ranking.
+        description (str): Description of the evaluation results.
 
     Returns:
         measures.Measure: The evaluation results.
@@ -261,9 +171,9 @@ def run_test(
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
-        names=["BM25", f"BM25 >> FF (alpha={ff_int.alpha})"],
+        names=["BM25", f"BM25 >> FF(α={ff_int.alpha})"],
     )
-    return results
+    print(f"\n{description}, on {args.test_dataset}:\n{results}\n")
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
@@ -289,6 +199,7 @@ def main(
     Output:
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
     """
+    print_general_settings()
     pt.init()
 
     # Load index
@@ -324,16 +235,17 @@ def main(
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
         bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
 
+    # TODO: Add profiling to re-ranking step
     # Create pipeline for re-ranking
     ff_score = FFScore(index)
     ff_int = FFInterpolate(alpha=0.5)
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
+    # TODO: validate that rerank_cutoff works as expected by using very small value and printing the ranking
 
-    ### Initial evaluation on test set, before hyperparameter tuning
-    results = run_test(index, bm25, ff_pipeline, eval_metrics, ff_int)
-    print(f"Initial results on {args.test_dataset} - Before hyperparameter tuning:\n{results}")
+    # Initial evaluation on test set, before hyperparameter tuning
+    run_test(index, bm25, ff_pipeline, eval_metrics, ff_int, "Initial results")
 
-    ### Validation and parameter tuning on dev set
+    # Validation and parameter tuning on dev set
     if args.enable_validation:
         # TODO: Tune k_avg for WeightedAvgEncoder
         dev_dataset = pt.get_dataset(args.dev_dataset)
@@ -346,9 +258,8 @@ def main(
             verbose=True,
         )
 
-        ### Final evaluation on test set
-        results = run_test(index, bm25, ff_pipeline, eval_metrics, ff_int)
-        print(f"Final results on {args.test_dataset}:\n{results}")
+        # Final evaluation on test set
+        run_test(index, bm25, ff_pipeline, eval_metrics, ff_int, "Final results")
 
 
 if __name__ == '__main__':
