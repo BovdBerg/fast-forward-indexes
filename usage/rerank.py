@@ -177,7 +177,7 @@ def main(
     # Load index
     index: Index = OnDiskIndex.load(args.index_path)
     if args.in_memory:
-        index = index.to_memory(buffer_size=2**20)
+        index = index.to_memory(buffer_size=2**12)
 
     # Parse eval_metrics to ir-measures' measure objects
     eval_metrics = []
