@@ -234,6 +234,38 @@ def add_ranking_to_enc(
         )
 
 
+def run_test(
+        index: Index,
+        bm25: pt.BatchRetrieve,
+        ff_pipeline: pt.Pipeline,
+        eval_metrics: List[measures.Measure],
+        ff_int: FFInterpolate,
+    ) -> measures.Measure:
+    """
+    Run the test pipeline on the test dataset and evaluate the results.
+
+    Args:
+        index (Index): The index containing document embeddings.
+        bm25 (pt.BatchRetrieve): Sparse retriever used for initial ranking.
+        ff_pipeline (pt.Pipeline): Pipeline for re-ranking.
+        eval_metrics (List[measures.Measure]): Evaluation metrics.
+        ff_int (FFInterpolate): Interpolation method for re-ranking.
+
+    Returns:
+        measures.Measure: The evaluation results.
+    """
+    test_dataset = pt.get_dataset(args.test_dataset)
+    add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
+    results = pt.Experiment(
+        [~bm25, ff_pipeline],
+        test_dataset.get_topics(),
+        test_dataset.get_qrels(),
+        eval_metrics=eval_metrics,
+        names=["BM25", f"BM25 >> FF (alpha={ff_int.alpha})"],
+    )
+    return results
+
+
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 def main(
         args: argparse.Namespace
@@ -298,15 +330,7 @@ def main(
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
 
     ### Initial evaluation on test set, before hyperparameter tuning
-    test_dataset = pt.get_dataset(args.test_dataset)
-    add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
-    results = pt.Experiment(
-        [~bm25, ff_pipeline],
-        test_dataset.get_topics(),
-        test_dataset.get_qrels(),
-        eval_metrics=eval_metrics,
-        names=["BM25", f"BM25 >> FF (alpha={ff_int.alpha})"],
-    )
+    results = run_test(index, bm25, ff_pipeline, eval_metrics, ff_int)
     print(f"Initial results on {args.test_dataset} - Before hyperparameter tuning:\n{results}")
 
     ### Validation and parameter tuning on dev set
@@ -323,15 +347,7 @@ def main(
         )
 
         ### Final evaluation on test set
-        test_dataset = pt.get_dataset(args.test_dataset)
-        add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
-        results = pt.Experiment(
-            [~bm25, ff_pipeline],
-            test_dataset.get_topics(),
-            test_dataset.get_qrels(),
-            eval_metrics=eval_metrics,
-            names=["BM25", f"BM25 >> FF (alpha={ff_int.alpha})"],
-        )
+        results = run_test(index, bm25, ff_pipeline, eval_metrics, ff_int)
         print(f"Final results on {args.test_dataset}:\n{results}")
 
 
