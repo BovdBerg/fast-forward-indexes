@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 import numpy as np
 import warnings
 import torch
@@ -237,7 +237,7 @@ def main(
     test_dataset = pt.get_dataset(args.test_dataset)
     add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
     results = pt.Experiment(
-        [~bm25,  ff_pipeline],
+        [~bm25, ff_pipeline],
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
