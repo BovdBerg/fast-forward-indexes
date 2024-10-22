@@ -93,7 +93,6 @@ class WeightedAvgEncoder(Encoder):
         top_ranking = self.sparse_ranking
 
         if self.k_avg is not None:
-            assert self.k_avg <= len(self.sparse_ranking), "k_avg must be less than or equal to the number of documents in the sparse ranking."
             top_ranking = top_ranking.cut(self.k_avg)
 
         q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
