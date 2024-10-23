@@ -18,6 +18,7 @@ class ProbDist(Enum):
         EXPONENTIAL: weights decrease exponentially with rank.
         HALF_NORMAL: weights decrease with the half-normal distribution.
     """
+
     UNIFORM = "UNIFORM"
     EXPONENTIAL = "EXPONENTIAL"
     HALF_NORMAL = "HALF_NORMAL"
@@ -32,6 +33,7 @@ class WeightedAvgEncoder(Encoder):
         sparse_ranking (Ranking): The top-ranked documents used for averaging.
         index (Index): The index containing document embeddings.
     """
+
     def __init__(
         self,
         index: Index,
@@ -54,11 +56,7 @@ class WeightedAvgEncoder(Encoder):
         self.sparse_ranking = sparse_ranking if sparse_ranking is not None else None
         super().__init__()
 
-
-    def _get_weights(
-            self, 
-            n_docs: int
-        ) -> Sequence[float]:
+    def _get_weights(self, n_docs: int) -> Sequence[float]:
         """
         Get the weights for the top-ranked documents based on the probability distribution type.
 
@@ -76,8 +74,9 @@ class WeightedAvgEncoder(Encoder):
             case ProbDist.HALF_NORMAL:
                 return np.flip(np.exp(-np.linspace(0, 1, n_docs) ** 2))
             case _:
-                raise ValueError(f"Unknown probability distribution type: {self.prob_dist}")
-
+                raise ValueError(
+                    f"Unknown probability distribution type: {self.prob_dist}"
+                )
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
         """
@@ -89,7 +88,9 @@ class WeightedAvgEncoder(Encoder):
         Returns:
             np.ndarray: An array of query embeddings.
         """
-        assert self.sparse_ranking is not None, "Please set the top_sparse_ranking attribute before calling the encoder."
+        assert (
+            self.sparse_ranking is not None
+        ), "Please set the top_sparse_ranking attribute before calling the encoder."
         top_ranking = self.sparse_ranking
 
         if self.k_avg is not None:
@@ -108,6 +109,8 @@ class WeightedAvgEncoder(Encoder):
                 d_reps = self.index.quantizer.decode(d_reps)
 
             # Calculate the weighted average of the embeddings and save it to q_no index in q_reps
-            q_reps[i] = np.average(d_reps, axis=0, weights=self._get_weights(len(d_reps)))
+            q_reps[i] = np.average(
+                d_reps, axis=0, weights=self._get_weights(len(d_reps))
+            )
 
         return q_reps
