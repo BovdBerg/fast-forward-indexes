@@ -321,7 +321,7 @@ def main(args: argparse.Namespace) -> None:
 
     pt.GridSearch(
         ff_pipeline,
-        {ff_int: {"alpha": args.alphas}, ff_score: {"beta": args.alphas}},
+        {ff_int: {"alpha": args.alphas}},
         dev_queries,
         dev_dataset.get_qrels(),
         verbose=True,
