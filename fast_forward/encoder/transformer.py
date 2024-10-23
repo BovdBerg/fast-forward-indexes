@@ -90,3 +90,5 @@ class TCTColBERTDocumentEncoder(TransformerEncoder):
             sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
             embeddings = sum_embeddings / sum_mask
             return embeddings.detach().cpu().numpy()
+
+# TODO [with Martijn]: Find the best perfoming up-to-date encoders and add them; also create new OPQ indixes.

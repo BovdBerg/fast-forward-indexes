@@ -306,6 +306,8 @@ def main(args: argparse.Namespace) -> None:
     ff_int = FFInterpolate(alpha=0.5)
     ff_score = FFScore(index)
     # TODO: Check if PyTerrier supports caching now.
+    # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
+    # TODO: check hypothesis by multiple sequential rounds of query estimation (ff_score) in pipeline. nDCG should increase until it decreases.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
 

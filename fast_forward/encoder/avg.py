@@ -25,6 +25,7 @@ class ProbDist(Enum):
     # TODO: Add LEARNED distribution, with learned model weights based on training/validation data
 
 
+# TODO: consider which document embeddings to average over. The output ranking should probably be the (sparse_)ranking for consecutive reranking.
 class WeightedAvgEncoder(Encoder):
     """
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.
@@ -56,6 +57,7 @@ class WeightedAvgEncoder(Encoder):
         self.sparse_ranking = sparse_ranking if sparse_ranking is not None else None
         super().__init__()
 
+    # TODO: Add weight over scores, not ranks. Could be a softmax over scores, or a learned model.
     def _get_weights(self, n_docs: int) -> Sequence[float]:
         """
         Get the weights for the top-ranked documents based on the probability distribution type.
