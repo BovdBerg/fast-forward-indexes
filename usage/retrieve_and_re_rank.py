@@ -315,6 +315,9 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
     # TODO: check hypothesis by multiple sequential rounds of query estimation (ff_score) in pipeline. nDCG should increase until it decreases.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
+    # TODO: Add query_encoder as arg to FFScore.__init__.
+    # TODO: Change architecture to use combination of TCTColBERT and WeightedAvgEncoder.
+    # TODO: Add program arg for chained ff_score, 
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int >> ff_score >> ff_int >> ff_score >> ff_int >> ff_score >> ff_int
     ff_pipeline_str = f"BM25 >> 4X (FFScore >> FFInt)"
 
