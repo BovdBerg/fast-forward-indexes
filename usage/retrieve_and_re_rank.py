@@ -323,7 +323,7 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Try chained ff_score_avg + ff_score_tct
     # TODO: Try chained approach on normal (non-PQ) index.
     pipeline_chained_avg = ~bm25 % args.rerank_cutoff >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg
-    pipeline_chained_avg_str = "BM25 >> 4X (FFScore >> FFInt)"
+    pipeline_chained_avg_str = "BM25 >> 4X (FFScoreAVG >> FFIntAVG)"
 
     index_tct = index
     index_tct.query_encoder = TCTColBERTQueryEncoder(
