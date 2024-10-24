@@ -23,6 +23,7 @@ class ProbDist(Enum):
     EXPONENTIAL = "EXPONENTIAL"
     HALF_NORMAL = "HALF_NORMAL"
     # TODO: Add LEARNED distribution, with learned model weights based on training/validation data
+    # TODO: Add LINEAR_DECAY distribution, with weights decreasing linearly with rank
 
 
 # TODO: consider which document embeddings to average over. The output ranking should probably be the (sparse_)ranking for consecutive reranking.
