@@ -326,11 +326,9 @@ def main(args: argparse.Namespace) -> None:
     pipeline_chained_avg_str = "BM25 >> 4X (FFScoreAVG >> FFIntAVG)"
 
     index_tct = index
-    index_tct.query_encoder = TCTColBERTQueryEncoder(
-        "castorini/tct_colbert-msmarco", device=args.device
-    )
-    ff_int_tct = FFInterpolate(alpha=0.5)
+    index_tct.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
     ff_score_tct = FFScore(index_tct)
+    ff_int_tct = FFInterpolate(alpha=0.5)
 
     pipeline_tct = ~bm25 % args.rerank_cutoff >> ff_score_tct >> ff_int_tct
     pipeline_tct_str = "BM25 >> FFScoreTCT >> FFIntTCT"
