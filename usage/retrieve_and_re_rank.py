@@ -315,8 +315,8 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
     # TODO: check hypothesis by multiple sequential rounds of query estimation (ff_score) in pipeline. nDCG should increase until it decreases.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
-    ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
-    ff_pipeline_str = f"BM25 >> 1X (FFScore >> FFInt)"
+    ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int >> ff_score >> ff_int >> ff_score >> ff_int >> ff_score >> ff_int
+    ff_pipeline_str = f"BM25 >> 4X (FFScore >> FFInt)"
 
     # TODO: Tune k_avg for WeightedAvgEncoder
     # Validation and parameter tuning on dev set
