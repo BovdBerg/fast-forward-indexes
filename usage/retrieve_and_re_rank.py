@@ -146,7 +146,6 @@ def parse_args():
 
 
 def print_settings(
-        pipeline_str: pt.Transformer = None,
     ) -> None:
     """
     Print general settings used for re-ranking.
@@ -157,7 +156,6 @@ def print_settings(
     # General settings
     settings_description: List[str] = [
         f"in_memory={args.in_memory}",
-        f"pipeline={pipeline_str}",
         f"rerank_cutoff={args.rerank_cutoff}",
         f"dev_dataset={args.dev_dataset}",
         f"dev_sample_size={args.dev_sample_size}",
@@ -348,7 +346,7 @@ def main(args: argparse.Namespace) -> None:
         eval_metrics=eval_metrics,
         names=["BM25", ff_pipeline_str],
     )
-    print_settings(ff_pipeline_str)
+    print_settings()
     print(f"\nFinal results, on {args.test_dataset}:\n{results}\n")
 
 
