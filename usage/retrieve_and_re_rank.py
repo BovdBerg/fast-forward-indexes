@@ -309,8 +309,9 @@ def main(args: argparse.Namespace) -> None:
 
     # TODO: Add profiling to re-ranking step
     # Create pipeline for re-ranking
-    ff_int = FFInterpolate(alpha=0.5)
-    ff_score = FFScore(index)
+    ff_score_avg = FFScore(index)
+    ff_int_avg = FFInterpolate(alpha=0.5)
+
     # TODO: Check if PyTerrier supports caching now.
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
     # TODO: check hypothesis by multiple sequential rounds of query estimation (ff_score) in pipeline. nDCG should increase until it decreases.
@@ -320,6 +321,18 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Add program arg for chained ff_score, 
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int >> ff_score >> ff_int >> ff_score >> ff_int >> ff_score >> ff_int
     ff_pipeline_str = f"BM25 >> 4X (FFScore >> FFInt)"
+    pipeline_chained_avg = ~bm25 % args.rerank_cutoff >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg
+    pipeline_chained_avg_str = "BM25 >> 4X (FFScore >> FFInt)"
+
+    index_tct = index
+    index_tct.query_encoder = TCTColBERTQueryEncoder(
+        "castorini/tct_colbert-msmarco", device=args.device
+    )
+    ff_int_tct = FFInterpolate(alpha=0.5)
+    ff_score_tct = FFScore(index_tct)
+
+    pipeline_tct = ~bm25 % args.rerank_cutoff >> ff_score_tct >> ff_int_tct
+    pipeline_tct_str = "BM25 >> FFScoreTCT >> FFIntTCT"
 
     # TODO: Tune k_avg for WeightedAvgEncoder
     # Validation and parameter tuning on dev set
@@ -331,9 +344,19 @@ def main(args: argparse.Namespace) -> None:
     if args.dev_sample_size is not None:
         dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
+    print(f"\nValidating pipeline: {pipeline_tct_str}")
     pt.GridSearch(
-        ff_pipeline,
-        {ff_int: {"alpha": args.alphas}},
+        pipeline_tct,
+        {ff_int_tct: {"alpha": args.alphas}},
+        dev_queries,
+        dev_dataset.get_qrels(),
+        verbose=True,
+    )
+
+    print(f"\nValidating pipeline: {pipeline_chained_avg_str}")
+    pt.GridSearch(
+        pipeline_chained_avg,
+        {ff_int_avg: {"alpha": args.alphas}},
         dev_queries,
         dev_dataset.get_qrels(),
         verbose=True,
@@ -343,11 +366,11 @@ def main(args: argparse.Namespace) -> None:
     test_dataset = pt.get_dataset(args.test_dataset)
     add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
     results = pt.Experiment(
-        [~bm25, ff_pipeline],
+        [~bm25, pipeline_tct, pipeline_chained_avg],
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
-        names=["BM25", ff_pipeline_str],
+        names=["BM25", pipeline_tct_str, pipeline_chained_avg_str],
     )
     print_settings()
     print(f"\nFinal results, on {args.test_dataset}:\n{results}\n")
