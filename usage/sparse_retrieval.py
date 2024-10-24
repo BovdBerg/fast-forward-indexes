@@ -12,12 +12,14 @@ def parse_args():
         argparse.Namespace: Parsed command-line arguments.
 
     Arguments:
-        --dataset (str): Dataset for testing (using package ir-datasets).
-        --retriever_variant (str): Retriever variant.
-        --retriever_wmodel (str): Retriever weighting model.
-        --topics_variant (str): Topics variant.
-        --k (int): Number of documents to re-rank per query.
-        --out_dir (str): Output directory
+        --dataset: Dataset for testing (using package ir-datasets).
+        --retriever_variant: Retriever variant.
+        --retriever_wmodel: Retriever weighting model.
+        --pt_variant_topics: Topics variant. Example: 'test-2019'.
+        --ir_dataset_topics: IRDS Dataset for topics (queries). Example: 'irds:msmarco-passage/trec-dl-2019/judged'.
+        --k: Number of documents to re-rank per query.
+        --out_dir: Output directory.
+        --max_queries: Maximum number of queries to process.
     """
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
