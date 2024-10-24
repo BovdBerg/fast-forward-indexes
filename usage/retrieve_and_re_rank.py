@@ -247,7 +247,6 @@ def main(args: argparse.Namespace) -> None:
     index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.prob_dist)
     ff_score_avg = FFScore(index_avg)
     ff_int_avg = FFInterpolate(alpha=0.5)
-
     # TODO: Check if PyTerrier supports caching now.
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
     # TODO: check hypothesis by multiple sequential rounds of query estimation (ff_score) in pipeline. nDCG should increase until it decreases.
@@ -275,7 +274,6 @@ def main(args: argparse.Namespace) -> None:
     )
     ff_score_tct = FFScore(index_tct)
     ff_int_tct = FFInterpolate(alpha=0.5)
-
     pipeline_tct = ~bm25 % args.rerank_cutoff >> ff_score_tct >> ff_int_tct
 
     # TODO: Tune k_avg for WeightedAvgEncoder
