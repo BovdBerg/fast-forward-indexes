@@ -317,10 +317,11 @@ def main(args: argparse.Namespace) -> None:
     # TODO: check hypothesis by multiple sequential rounds of query estimation (ff_score) in pipeline. nDCG should increase until it decreases.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
     # TODO: Add query_encoder as arg to FFScore.__init__.
-    # TODO: Change architecture to use combination of TCTColBERT and WeightedAvgEncoder.
+    # TODO: Change architecture to use combination of TCTColBERT and WeightedAvgEncoder. Remove program arg encoding_method.
     # TODO: Add program arg for chained ff_score, 
-    ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int >> ff_score >> ff_int >> ff_score >> ff_int >> ff_score >> ff_int
-    ff_pipeline_str = f"BM25 >> 4X (FFScore >> FFInt)"
+    # TODO: Should each iteration of ff_int_avg have its own alpha weight?
+    # TODO: Try chained ff_score_avg + ff_score_tct
+    # TODO: Try chained approach on normal (non-PQ) index.
     pipeline_chained_avg = ~bm25 % args.rerank_cutoff >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg
     pipeline_chained_avg_str = "BM25 >> 4X (FFScore >> FFInt)"
 
