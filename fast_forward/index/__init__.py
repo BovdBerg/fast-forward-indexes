@@ -77,10 +77,12 @@ class Index(abc.ABC):
             raise RuntimeError("Index does not have a query encoder.")
 
         result = []
+        total_batches = (len(queries) + self._encoder_batch_size - 1) // self._encoder_batch_size
         for i in tqdm(
             range(0, len(queries), self._encoder_batch_size),
             desc="Encoding queries per batch",
-            total=(len(queries) + self._encoder_batch_size - 1) // self._encoder_batch_size,
+            total=total_batches,
+            disable=total_batches == 1,
         ):
             batch = queries[i : i + self._encoder_batch_size]
             result.append(self.query_encoder(batch))
