@@ -1,20 +1,22 @@
+import argparse
+import warnings
 from enum import Enum
 from pathlib import Path
 from typing import List
+
+import ir_datasets
 import numpy as np
-import warnings
+import pyterrier as pt
 import torch
+from ir_measures import calc_aggregate, measures
+
 from fast_forward.encoder.avg import ProbDist, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
-from fast_forward.util.pyterrier import FFInterpolate, FFScore
-import ir_datasets
-from ir_measures import calc_aggregate, measures
 from fast_forward.util import to_ir_measures
-import argparse
-import pyterrier as pt
+from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
 
 class EncodingMethod(Enum):
