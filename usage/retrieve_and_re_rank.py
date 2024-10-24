@@ -91,20 +91,20 @@ def parse_args():
     parser.add_argument(
         "--k_avg",
         type=int,
-        default=None,
+        default=30,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     # VALIDATION
     parser.add_argument(
         "--dev_dataset",
         type=str,
-        default="irds:msmarco-passage/dev/judged",
+        default="irds:msmarco-passage/dev/small",
         help="Dataset to validate and tune parameters. May never be equal to test_dataset.",
     )
     parser.add_argument(
         "--dev_sparse_ranking_path",
         type=Path,
-        default="/home/bvdb9/sparse_rankings/msmarco_passage-dev.judged-BM25-top100.tsv",
+        default="/home/bvdb9/sparse_rankings/msmarco_passage-dev.small-BM25-top100.tsv",
         help="Path to the sparse ranking file.",
     )
     parser.add_argument(
