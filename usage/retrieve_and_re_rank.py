@@ -19,20 +19,6 @@ from fast_forward.util import to_ir_measures
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
 
-class EncodingMethod(Enum):
-    """
-    Enumeration for different methods to estimate query embeddings.
-
-    Attributes:
-        TCTColBERT: Use TCT-ColBERT method for encoding queries.
-        WEIGHTED_AVERAGE: Use weighted average method for encoding queries. Averages over top-ranked document embeddings.
-    """
-
-    TCTCOLBERT = "TCTCOLBERT"
-    WEIGHTED_AVERAGE = "WEIGHTED_AVERAGE"
-    # TODO: Encode as weighted average of WeightedAvgEncoder and (lightweight) QueryEncoder
-
-
 def parse_args():
     """
     Parse command-line arguments for the re-ranking script.
@@ -75,14 +61,7 @@ def parse_args():
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to use for encoding queries.",
     )
-    parser.add_argument(
-        "--encoding_method",
-        type=EncodingMethod,
-        choices=list(EncodingMethod),
-        default="WEIGHTED_AVERAGE",
-        help="Method to estimate query embeddings.",
-    )
-    # EncodingMethod.WEIGHTED_AVERAGE
+    # WeightedAvgEncoder
     parser.add_argument(
         "--prob_dist",
         type=ProbDist,
@@ -119,7 +98,7 @@ def parse_args():
         "--alphas",
         type=float,
         nargs="+",
-        default=np.arange(0, 1.0001, 0.25).tolist(),
+        default=np.arange(0, 1.0001, 0.1).tolist(),
         help="List of interpolation parameters for evaluation.",
     )
     # EVALUATION
@@ -145,8 +124,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def print_settings(
-    ) -> None:
+def print_settings() -> None:
     """
     Print general settings used for re-ranking.
 
@@ -160,26 +138,14 @@ def print_settings(
         f"dev_dataset={args.dev_dataset}",
         f"dev_sample_size={args.dev_sample_size}",
         f"alphas={args.alphas}",
+        "TCTColBERTQueryEncoder:",
+        f"\tdevice={args.device}",
+        "WeightedAvgEncoder:",
+        f"\tprob_dist={args.prob_dist.name}",
+        f"\tk_avg={args.k_avg}",
     ]
 
-    # Encoding method settings
-    settings_description.append(f"encoding_method={args.encoding_method.name}")
-    match args.encoding_method:  # Append method-specific settings
-        case EncodingMethod.TCTCOLBERT:
-            settings_description.extend(
-                [
-                    f"device={args.device}",
-                ]
-            )
-        case EncodingMethod.WEIGHTED_AVERAGE:
-            settings_description.extend(
-                [
-                    f"prob_dist={args.prob_dist.name}",
-                    f"k_avg={args.k_avg}",
-                ]
-            )
-
-    print(f"Settings:\n\t{',\n\t'.join(settings_description)}")
+    print(f"Settings:\n\t{'\n\t'.join(settings_description)}")
 
 
 def estimate_best_alpha(
@@ -226,26 +192,6 @@ def estimate_best_alpha(
     )
 
 
-def add_ranking_to_enc(
-    index: Index,
-    dataset: ir_datasets.Dataset,
-    sparse_ranking_path: Path,
-) -> None:
-    """
-    Add the sparse ranking to the query encoder for re-ranking.
-
-    Args:
-        index (Index): The index containing document embeddings.
-        dataset (ir_datasets.Dataset): Dataset to evaluate the rankings.
-        sparse_ranking_path (Path): Path to the sparse ranking file.
-    """
-    if args.encoding_method == EncodingMethod.WEIGHTED_AVERAGE:
-        index.query_encoder.sparse_ranking = Ranking.from_file(
-            sparse_ranking_path,
-            queries={q.qid: q.query for q in dataset.get_topics().itertuples()},
-        )
-
-
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 def main(args: argparse.Namespace) -> None:
     """
@@ -281,18 +227,6 @@ def main(args: argparse.Namespace) -> None:
         metric_name, at_value = metric_str.split("@")
         eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
 
-    # Choose query encoder based on encoding_method
-    match args.encoding_method:
-        case EncodingMethod.TCTCOLBERT:
-            index.query_encoder = TCTColBERTQueryEncoder(
-                "castorini/tct_colbert-msmarco", device=args.device
-            )
-        case EncodingMethod.WEIGHTED_AVERAGE:
-            index.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.prob_dist)
-        case _:
-            raise ValueError(f"Unsupported encoding method: {args.encoding_method}")
-    assert index.query_encoder is not None, "Query encoder not set in index."
-
     # Load dataset and create sparse retriever (e.g. BM25)
     dataset = pt.get_dataset(args.dataset)
     try:
@@ -309,7 +243,9 @@ def main(args: argparse.Namespace) -> None:
 
     # TODO: Add profiling to re-ranking step
     # Create pipeline for re-ranking
-    ff_score_avg = FFScore(index)
+    index_avg = index
+    index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.prob_dist)
+    ff_score_avg = FFScore(index_avg)
     ff_int_avg = FFInterpolate(alpha=0.5)
 
     # TODO: Check if PyTerrier supports caching now.
@@ -317,33 +253,45 @@ def main(args: argparse.Namespace) -> None:
     # TODO: check hypothesis by multiple sequential rounds of query estimation (ff_score) in pipeline. nDCG should increase until it decreases.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
     # TODO: Add query_encoder as arg to FFScore.__init__.
-    # TODO: Change architecture to use combination of TCTColBERT and WeightedAvgEncoder. Remove program arg encoding_method.
-    # TODO: Add program arg for chained ff_score, 
+    # TODO: Add program arg for chained ff_score_avg,
     # TODO: Should each iteration of ff_int_avg have its own alpha weight?
     # TODO: Try chained ff_score_avg + ff_score_tct
-    # TODO: Try chained approach on normal (non-PQ) index.
-    pipeline_chained_avg = ~bm25 % args.rerank_cutoff >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg >> ff_score_avg >> ff_int_avg
-    pipeline_chained_avg_str = "BM25 >> 4X (FFScoreAVG >> FFIntAVG)"
+    # TODO: Encode as weighted average of WeightedAvgEncoder and (lightweight) QueryEncoder
+    pipeline_chained_avg = (
+        ~bm25 % args.rerank_cutoff
+        >> ff_score_avg
+        >> ff_int_avg
+        >> ff_score_avg
+        >> ff_int_avg
+        >> ff_score_avg
+        >> ff_int_avg
+        >> ff_score_avg
+        >> ff_int_avg
+    )
 
     index_tct = index
-    index_tct.query_encoder = TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device)
+    index_tct.query_encoder = TCTColBERTQueryEncoder(
+        "castorini/tct_colbert-msmarco", device=args.device
+    )
     ff_score_tct = FFScore(index_tct)
     ff_int_tct = FFInterpolate(alpha=0.5)
 
     pipeline_tct = ~bm25 % args.rerank_cutoff >> ff_score_tct >> ff_int_tct
-    pipeline_tct_str = "BM25 >> FFScoreTCT >> FFIntTCT"
 
     # TODO: Tune k_avg for WeightedAvgEncoder
     # Validation and parameter tuning on dev set
     dev_dataset = pt.get_dataset(args.dev_dataset)
-    add_ranking_to_enc(index, dev_dataset, args.dev_sparse_ranking_path)
+    index_avg.query_encoder.sparse_ranking = Ranking.from_file(
+        args.dev_sparse_ranking_path,
+        queries={q.qid: q.query for q in dev_dataset.get_topics().itertuples()},
+    )
 
     # Sample dev queries if dev_sample_size is set
     dev_queries = dev_dataset.get_topics()
     if args.dev_sample_size is not None:
         dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
-    print(f"\nValidating pipeline: {pipeline_tct_str}")
+    print(f"\nValidating pipeline (TCT):")
     pt.GridSearch(
         pipeline_tct,
         {ff_int_tct: {"alpha": args.alphas}},
@@ -352,7 +300,7 @@ def main(args: argparse.Namespace) -> None:
         verbose=True,
     )
 
-    print(f"\nValidating pipeline: {pipeline_chained_avg_str}")
+    print(f"\nValidating pipeline (chained)")
     pt.GridSearch(
         pipeline_chained_avg,
         {ff_int_avg: {"alpha": args.alphas}},
@@ -363,13 +311,24 @@ def main(args: argparse.Namespace) -> None:
 
     # Final evaluation on test set
     test_dataset = pt.get_dataset(args.test_dataset)
-    add_ranking_to_enc(index, test_dataset, args.test_sparse_ranking_path)
+    index_avg.query_encoder.sparse_ranking = Ranking.from_file(
+        args.test_sparse_ranking_path,
+        queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()},
+    )
     results = pt.Experiment(
-        [~bm25, pipeline_tct, pipeline_chained_avg],
+        [
+            ~bm25,
+            pipeline_tct,
+            pipeline_chained_avg
+        ],
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
-        names=["BM25", pipeline_tct_str, pipeline_chained_avg_str],
+        names=[
+            "BM25",
+            f"BM25 >> FFScoreTCT >> FFIntTCT(α={ff_int_tct.alpha})",
+            f"BM25 >> 4X (FFScoreAVG >> FFIntAVG(α={ff_int_avg.alpha}))",
+        ],
     )
     print_settings()
     print(f"\nFinal results, on {args.test_dataset}:\n{results}\n")
