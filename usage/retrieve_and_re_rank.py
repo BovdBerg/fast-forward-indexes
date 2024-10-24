@@ -145,13 +145,19 @@ def parse_args():
     return parser.parse_args()
 
 
-def print_settings() -> None:
+def print_settings(
+        pipeline_str: pt.Transformer = None,
+    ) -> None:
     """
     Print general settings used for re-ranking.
+
+    Args:
+        pipeline (pt.Transformer): The pipeline used for re-ranking.
     """
     # General settings
     settings_description: List[str] = [
         f"in_memory={args.in_memory}",
+        f"pipeline={pipeline_str}",
         f"rerank_cutoff={args.rerank_cutoff}",
         f"dev_dataset={args.dev_dataset}",
         f"dev_sample_size={args.dev_sample_size}",
@@ -312,6 +318,7 @@ def main(args: argparse.Namespace) -> None:
     # TODO: check hypothesis by multiple sequential rounds of query estimation (ff_score) in pipeline. nDCG should increase until it decreases.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
     ff_pipeline = ~bm25 % args.rerank_cutoff >> ff_score >> ff_int
+    ff_pipeline_str = f"BM25 >> FFScore >> FFInt(α={ff_int.alpha}) >> FFScore >> FFInt(α={ff_int.alpha})"
 
     # TODO: Tune k_avg for WeightedAvgEncoder
     # Validation and parameter tuning on dev set
@@ -339,9 +346,9 @@ def main(args: argparse.Namespace) -> None:
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
-        names=["BM25", f"BM25 >> FFScore >> FFInt(α={ff_int.alpha})"],
+        names=["BM25", ff_pipeline_str],
     )
-    print_settings()
+    print_settings(ff_pipeline_str)
     print(f"\nFinal results, on {args.test_dataset}:\n{results}\n")
 
 
