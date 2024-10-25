@@ -26,7 +26,7 @@ class ProbDist(Enum):
     # TODO: Add LINEAR_DECAY distribution, with weights decreasing linearly with rank
 
 
-# TODO: consider which document embeddings to average over. The output ranking should probably be the (sparse_)ranking for consecutive reranking.
+# TODO: consider which document embeddings to average over. The output ranking should probably be the (sparse_)ranking for consecutive reranking. Print top-ranked docs for multiple chained rerankings.
 class WeightedAvgEncoder(Encoder):
     """
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.

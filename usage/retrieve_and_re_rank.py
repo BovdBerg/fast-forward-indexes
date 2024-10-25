@@ -249,10 +249,9 @@ def main(args: argparse.Namespace) -> None:
     ff_int_avg = FFInterpolate(alpha=0.5)
     # TODO: Check if PyTerrier supports caching now.
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
-    # TODO: check hypothesis by multiple sequential rounds of query estimation (ff_score) in pipeline. nDCG should increase until it decreases.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
     # TODO: Add query_encoder as arg to FFScore.__init__.
-    # TODO: Add program arg for chained ff_score_avg,
+    # TODO: Add program arg (or trainable param?) for amount of chained ff_score_avg,
     # TODO: Should each iteration of ff_int_avg have its own alpha weight?
     # TODO: Try chained ff_score_avg + ff_score_tct
     # TODO: Encode as weighted average of WeightedAvgEncoder and (lightweight) QueryEncoder
