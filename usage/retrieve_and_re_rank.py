@@ -248,6 +248,15 @@ def main(args: argparse.Namespace) -> None:
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
         bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
 
+    # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
+    index_tct = index
+    index_tct.query_encoder = TCTColBERTQueryEncoder(
+        "castorini/tct_colbert-msmarco", device=args.device
+    )
+    ff_score_tct = FFScore(index_tct)
+    ff_int_tct = FFInterpolate(alpha=0.1) # Alpha will be tuned and overwritten later, but this was the best result so far
+    pipeline_tct = ~bm25 % args.rerank_cutoff >> ff_score_tct >> ff_int_tct
+
     # TODO: Add profiling to re-ranking step
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = index
@@ -264,15 +273,6 @@ def main(args: argparse.Namespace) -> None:
     pipeline_chained_avg = ~bm25 % args.rerank_cutoff
     for chain in range(args.avg_chains):
         pipeline_chained_avg = pipeline_chained_avg >> ff_score_avg >> ff_int_avg
-
-    # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
-    index_tct = index
-    index_tct.query_encoder = TCTColBERTQueryEncoder(
-        "castorini/tct_colbert-msmarco", device=args.device
-    )
-    ff_score_tct = FFScore(index_tct)
-    ff_int_tct = FFInterpolate(alpha=0.1) # Alpha will be tuned and overwritten later, but this was the best result so far
-    pipeline_tct = ~bm25 % args.rerank_cutoff >> ff_score_tct >> ff_int_tct
 
     # TODO: Tune k_avg for WeightedAvgEncoder
     # Validation and parameter tuning on dev set
