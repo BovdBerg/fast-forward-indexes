@@ -105,6 +105,7 @@ class WeightedAvgEncoder(Encoder):
             # Get the ids of the top-ranked documents for the query
             top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
             top_docs_ids: Sequence[int] = top_docs["id"].values
+            # TODO: top_ranking should probably be updated in each chain reranking. Check if only top_docs from original top_ranking are considered?
 
             # Get the embeddings of the top-ranked documents
             d_reps: np.ndarray = self.index._get_vectors(top_docs_ids)[0]
