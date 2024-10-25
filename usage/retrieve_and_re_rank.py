@@ -82,6 +82,12 @@ def parse_args():
         default=1,
         help="Number of chained FF-Score and FF-Interpolate blocks. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
+    parser.add_argument(
+        "--avg_shared_int_alpha",
+        type=float,
+        default=0.1,
+        help="Interpolation parameter for shared FF-Interpolate blocks. Overwritten on parameter tuning. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
+    )
     # VALIDATION
     parser.add_argument(
         "--validate_pipelines",
@@ -339,7 +345,8 @@ def main(args: argparse.Namespace) -> None:
         >> ff_int_avg_un2_2
     )
 
-    ff_int_avg_shN = FFInterpolate(alpha=0.4)
+    # Best (N, alpha, nDCG@10): (1, 0.1, 0.552501), (2, 0.2, 0.524405), (3, 0.6, 0.550884), (4, 0.6, 0.550304)
+    ff_int_avg_shN = FFInterpolate(alpha=args.avg_shared_int_alpha)
     pipeline_chained_avg_shN = pipeline_bm25
     for chain in range(args.avg_shared_int_chains):
         pipeline_chained_avg_shN = (
