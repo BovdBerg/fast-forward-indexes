@@ -109,6 +109,7 @@ def parse_args():
         help="List of interpolation parameters for evaluation.",
     )
     # EVALUATION
+    # TODO: Add option to evaluate on multiple datasets, accepting multiple test_datasets and test_sparse_ranking_paths.
     parser.add_argument(
         "--test_dataset",
         type=str,
