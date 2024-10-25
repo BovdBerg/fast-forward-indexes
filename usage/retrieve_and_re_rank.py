@@ -256,7 +256,7 @@ def main(args: argparse.Namespace) -> None:
         "castorini/tct_colbert-msmarco", device=args.device
     )
     ff_score_tct = FFScore(index_tct)
-    ff_int_tct = FFInterpolate(alpha=0.1) # Alpha will be tuned and overwritten later, but this was the best result so far
+    ff_int_tct = FFInterpolate(alpha=0.1) # Init as best alpha from earlier validation
     pipeline_tct = ~bm25 % args.rerank_cutoff >> ff_score_tct >> ff_int_tct
 
     # TODO: Add profiling to re-ranking step
@@ -264,7 +264,7 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index)
     index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.prob_dist)
     ff_score_avg = FFScore(index_avg)
-    ff_int_avg = FFInterpolate(alpha=0.4) # Alpha will be tuned and overwritten later, but this was the best result so far
+    ff_int_avg = FFInterpolate(alpha=0.4) # Init as best alpha from earlier validation with 4x avg chaining
     # TODO: Check if PyTerrier supports caching now.
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
