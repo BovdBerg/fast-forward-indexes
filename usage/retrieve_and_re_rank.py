@@ -321,20 +321,14 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Add query_encoder as arg to FFScore.__init__.
     # TODO: Try chained ff_score_avg + ff_score_tct
     # TODO: Encode as weighted average of WeightedAvgEncoder and (lightweight) QueryEncoder
-    ff_int_avg_1 = FFInterpolate(
-        alpha=0.1
-    )  # Init as best alpha from earlier validation
+    ff_int_avg_1 = FFInterpolate(alpha=0.1)
     pipeline_avg_1 = pipeline_bm25 >> ff_score_avg >> ff_int_avg_1
 
     # Create re-ranking pipeline with individual tuning of FFInterpolate.
     # WARNING: validation time on this pipeline scales exponentially: args.alphas ** avg_chains.
     # TODO: Run big evaluation with different amount of chains and overwrite with best outcomes
-    ff_int_avg_un2_1 = FFInterpolate(
-        alpha=0.1
-    )  # Init as best alpha from earlier validation with 2x indiv avg chaining
-    ff_int_avg_un2_2 = FFInterpolate(
-        alpha=0.9
-    )  # Init as best alpha from earlier validation with 2x indiv avg chaining
+    ff_int_avg_un2_1 = FFInterpolate(alpha=0.1)
+    ff_int_avg_un2_2 = FFInterpolate(alpha=0.9)
     pipeline_chained_avg_un2 = (
         pipeline_bm25
         >> ff_score_avg
@@ -343,9 +337,7 @@ def main(args: argparse.Namespace) -> None:
         >> ff_int_avg_un2_2
     )
 
-    ff_int_avg_shN = FFInterpolate(
-        alpha=0.4
-    )  # Init as best alpha from earlier validation with 4x avg chaining
+    ff_int_avg_shN = FFInterpolate(alpha=0.4)
     pipeline_chained_avg_shN = pipeline_bm25
     for chain in range(args.avg_shared_int_chains):
         pipeline_chained_avg_shN = (
