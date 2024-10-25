@@ -84,6 +84,11 @@ def parse_args():
     )
     # VALIDATION
     parser.add_argument(
+        "--enable_validation",
+        action="store_true",
+        help="Whether to run validation and parameter tuning on the dev set.",
+    )
+    parser.add_argument(
         "--dev_dataset",
         type=str,
         default="irds:msmarco-passage/dev/small",
@@ -143,9 +148,6 @@ def print_settings() -> None:
     settings_description: List[str] = [
         f"in_memory={args.in_memory}",
         f"rerank_cutoff={args.rerank_cutoff}",
-        f"dev_dataset={args.dev_dataset}",
-        f"dev_sample_size={args.dev_sample_size}",
-        f"alphas={args.alphas}",
         "TCTColBERTQueryEncoder:",
         f"\tdevice={args.device}",
         "WeightedAvgEncoder:",
@@ -153,6 +155,16 @@ def print_settings() -> None:
         f"\tk_avg={args.k_avg}",
         f"\tavg_chains={args.avg_chains}",
     ]
+    # Validation settings
+    settings_description.append(f"enable_validation={args.enable_validation}")
+    if args.enable_validation:
+        settings_description.extend(
+            [
+                f"\tdev_dataset={args.dev_dataset}",
+                f"\tdev_sample_size={args.dev_sample_size}",
+                f"\talphas={args.alphas}",
+            ]
+        )
 
     print(f"Settings:\n\t{'\n\t'.join(settings_description)}")
 
@@ -279,34 +291,36 @@ def main(args: argparse.Namespace) -> None:
 
     # TODO: Tune k_avg for WeightedAvgEncoder
     # Validation and parameter tuning on dev set
-    dev_dataset = pt.get_dataset(args.dev_dataset)
-    index_avg.query_encoder.sparse_ranking = Ranking.from_file(
-        args.dev_sparse_ranking_path,
-        queries={q.qid: q.query for q in dev_dataset.get_topics().itertuples()},
-    )
+    if args.enable_validation:
+        # TODO: Tune k_avg for WeightedAvgEncoder
+        dev_dataset = pt.get_dataset(args.dev_dataset)
+        index_avg.query_encoder.sparse_ranking = Ranking.from_file(
+            args.dev_sparse_ranking_path,
+            queries={q.qid: q.query for q in dev_dataset.get_topics().itertuples()},
+        )
 
-    # Sample dev queries if dev_sample_size is set
-    dev_queries = dev_dataset.get_topics()
-    if args.dev_sample_size is not None:
-        dev_queries = dev_queries.sample(n=args.dev_sample_size)
+        # Sample dev queries if dev_sample_size is set
+        dev_queries = dev_dataset.get_topics()
+        if args.dev_sample_size is not None:
+            dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
-    print(f"\nValidating pipeline: BM25 >> FFScoreTCT >> FFIntTCT...")
-    pt.GridSearch(
-        pipeline_tct,
-        {ff_int_tct: {"alpha": args.alphas}},
-        dev_queries,
-        dev_dataset.get_qrels(),
-        verbose=True,
-    )
+        print(f"\nValidating pipeline: BM25 >> TCT >> INT...")
+        pt.GridSearch(
+            pipeline_tct,
+            {ff_int_tct: {"alpha": args.alphas}},
+            dev_queries,
+            dev_dataset.get_qrels(),
+            verbose=True,
+        )
 
-    print(f"\nValidating pipeline: BM25 >> {args.avg_chains}X (FFScoreAVG >> FFIntAVG)...")
-    pt.GridSearch(
-        pipeline_chained_avg,
-        {ff_int_avg: {"alpha": args.alphas}},
-        dev_queries,
-        dev_dataset.get_qrels(),
-        verbose=True,
-    )
+        print(f"\nValidating pipeline: BM25 >> {args.avg_chains}X (AVG >> INT_shared)...")
+        pt.GridSearch(
+            pipeline_chained_avg,
+            {ff_int_avg: {"alpha": args.alphas}},
+            dev_queries,
+            dev_dataset.get_qrels(),
+            verbose=True,
+        )
 
     # Final evaluation on test set
     test_dataset = pt.get_dataset(args.test_dataset)
@@ -319,19 +333,19 @@ def main(args: argparse.Namespace) -> None:
         [
             ~bm25,
             pipeline_tct,
-            pipeline_chained_avg
+            pipeline_chained_avg,
         ],
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
         eval_metrics=eval_metrics,
         names=[
             "BM25",
-            f"BM25 >> FFScoreTCT >> FFIntTCT(α={ff_int_tct.alpha})",
-            f"BM25 >> {args.avg_chains}X (FFScoreAVG >> FFIntAVG(α={ff_int_avg.alpha}))",
+            f"BM25 >> TCT >> INT(α={ff_int_tct.alpha})",
+            f"BM25 >> {args.avg_chains}X (AVG >> INT_shared(α={ff_int_avg.alpha}))",
         ],
     )
     print_settings()
-    print(f"\nFinal results, on {args.test_dataset}:\n{results}\n")
+    print(f"\nFinal results on {args.test_dataset}:\n{results}\n")
 
 
 if __name__ == "__main__":
