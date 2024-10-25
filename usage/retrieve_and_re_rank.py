@@ -75,6 +75,12 @@ def parse_args():
         default=30,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
+    parser.add_argument(
+        "--avg_chains",
+        type=int,
+        default=4,
+        help="Number of chained FF-Score and FF-Interpolate blocks. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
+    )
     # VALIDATION
     parser.add_argument(
         "--dev_dataset",
@@ -143,6 +149,7 @@ def print_settings() -> None:
         "WeightedAvgEncoder:",
         f"\tprob_dist={args.prob_dist.name}",
         f"\tk_avg={args.k_avg}",
+        f"\tavg_chains={args.avg_chains}",
     ]
 
     print(f"Settings:\n\t{'\n\t'.join(settings_description)}")
@@ -246,26 +253,17 @@ def main(args: argparse.Namespace) -> None:
     index_avg = index
     index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.prob_dist)
     ff_score_avg = FFScore(index_avg)
-    ff_int_avg = FFInterpolate(alpha=0.5)
+    ff_int_avg = FFInterpolate(alpha=0.4) # Alpha will be tuned and overwritten later, but this was the best result so far
     # TODO: Check if PyTerrier supports caching now.
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
     # TODO: Add query_encoder as arg to FFScore.__init__.
-    # TODO: Add program arg (or trainable param?) for amount of chained ff_score_avg,
     # TODO: Should each iteration of ff_int_avg have its own alpha weight?
     # TODO: Try chained ff_score_avg + ff_score_tct
     # TODO: Encode as weighted average of WeightedAvgEncoder and (lightweight) QueryEncoder
-    pipeline_chained_avg = (
-        ~bm25 % args.rerank_cutoff
-        >> ff_score_avg
-        >> ff_int_avg
-        >> ff_score_avg
-        >> ff_int_avg
-        >> ff_score_avg
-        >> ff_int_avg
-        >> ff_score_avg
-        >> ff_int_avg
-    )
+    pipeline_chained_avg = ~bm25 % args.rerank_cutoff
+    for chain in range(args.avg_chains):
+        pipeline_chained_avg = pipeline_chained_avg >> ff_score_avg >> ff_int_avg
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
     index_tct = index
@@ -273,7 +271,7 @@ def main(args: argparse.Namespace) -> None:
         "castorini/tct_colbert-msmarco", device=args.device
     )
     ff_score_tct = FFScore(index_tct)
-    ff_int_tct = FFInterpolate(alpha=0.5)
+    ff_int_tct = FFInterpolate(alpha=0.1) # Alpha will be tuned and overwritten later, but this was the best result so far
     pipeline_tct = ~bm25 % args.rerank_cutoff >> ff_score_tct >> ff_int_tct
 
     # TODO: Tune k_avg for WeightedAvgEncoder
@@ -289,7 +287,7 @@ def main(args: argparse.Namespace) -> None:
     if args.dev_sample_size is not None:
         dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
-    print(f"\nValidating pipeline (TCT):")
+    print(f"\nValidating pipeline: BM25 >> FFScoreTCT >> FFIntTCT...")
     pt.GridSearch(
         pipeline_tct,
         {ff_int_tct: {"alpha": args.alphas}},
@@ -298,7 +296,7 @@ def main(args: argparse.Namespace) -> None:
         verbose=True,
     )
 
-    print(f"\nValidating pipeline (chained)")
+    print(f"\nValidating pipeline: BM25 >> {args.avg_chains}X (FFScoreAVG >> FFIntAVG)...")
     pt.GridSearch(
         pipeline_chained_avg,
         {ff_int_avg: {"alpha": args.alphas}},
@@ -313,6 +311,7 @@ def main(args: argparse.Namespace) -> None:
         args.test_sparse_ranking_path,
         queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()},
     )
+    print(f"\nRunning final evaluations on {args.test_dataset}...")
     results = pt.Experiment(
         [
             ~bm25,
@@ -325,7 +324,7 @@ def main(args: argparse.Namespace) -> None:
         names=[
             "BM25",
             f"BM25 >> FFScoreTCT >> FFIntTCT(α={ff_int_tct.alpha})",
-            f"BM25 >> 4X (FFScoreAVG >> FFIntAVG(α={ff_int_avg.alpha}))",
+            f"BM25 >> {args.avg_chains}X (FFScoreAVG >> FFIntAVG(α={ff_int_avg.alpha}))",
         ],
     )
     print_settings()
