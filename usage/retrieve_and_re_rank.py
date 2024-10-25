@@ -84,9 +84,18 @@ def parse_args():
     )
     # VALIDATION
     parser.add_argument(
-        "--enable_validation",
-        action="store_true",
-        help="Whether to run validation and parameter tuning on the dev set.",
+        "--validate_pipelines",
+        type=str,
+        nargs="+",
+        default=[],
+        # TODO [final]: update pipelines choices here
+        choices=[
+            "pipeline_tct",
+            "pipeline_avg_1",
+            "pipeline_chained_avg_un2",
+            "pipeline_chained_avg_shN",
+        ],
+        help="List of pipelines to validate, based on exact pipeline names.",
     )
     parser.add_argument(
         "--dev_dataset",
@@ -112,13 +121,6 @@ def parse_args():
         nargs="+",
         default=[round(x, 1) for x in np.arange(0, 1.0001, 0.1)],
         help="List of interpolation parameters for evaluation.",
-    )
-    parser.add_argument(
-        "--validate_pipelines",
-        type=str,
-        nargs="+",
-        default=[],
-        help="List of pipelines to validate, based on exact pipeline names.",
     )
     # EVALUATION
     # TODO: Add option to evaluate on multiple datasets, accepting multiple test_datasets and test_sparse_ranking_paths.
@@ -163,14 +165,14 @@ def print_settings() -> None:
         f"\tavg_shared_int_chains={args.avg_shared_int_chains}",
     ]
     # Validation settings
-    settings_description.append(f"enable_validation={args.enable_validation}")
-    if args.enable_validation:
+    settings_description.append(f"validate_pipelines={args.validate_pipelines}")
+    if args.validate_pipelines:
+        settings_description[-1] += ":"
         settings_description.extend(
             [
                 f"\tdev_dataset={args.dev_dataset}",
                 f"\tdev_sample_size={args.dev_sample_size}",
                 f"\talphas={args.alphas}",
-                f"\tvalidate_pipelines={args.validate_pipelines}",
             ]
         )
 
@@ -306,7 +308,7 @@ def main(args: argparse.Namespace) -> None:
         "castorini/tct_colbert-msmarco", device=args.device
     )
     ff_score_tct = FFScore(index_tct)
-    ff_int_tct = FFInterpolate(alpha=0.1)  # Init as best alpha from earlier validation
+    ff_int_tct = FFInterpolate(alpha=0.1)
     pipeline_tct = pipeline_bm25 >> ff_score_tct >> ff_int_tct
 
     # TODO: Add profiling to re-ranking step
@@ -345,30 +347,32 @@ def main(args: argparse.Namespace) -> None:
         )
 
     # Validation and parameter tuning on dev set
-    if args.enable_validation:
-        # TODO: Tune k_avg for WeightedAvgEncoder
-        dev_dataset = pt.get_dataset(args.dev_dataset)
-        index_avg.query_encoder.sparse_ranking = Ranking.from_file(
-            args.dev_sparse_ranking_path,
-            queries={q.qid: q.query for q in dev_dataset.get_topics().itertuples()},
-        )
+    # TODO: Tune k_avg for WeightedAvgEncoder
+    dev_dataset = pt.get_dataset(args.dev_dataset)
+    index_avg.query_encoder.sparse_ranking = Ranking.from_file(
+        args.dev_sparse_ranking_path,
+        queries={q.qid: q.query for q in dev_dataset.get_topics().itertuples()},
+    )
 
-        # Sample dev queries if dev_sample_size is set
-        dev_queries = dev_dataset.get_topics()
-        if args.dev_sample_size is not None:
-            dev_queries = dev_queries.sample(n=args.dev_sample_size)
+    # Sample dev queries if dev_sample_size is set
+    dev_queries = dev_dataset.get_topics()
+    if args.dev_sample_size is not None:
+        dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
-        # Validate pipelines in args.validate_pipelines.
-        pipelines_to_validate = [
-            (pipeline_tct, [ff_int_tct], "pipeline_tct"),
-            (pipeline_avg_1, [ff_int_avg_1], "pipeline_avg_1"),
-            (pipeline_chained_avg_un2, [ff_int_avg_un2_1, ff_int_avg_un2_2], "pipeline_chained_avg_un2"),
-            (pipeline_chained_avg_shN, [ff_int_avg_shN], "pipeline_chained_avg_shN"),
-        ]
-
-        for pipeline, tunable_alphas, name in pipelines_to_validate:
-            if name in args.validate_pipelines:
-                validate(pipeline, tunable_alphas, name, dev_queries, dev_dataset)
+    # Validate pipelines in args.validate_pipelines.
+    pipelines_to_validate = [
+        (pipeline_tct, [ff_int_tct], "pipeline_tct"),
+        (pipeline_avg_1, [ff_int_avg_1], "pipeline_avg_1"),
+        (
+            pipeline_chained_avg_un2,
+            [ff_int_avg_un2_1, ff_int_avg_un2_2],
+            "pipeline_chained_avg_un2",
+        ),
+        (pipeline_chained_avg_shN, [ff_int_avg_shN], "pipeline_chained_avg_shN"),
+    ]
+    for pipeline, tunable_alphas, name in pipelines_to_validate:
+        if name in args.validate_pipelines:
+            validate(pipeline, tunable_alphas, name, dev_queries, dev_dataset)
 
     # Final evaluation on test set
     test_dataset = pt.get_dataset(args.test_dataset)
