@@ -239,16 +239,15 @@ def validate(
         dev_queries (pd.DataFrame): DataFrame with dev queries.
         dev_dataset (ir_datasets.Dataset): Dataset to validate the pipeline.
     """
-    if name in args.validate_pipelines:
-        print(f"\nValidating pipeline: {name}...")
-        param_grid = {tunable: {"alpha": args.alphas} for tunable in tunable_alphas}
-        pt.GridSearch(
-            pipeline,
-            param_grid,
-            dev_queries,
-            dev_dataset.get_qrels(),
-            verbose=True,
-        )
+    print(f"\nValidating pipeline: {name}...")
+    param_grid = {tunable: {"alpha": args.alphas} for tunable in tunable_alphas}
+    pt.GridSearch(
+        pipeline,
+        param_grid,
+        dev_queries,
+        dev_dataset.get_qrels(),
+        verbose=True,
+    )
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
@@ -368,31 +367,16 @@ def main(args: argparse.Namespace) -> None:
             dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
         # Validate pipelines in args.validate_pipelines.
-        validate(pipeline_tct, [ff_int_tct], "pipeline_tct", dev_queries, dev_dataset)
+        pipelines_to_validate = [
+            (pipeline_tct, [ff_int_tct], "pipeline_tct"),
+            (pipeline_avg_1, [ff_int_avg_1], "pipeline_avg_1"),
+            (pipeline_chained_avg_un2, [ff_int_avg_un2_1, ff_int_avg_un2_2], "pipeline_chained_avg_un2"),
+            (pipeline_chained_avg_shN, [ff_int_avg_shN], "pipeline_chained_avg_shN"),
+        ]
 
-        validate(
-            pipeline_avg_1,
-            [ff_int_avg_1],
-            "pipeline_avg_1",
-            dev_queries,
-            dev_dataset,
-        )
-
-        validate(
-            pipeline_chained_avg_un2,  # WARNING: validation on this pipeline scales exponentially: args.alphas ** avg_chains.
-            [ff_int_avg_un2_1, ff_int_avg_un2_2],
-            "pipeline_chained_avg_un2",
-            dev_queries,
-            dev_dataset,
-        )
-
-        validate(
-            pipeline_chained_avg_shN,
-            [ff_int_avg_shN],
-            "pipeline_chained_avg_shN",
-            dev_queries,
-            dev_dataset,
-        )
+        for pipeline, tunable_alphas, name in pipelines_to_validate:
+            if name in args.validate_pipelines:
+                validate(pipeline, tunable_alphas, name, dev_queries, dev_dataset)
 
     # Final evaluation on test set
     test_dataset = pt.get_dataset(args.test_dataset)
