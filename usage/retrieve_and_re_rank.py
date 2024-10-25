@@ -1,4 +1,5 @@
 import argparse
+from copy import copy
 import warnings
 from enum import Enum
 from pathlib import Path
@@ -249,7 +250,7 @@ def main(args: argparse.Namespace) -> None:
         bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
-    index_tct = index
+    index_tct = copy(index)
     index_tct.query_encoder = TCTColBERTQueryEncoder(
         "castorini/tct_colbert-msmarco", device=args.device
     )
@@ -259,7 +260,7 @@ def main(args: argparse.Namespace) -> None:
 
     # TODO: Add profiling to re-ranking step
     # Create re-ranking pipeline based on WeightedAvgEncoder
-    index_avg = index
+    index_avg = copy(index)
     index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.prob_dist)
     ff_score_avg = FFScore(index_avg)
     ff_int_avg = FFInterpolate(alpha=0.4) # Alpha will be tuned and overwritten later, but this was the best result so far
