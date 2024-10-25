@@ -1,12 +1,12 @@
 import argparse
-from copy import copy
 import warnings
-from enum import Enum
+from copy import copy
 from pathlib import Path
 from typing import List
 
 import ir_datasets
 import numpy as np
+import pandas as pd
 import pyterrier as pt
 import torch
 from ir_measures import calc_aggregate, measures
@@ -77,9 +77,9 @@ def parse_args():
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     parser.add_argument(
-        "--avg_chains",
+        "--avg_shared_int_chains",
         type=int,
-        default=4,
+        default=1,
         help="Number of chained FF-Score and FF-Interpolate blocks. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     # VALIDATION
@@ -153,7 +153,7 @@ def print_settings() -> None:
         "WeightedAvgEncoder:",
         f"\tprob_dist={args.prob_dist.name}",
         f"\tk_avg={args.k_avg}",
-        f"\tavg_chains={args.avg_chains}",
+        f"\tavg_shared_int_chains={args.avg_shared_int_chains}",
     ]
     # Validation settings
     settings_description.append(f"enable_validation={args.enable_validation}")
@@ -213,6 +213,32 @@ def estimate_best_alpha(
     )
 
 
+def validate(
+    pipeline: pt.Transformer,
+    tunable_alphas: List[pt.Transformer],
+    name: str,
+    dev_queries: pd.DataFrame,
+    dev_dataset: ir_datasets.Dataset,
+) -> None:
+    """
+    Validate the given pipeline using GridSearch.
+
+    Args:
+        pipeline (pt.Transformer): The pipeline to validate.
+        tunable_alphas (List[pt.Transformer]): List of FFInterpolate blocks with tunable alpha parameters.
+        name (str): Name of the pipeline for logging purposes.
+    """
+    print(f"\nValidating pipeline: {name}...")
+    param_grid = {tunable: {"alpha": args.alphas} for tunable in tunable_alphas}
+    pt.GridSearch(
+        pipeline,
+        param_grid,
+        dev_queries,
+        dev_dataset.get_qrels(),
+        verbose=True,
+    )
+
+
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 def main(args: argparse.Namespace) -> None:
     """
@@ -269,7 +295,7 @@ def main(args: argparse.Namespace) -> None:
         "castorini/tct_colbert-msmarco", device=args.device
     )
     ff_score_tct = FFScore(index_tct)
-    ff_int_tct = FFInterpolate(alpha=0.1) # Init as best alpha from earlier validation
+    ff_int_tct = FFInterpolate(alpha=0.1)  # Init as best alpha from earlier validation
     pipeline_tct = pipeline_bm25 >> ff_score_tct >> ff_int_tct
 
     # TODO: Add profiling to re-ranking step
@@ -277,19 +303,44 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index)
     index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.prob_dist)
     ff_score_avg = FFScore(index_avg)
-    ff_int_avg = FFInterpolate(alpha=0.4) # Init as best alpha from earlier validation with 4x avg chaining
+
     # TODO: Check if PyTerrier supports caching now.
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
     # TODO: find bug when validating on WEIGHTED_AVERAGE
     # TODO: Add query_encoder as arg to FFScore.__init__.
-    # TODO: Should each iteration of ff_int_avg have its own alpha weight?
     # TODO: Try chained ff_score_avg + ff_score_tct
     # TODO: Encode as weighted average of WeightedAvgEncoder and (lightweight) QueryEncoder
-    pipeline_chained_avg = pipeline_bm25
-    for chain in range(args.avg_chains):
-        pipeline_chained_avg = pipeline_chained_avg >> ff_score_avg >> ff_int_avg
+    ff_int_avg_1 = FFInterpolate(
+        alpha=0.1
+    )  # Init as best alpha from earlier validation
+    pipeline_avg_1 = pipeline_bm25 >> ff_score_avg >> ff_int_avg_1
 
-    # TODO: Tune k_avg for WeightedAvgEncoder
+    # Create re-ranking pipeline with individual tuning of FFInterpolate.
+    # WARNING: validation time on this pipeline scales exponentially: args.alphas ** avg_chains.
+    # TODO: Run big evaluation with different amount of chains and overwrite with best outcomes
+    ff_int_avg_un2_1 = FFInterpolate(
+        alpha=0.1
+    )  # Init as best alpha from earlier validation with 2x indiv avg chaining
+    ff_int_avg_un2_2 = FFInterpolate(
+        alpha=0.9
+    )  # Init as best alpha from earlier validation with 2x indiv avg chaining
+    pipeline_chained_avg_un2 = (
+        pipeline_bm25
+        >> ff_score_avg
+        >> ff_int_avg_un2_1
+        >> ff_score_avg
+        >> ff_int_avg_un2_2
+    )
+
+    ff_int_avg_shN = FFInterpolate(
+        alpha=0.4
+    )  # Init as best alpha from earlier validation with 4x avg chaining
+    pipeline_chained_avg_shN = pipeline_bm25
+    for chain in range(args.avg_shared_int_chains):
+        pipeline_chained_avg_shN = (
+            pipeline_chained_avg_shN >> ff_score_avg >> ff_int_avg_shN
+        )
+
     # Validation and parameter tuning on dev set
     if args.enable_validation:
         # TODO: Tune k_avg for WeightedAvgEncoder
@@ -304,23 +355,39 @@ def main(args: argparse.Namespace) -> None:
         if args.dev_sample_size is not None:
             dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
-        print(f"\nValidating pipeline: BM25 >> TCT >> INT...")
-        pt.GridSearch(
-            pipeline_tct,
-            {ff_int_tct: {"alpha": args.alphas}},
-            dev_queries,
-            dev_dataset.get_qrels(),
-            verbose=True,
-        )
+        # TODO: Add program arg --validate_pipelines (accepting list of strings) to partially enable/disable validation based on the pipeline names.
+        ######## USE OUTCOMMENTING BELOW TO PARTIALLY ENABLE/DISABLE VALIDATION ########
+        # validate(
+        #     pipeline_tct, 
+        #     [ff_int_tct], 
+        #     "BM25 >> TCT >> INT", 
+        #     dev_queries, 
+        #     dev_dataset
+        # )
 
-        print(f"\nValidating pipeline: BM25 >> {args.avg_chains}X (AVG >> INT_shared)...")
-        pt.GridSearch(
-            pipeline_chained_avg,
-            {ff_int_avg: {"alpha": args.alphas}},
-            dev_queries,
-            dev_dataset.get_qrels(),
-            verbose=True,
-        )
+        # validate(
+        #     pipeline_avg_1,
+        #     [ff_int_avg_1],
+        #     "BM25 >> AVG >> INT",
+        #     dev_queries,
+        #     dev_dataset,
+        # )
+
+        # validate(
+        #     pipeline_chained_avg_un2, # WARNING: validation on this pipeline scales exponentially: args.alphas ** avg_chains.
+        #     [ff_int_avg_un2_1, ff_int_avg_un2_2], 
+        #     "BM25 >> 2X (AVG >> INT_uniq)", 
+        #     dev_queries, 
+        #     dev_dataset
+        # )
+
+        # validate(
+        #     pipeline_chained_avg_shN,
+        #     [ff_int_avg_shN],
+        #     f"BM25 >> {args.avg_shared_int_chains}X (AVG >> INT_shared)",
+        #     dev_queries,
+        #     dev_dataset,
+        # )
 
     # Final evaluation on test set
     test_dataset = pt.get_dataset(args.test_dataset)
@@ -333,7 +400,9 @@ def main(args: argparse.Namespace) -> None:
         [
             ~bm25,
             pipeline_tct,
-            pipeline_chained_avg,
+            pipeline_avg_1,
+            pipeline_chained_avg_un2,
+            pipeline_chained_avg_shN,
         ],
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
@@ -341,7 +410,9 @@ def main(args: argparse.Namespace) -> None:
         names=[
             "BM25",
             f"BM25 >> TCT >> INT(α={ff_int_tct.alpha})",
-            f"BM25 >> {args.avg_chains}X (AVG >> INT_shared(α={ff_int_avg.alpha}))",
+            f"BM25 >> AVG >> INT(α={ff_int_avg_1.alpha})",
+            f"BM25 >> 2X (AVG >> INT(α=[{ff_int_avg_un2_1.alpha}, {ff_int_avg_un2_2.alpha}]))",
+            f"BM25 >> {args.avg_shared_int_chains}X (AVG >> INT(α={ff_int_avg_shN.alpha}))",
         ],
     )
     print_settings()
