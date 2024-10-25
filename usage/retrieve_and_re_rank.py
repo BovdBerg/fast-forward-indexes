@@ -113,6 +113,13 @@ def parse_args():
         default=[round(x, 1) for x in np.arange(0, 1.0001, 0.1)],
         help="List of interpolation parameters for evaluation.",
     )
+    parser.add_argument(
+        "--validate_pipelines",
+        type=str,
+        nargs="+",
+        default=[],
+        help="List of pipelines to validate, based on exact pipeline names.",
+    )
     # EVALUATION
     # TODO: Add option to evaluate on multiple datasets, accepting multiple test_datasets and test_sparse_ranking_paths.
     parser.add_argument(
@@ -163,6 +170,7 @@ def print_settings() -> None:
                 f"\tdev_dataset={args.dev_dataset}",
                 f"\tdev_sample_size={args.dev_sample_size}",
                 f"\talphas={args.alphas}",
+                f"\tvalidate_pipelines={args.validate_pipelines}",
             ]
         )
 
@@ -221,22 +229,26 @@ def validate(
     dev_dataset: ir_datasets.Dataset,
 ) -> None:
     """
-    Validate the given pipeline using GridSearch.
+    Validate the pipeline and tune the alpha parameters based on the dev set.
+    Only validate if the pipeline name is in args.validate_pipelines.
 
     Args:
         pipeline (pt.Transformer): The pipeline to validate.
         tunable_alphas (List[pt.Transformer]): List of FFInterpolate blocks with tunable alpha parameters.
-        name (str): Name of the pipeline for logging purposes.
+        name (str): Name of the pipeline for logging purposes. Must EXACTLY match args.validate_pipelines.
+        dev_queries (pd.DataFrame): DataFrame with dev queries.
+        dev_dataset (ir_datasets.Dataset): Dataset to validate the pipeline.
     """
-    print(f"\nValidating pipeline: {name}...")
-    param_grid = {tunable: {"alpha": args.alphas} for tunable in tunable_alphas}
-    pt.GridSearch(
-        pipeline,
-        param_grid,
-        dev_queries,
-        dev_dataset.get_qrels(),
-        verbose=True,
-    )
+    if name in args.validate_pipelines:
+        print(f"\nValidating pipeline: {name}...")
+        param_grid = {tunable: {"alpha": args.alphas} for tunable in tunable_alphas}
+        pt.GridSearch(
+            pipeline,
+            param_grid,
+            dev_queries,
+            dev_dataset.get_qrels(),
+            verbose=True,
+        )
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
@@ -355,39 +367,32 @@ def main(args: argparse.Namespace) -> None:
         if args.dev_sample_size is not None:
             dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
-        # TODO: Add program arg --validate_pipelines (accepting list of strings) to partially enable/disable validation based on the pipeline names.
-        ######## USE OUTCOMMENTING BELOW TO PARTIALLY ENABLE/DISABLE VALIDATION ########
-        # validate(
-        #     pipeline_tct, 
-        #     [ff_int_tct], 
-        #     "BM25 >> TCT >> INT", 
-        #     dev_queries, 
-        #     dev_dataset
-        # )
+        # Validate pipelines in args.validate_pipelines.
+        validate(pipeline_tct, [ff_int_tct], "pipeline_tct", dev_queries, dev_dataset)
 
-        # validate(
-        #     pipeline_avg_1,
-        #     [ff_int_avg_1],
-        #     "BM25 >> AVG >> INT",
-        #     dev_queries,
-        #     dev_dataset,
-        # )
+        validate(
+            pipeline_avg_1,
+            [ff_int_avg_1],
+            "pipeline_avg_1",
+            dev_queries,
+            dev_dataset,
+        )
 
-        # validate(
-        #     pipeline_chained_avg_un2, # WARNING: validation on this pipeline scales exponentially: args.alphas ** avg_chains.
-        #     [ff_int_avg_un2_1, ff_int_avg_un2_2], 
-        #     "BM25 >> 2X (AVG >> INT_uniq)", 
-        #     dev_queries, 
-        #     dev_dataset
-        # )
+        validate(
+            pipeline_chained_avg_un2,  # WARNING: validation on this pipeline scales exponentially: args.alphas ** avg_chains.
+            [ff_int_avg_un2_1, ff_int_avg_un2_2],
+            "pipeline_chained_avg_un2",
+            dev_queries,
+            dev_dataset,
+        )
 
-        # validate(
-        #     pipeline_chained_avg_shN,
-        #     [ff_int_avg_shN],
-        #     f"BM25 >> {args.avg_shared_int_chains}X (AVG >> INT_shared)",
-        #     dev_queries,
-        #     dev_dataset,
-        # )
+        validate(
+            pipeline_chained_avg_shN,
+            [ff_int_avg_shN],
+            "pipeline_chained_avg_shN",
+            dev_queries,
+            dev_dataset,
+        )
 
     # Final evaluation on test set
     test_dataset = pt.get_dataset(args.test_dataset)
