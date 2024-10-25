@@ -346,7 +346,20 @@ def main(args: argparse.Namespace) -> None:
         >> ff_int_avg_un2_2
     )
 
-    # Best (N, alpha, nDCG@10): (1, 0.1, 0.552501), (2, 0.2, 0.524405), (3, 0.6, 0.550884), (4, 0.6, 0.550304)
+    # TODO: Find defaults for below parameters by running evaluation once.
+    ff_int_avg_un3_1 = FFInterpolate(alpha=0.5)
+    ff_int_avg_un3_2 = FFInterpolate(alpha=0.5)
+    ff_int_avg_un3_3 = FFInterpolate(alpha=0.5)
+    pipeline_chained_avg_un3 = (
+        pipeline_bm25
+        >> ff_score_avg
+        >> ff_int_avg_un3_1
+        >> ff_score_avg
+        >> ff_int_avg_un3_2
+        >> ff_score_avg
+        >> ff_int_avg_un3_3
+    )
+
     ff_int_avg_shN = FFInterpolate(alpha=args.avg_shared_int_alpha)
     pipeline_chained_avg_shN = pipeline_bm25
     for chain in range(args.avg_shared_int_chains):
@@ -376,6 +389,11 @@ def main(args: argparse.Namespace) -> None:
             [ff_int_avg_un2_1, ff_int_avg_un2_2],
             "pipeline_chained_avg_un2",
         ),
+        (
+            pipeline_chained_avg_un3,
+            [ff_int_avg_un3_1, ff_int_avg_un3_2, ff_int_avg_un3_3],
+            "pipeline_chained_avg_un3",
+        ),
         (pipeline_chained_avg_shN, [ff_int_avg_shN], "pipeline_chained_avg_shN"),
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
@@ -395,6 +413,7 @@ def main(args: argparse.Namespace) -> None:
             pipeline_tct,
             pipeline_avg_1,
             pipeline_chained_avg_un2,
+            pipeline_chained_avg_un3,
             pipeline_chained_avg_shN,
         ],
         test_dataset.get_topics(),
@@ -404,7 +423,8 @@ def main(args: argparse.Namespace) -> None:
             "BM25",
             f"BM25 >> TCT >> INT(α={ff_int_tct.alpha})",
             f"BM25 >> AVG >> INT(α={ff_int_avg_1.alpha})",
-            f"BM25 >> 2X (AVG >> INT(α=[{ff_int_avg_un2_1.alpha}, {ff_int_avg_un2_2.alpha}]))",
+            f"BM25 >> 2X(AVG >> INT(α=[{ff_int_avg_un2_1.alpha},{ff_int_avg_un2_2.alpha}]))",
+            f"BM25 >> 3X(AVG >> INT(α=[{ff_int_avg_un3_1.alpha},{ff_int_avg_un3_2.alpha},{ff_int_avg_un3_3.alpha}]))",
             f"BM25 >> {args.avg_shared_int_chains}X (AVG >> INT(α={ff_int_avg_shN.alpha}))",
         ],
     )
