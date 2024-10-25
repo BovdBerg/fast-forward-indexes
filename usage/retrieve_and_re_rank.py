@@ -254,6 +254,7 @@ def validate(
         param_grid,
         dev_queries,
         dev_dataset.get_qrels(),
+        metric="ndcg_cut_10",
         verbose=True,
     )
 
