@@ -342,7 +342,7 @@ def main(args: argparse.Namespace) -> None:
     int_avg_1 = FFInterpolate(alpha=0.1)
     avg_1 = bm25_cut >> ff_avg >> int_avg_1
 
-    int_combo_tct = FFInterpolate(alpha=0.0)
+    int_combo_tct = FFInterpolate(alpha=0.3)
     combo = avg_1 >> ff_tct >> int_combo_tct
 
     int_avg_N_sh = FFInterpolate(alpha=args.avg_chains_alpha)
