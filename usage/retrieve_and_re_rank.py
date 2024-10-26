@@ -126,16 +126,18 @@ def parse_args():
     # EVALUATION
     # TODO: Add option to evaluate on multiple datasets, accepting multiple test_datasets and test_sparse_ranking_paths.
     parser.add_argument(
-        "--test_dataset",
+        "--test_datasets",
         type=str,
-        default="irds:msmarco-passage/trec-dl-2019/judged",
-        help="Dataset to evaluate the rankings. May never be equal to dev_dataset.",
+        nargs="+",
+        default=["irds:msmarco-passage/trec-dl-2019/judged"],
+        help="Datasets to evaluate the rankings. May never be equal to dev_dataset. Each entry must match test_sparse_ranking_paths.",
     )
     parser.add_argument(
-        "--test_sparse_ranking_path",
+        "--test_sparse_ranking_paths",
         type=Path,
-        default="/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv",
-        help="Path to the sparse ranking file.",
+        nargs="+",
+        default=["/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv"],
+        help="Paths to the sparse ranking files. Each entry must match test_datasets.",
     )
     parser.add_argument(
         "--eval_metrics",
@@ -174,6 +176,14 @@ def print_settings() -> None:
                 f"\tdev_dataset={args.dev_dataset}",
                 f"\tdev_sample_size={args.dev_sample_size}",
                 f"\talphas={args.alphas}",
+            ]
+        )
+    settings_description.append(f"test_datasets={args.test_datasets}")
+    if args.test_datasets:
+        settings_description[-1] += ":"
+        settings_description.extend(
+            [
+                f"\teval_metrics={args.eval_metrics}",
             ]
         )
 
@@ -363,38 +373,39 @@ def main(args: argparse.Namespace) -> None:
         if name in args.validate_pipelines:
             validate(pipeline, tunable_alphas, name, dev_queries, dev_dataset)
 
-    # Final evaluation on test set
-    test_dataset = pt.get_dataset(args.test_dataset)
-    index_avg.query_encoder.sparse_ranking = Ranking.from_file(
-        args.test_sparse_ranking_path,
-        queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()},
-    )
-    print(f"\nRunning final evaluations on {args.test_dataset}...")
-    results = pt.Experiment(
-        [
-            ~bm25,
-            tct,
-            avg_1,
-            combo,
-            avg_2,
-            avg_3,
-            avg_4,
-        ],
-        test_dataset.get_topics(),
-        test_dataset.get_qrels(),
-        eval_metrics=eval_metrics,
-        names=[
-            "BM25",
-            f"tct, α={int_tct_1.alpha}",
-            f"avg_1, α={int_avg_1.alpha}",
-            f"combo, α_AVG={int_avg_1.alpha}, α_TCT={int_combo_tct.alpha}",
-            f"avg_2, α=[{int_avg_1.alpha},{int_avg_2.alpha}]",
-            f"avg_3, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha}]",
-            f"avg_4, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha},{int_avg_4.alpha}]",
-        ],
-    )
-    print_settings()
-    print(f"\nFinal results on {args.test_dataset}:\n{results}\n")
+    # Final evaluation on test sets
+    for test_dataset_name, test_sparse_ranking_path in zip(args.test_datasets, args.test_sparse_ranking_paths):
+        test_dataset = pt.get_dataset(test_dataset_name)
+        index_avg.query_encoder.sparse_ranking = Ranking.from_file(
+            test_sparse_ranking_path,
+            queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()},
+        )
+        print(f"\nRunning final evaluations on {test_dataset_name}...")
+        results = pt.Experiment(
+            [
+                ~bm25,
+                tct,
+                avg_1,
+                combo,
+                avg_2,
+                avg_3,
+                avg_4,
+            ],
+            test_dataset.get_topics(),
+            test_dataset.get_qrels(),
+            eval_metrics=eval_metrics,
+            names=[
+                "BM25",
+                f"tct, α={int_tct_1.alpha}",
+                f"avg_1, α={int_avg_1.alpha}",
+                f"combo, α_AVG={int_avg_1.alpha}, α_TCT={int_combo_tct.alpha}",
+                f"avg_2, α=[{int_avg_1.alpha},{int_avg_2.alpha}]",
+                f"avg_3, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha}]",
+                f"avg_4, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha},{int_avg_4.alpha}]",
+            ],
+        )
+        print_settings()
+        print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
 
 
 if __name__ == "__main__":
