@@ -108,6 +108,7 @@ def parse_args():
             "pipeline_tct",
             "pipeline_avg_1",
             "pipeline_chained_avg_un2",
+            "pipeline_chained_avg_un3",
             "pipeline_chained_avg_shN",
         ],
         help="List of pipelines to validate, based on exact pipeline names.",
