@@ -249,8 +249,9 @@ def validate(
         param_grid,
         dev_queries,
         dev_dataset.get_qrels(),
-        metric="map", # TODO: My GridSearch often finds wrong alpha. Try to get better predictions with metric "map" or larger --dev_sample_size
+        metric="ndcg_cut_10", # TODO: Find why this scores so horribly.
         verbose=True,
+        batch_size=128,
     )
 
 
