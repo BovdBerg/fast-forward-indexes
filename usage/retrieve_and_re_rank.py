@@ -345,6 +345,10 @@ def main(args: argparse.Namespace) -> None:
     int_avg_1_1 = FFInterpolate(alpha=0.1)
     avg_1 = bm25_cut >> ff_avg >> int_avg_1_1
 
+    int_combo_avg = FFInterpolate(alpha=0.1)
+    int_combo_tct = FFInterpolate(alpha=0.1)
+    combo = bm25_cut >> ff_avg >> int_combo_avg >> ff_tct >> int_combo_tct
+
     int_avg_N_sh = FFInterpolate(alpha=args.avg_chains_alpha)
     avg_N_sh = bm25_cut
     for chain in range(args.avg_chains_N):
@@ -352,16 +356,15 @@ def main(args: argparse.Namespace) -> None:
 
     # Create re-ranking pipeline with individual tuning of FFInterpolate.
     # WARNING: validation time on this pipeline scales exponentially: args.alphas ** avg_chains_N.
-    # TODO: Run big evaluation with different amount of chains and overwrite with best outcomes
+    # TODO: Are these pipelines markov-like? Then rename to int_avg_1 and re-use int + pipelines, and only tune on next param.
     int_avg_2_1 = FFInterpolate(alpha=0.1)
     int_avg_2_2 = FFInterpolate(alpha=0.9)
     avg_2 = bm25_cut >> ff_avg >> int_avg_2_1 >> ff_avg >> int_avg_2_2
 
     # WARNING: validation time on this pipeline scales exponentially: args.alphas ** avg_chains_N.
-    # TODO: Find defaults for below parameters by running evaluation once.
-    int_avg_3_1 = FFInterpolate(alpha=0.5)
-    int_avg_3_2 = FFInterpolate(alpha=0.5)
-    int_avg_3_3 = FFInterpolate(alpha=0.5)
+    int_avg_3_1 = FFInterpolate(alpha=0.1)
+    int_avg_3_2 = FFInterpolate(alpha=0.9)
+    int_avg_3_3 = FFInterpolate(alpha=0.8)
     avg_3 = (
         bm25_cut
         >> ff_avg
@@ -372,11 +375,10 @@ def main(args: argparse.Namespace) -> None:
         >> int_avg_3_3
     )
 
-    # TODO: Find defaults for below parameters by running evaluation once.
-    int_avg_4_1 = FFInterpolate(alpha=0.5)
-    int_avg_4_2 = FFInterpolate(alpha=0.5)
-    int_avg_4_3 = FFInterpolate(alpha=0.5)
-    int_avg_4_4 = FFInterpolate(alpha=0.5)
+    int_avg_4_1 = FFInterpolate(alpha=0.1)
+    int_avg_4_2 = FFInterpolate(alpha=0.9)
+    int_avg_4_3 = FFInterpolate(alpha=0.8)
+    int_avg_4_4 = FFInterpolate(alpha=0.5)  # TODO: tune param
     avg_4 = (
         bm25_cut
         >> ff_avg
@@ -407,21 +409,10 @@ def main(args: argparse.Namespace) -> None:
         (tct, [int_tct_1], "tct"),
         (avg_1, [int_avg_1_1], "avg_1"),
         (avg_N_sh, [int_avg_N_sh], "avg_N_sh"),
-        (
-            avg_2,
-            [int_avg_2_1, int_avg_2_2],
-            "avg_2",
-        ),
-        (
-            avg_3,
-            [int_avg_3_1, int_avg_3_2, int_avg_3_3],
-            "avg_3",
-        ),
-        (
-            avg_4,
-            [int_avg_4_1, int_avg_4_2, int_avg_4_3, int_avg_4_4],
-            "avg_4",
-        ),
+        (combo, [int_combo_tct], "combo"),
+        (avg_2, [int_avg_2_2], "avg_2"),
+        (avg_3, [int_avg_3_3], "avg_3"),
+        (avg_4, [int_avg_4_4], "avg_4"),
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
         if name in args.validate_pipelines:
@@ -439,6 +430,7 @@ def main(args: argparse.Namespace) -> None:
             ~bm25,
             tct,
             avg_1,
+            combo,
             avg_N_sh,
             avg_2,
             avg_3,
@@ -451,6 +443,7 @@ def main(args: argparse.Namespace) -> None:
             "BM25",
             f"tct, α={int_tct_1.alpha}",
             f"avg_1, α={int_avg_1_1.alpha}",
+            f"combo, α_AVG={int_combo_avg.alpha}, α_TCT={int_combo_tct.alpha}",
             f"avg_N_sh, N={args.avg_chains_N}, α={int_avg_N_sh.alpha}",
             f"avg_2, α=[{int_avg_2_1.alpha},{int_avg_2_2.alpha}]",
             f"avg_3, α=[{int_avg_3_1.alpha},{int_avg_3_2.alpha},{int_avg_3_3.alpha}]",
