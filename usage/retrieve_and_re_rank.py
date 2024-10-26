@@ -77,7 +77,7 @@ def parse_args():
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     parser.add_argument(
-        "--avg_shared_int_chains",
+        "--avg_chains",
         type=int,
         default=1,
         help="Number of chained FF-Score and FF-Interpolate blocks. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
@@ -168,7 +168,7 @@ def print_settings() -> None:
         "WeightedAvgEncoder:",
         f"\tprob_dist={args.prob_dist.name}",
         f"\tk_avg={args.k_avg}",
-        f"\tavg_shared_int_chains={args.avg_shared_int_chains}",
+        f"\tavg_chains={args.avg_chains}",
     ]
     # Validation settings
     settings_description.append(f"validate_pipelines={args.validate_pipelines}")
@@ -362,7 +362,7 @@ def main(args: argparse.Namespace) -> None:
 
     ff_int_avg_shN = FFInterpolate(alpha=args.avg_shared_int_alpha)
     pipeline_chained_avg_shN = pipeline_bm25
-    for chain in range(args.avg_shared_int_chains):
+    for chain in range(args.avg_chains):
         pipeline_chained_avg_shN = (
             pipeline_chained_avg_shN >> ff_score_avg >> ff_int_avg_shN
         )
@@ -421,11 +421,11 @@ def main(args: argparse.Namespace) -> None:
         eval_metrics=eval_metrics,
         names=[
             "BM25",
-            f"BM25 >> TCT >> INT(α={ff_int_tct.alpha})",
-            f"BM25 >> AVG >> INT(α={ff_int_avg_1.alpha})",
-            f"BM25 >> 2X(AVG >> INT(α=[{ff_int_avg_un2_1.alpha},{ff_int_avg_un2_2.alpha}]))",
-            f"BM25 >> 3X(AVG >> INT(α=[{ff_int_avg_un3_1.alpha},{ff_int_avg_un3_2.alpha},{ff_int_avg_un3_3.alpha}]))",
-            f"BM25 >> {args.avg_shared_int_chains}X (AVG >> INT(α={ff_int_avg_shN.alpha}))",
+            f"pipeline_tct, α={ff_int_tct.alpha}",
+            f"pipeline_avg_1, α={ff_int_avg_1.alpha}",
+            f"pipeline_chained_avg_un2, α=[{ff_int_avg_un2_1.alpha},{ff_int_avg_un2_2.alpha}]",
+            f"pipeline_chained_avg_un3, α=[{ff_int_avg_un3_1.alpha},{ff_int_avg_un3_2.alpha},{ff_int_avg_un3_3.alpha}]",
+            f"pipeline_chained_avg_sh{args.avg_chains}, α={ff_int_avg_shN.alpha}",
         ],
     )
     print_settings()
