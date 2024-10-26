@@ -81,22 +81,6 @@ def parse_args():
         default=30,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
-    parser.add_argument(
-        "--avg_chains_N",
-        type=int,
-        default=1,
-        help="Number of chained (AVG >> INT) blocks with shared weights. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
-    )
-    parser.add_argument(
-        "--avg_chains_alpha",
-        type=float,
-        default=0.1,
-        help=(
-            "Shared weight for chained (AVG >> INT) blocks. Only used for EncodingMethod.WEIGHTED_AVERAGE. Overwritten on parameter tuning. "
-            "Best combinations (--avg_chains_N, --avg_chains_alpha, nDCG@10):"
-            "(1, 0.1, 0.552501), (2, 0.5, 0.543245), (3, 0.8, 0.506276), (4, 0.6, 0.550304), (5, 0.8, 0.531738)"
-        ),
-    )
     # VALIDATION
     parser.add_argument(
         "--validate_pipelines",
@@ -108,7 +92,6 @@ def parse_args():
             "tct",
             "avg_1",
             "combo",
-            "avg_N_sh",
             "avg_2",
             "avg_3",
             "avg_4",
@@ -181,7 +164,6 @@ def print_settings() -> None:
         "WeightedAvgEncoder:",
         f"\tprob_dist={args.prob_dist.name}",
         f"\tk_avg={args.k_avg}",
-        f"\tavg_chains_N={args.avg_chains_N}",
     ]
     # Validation settings
     settings_description.append(f"validate_pipelines={args.validate_pipelines}")
@@ -267,7 +249,7 @@ def validate(
         param_grid,
         dev_queries,
         dev_dataset.get_qrels(),
-        metric="ndcg_cut_10",
+        metric="map", # TODO: My GridSearch often finds wrong alpha. Try to get better predictions with metric "map" or larger --dev_sample_size
         verbose=True,
     )
 
@@ -345,17 +327,9 @@ def main(args: argparse.Namespace) -> None:
     int_combo_tct = FFInterpolate(alpha=0.3)
     combo = avg_1 >> ff_tct >> int_combo_tct
 
-    int_avg_N_sh = FFInterpolate(alpha=args.avg_chains_alpha)
-    avg_N_sh = bm25_cut
-    for chain in range(args.avg_chains_N):
-        avg_N_sh = avg_N_sh >> ff_avg >> int_avg_N_sh
-
-    # Create re-ranking pipeline with individual tuning of FFInterpolate.
-    # WARNING: validation time on this pipeline scales exponentially: args.alphas ** avg_chains_N.
     int_avg_2 = FFInterpolate(alpha=0.9)
     avg_2 = avg_1 >> ff_avg >> int_avg_2
 
-    # WARNING: validation time on this pipeline scales exponentially: args.alphas ** avg_chains_N.
     int_avg_3 = FFInterpolate(alpha=0.8)
     avg_3 = avg_2 >> ff_avg >> int_avg_3
 
@@ -379,7 +353,6 @@ def main(args: argparse.Namespace) -> None:
     pipelines_to_validate = [
         (tct, [int_tct_1], "tct"),
         (avg_1, [int_avg_1], "avg_1"),
-        (avg_N_sh, [int_avg_N_sh], "avg_N_sh"),
         (combo, [int_combo_tct], "combo"),
         (avg_2, [int_avg_2], "avg_2"),
         (avg_3, [int_avg_3], "avg_3"),
@@ -402,7 +375,6 @@ def main(args: argparse.Namespace) -> None:
             tct,
             avg_1,
             combo,
-            avg_N_sh,
             avg_2,
             avg_3,
             avg_4,
@@ -415,7 +387,6 @@ def main(args: argparse.Namespace) -> None:
             f"tct, α={int_tct_1.alpha}",
             f"avg_1, α={int_avg_1.alpha}",
             f"combo, α_AVG={int_avg_1.alpha}, α_TCT={int_combo_tct.alpha}",
-            f"avg_N_sh, N={args.avg_chains_N}, α={int_avg_N_sh.alpha}",
             f"avg_2, α=[{int_avg_1.alpha},{int_avg_2.alpha}]",
             f"avg_3, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha}]",
             f"avg_4, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha},{int_avg_4.alpha}]",
