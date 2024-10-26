@@ -284,7 +284,7 @@ class OnDiskIndex(Index):
                         range(0, len(vec_idxs), self._ds_buffer_size), 
                         desc="Reading vectors", 
                         total=total, 
-                        disable=total == 1
+                        disable=total == 1 or not self._verbose
                     )
                 ]
             )
