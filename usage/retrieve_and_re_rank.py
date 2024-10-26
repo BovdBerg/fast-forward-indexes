@@ -107,10 +107,10 @@ def parse_args():
         choices=[
             "pipeline_tct",
             "pipeline_avg_1",
+            "pipeline_chained_avg_shN",
             "pipeline_chained_avg_un2",
             "pipeline_chained_avg_un3",
             "pipeline_chained_avg_un4",
-            "pipeline_chained_avg_shN",
         ],
         help="List of pipelines to validate, based on exact pipeline names.",
     )
@@ -345,6 +345,13 @@ def main(args: argparse.Namespace) -> None:
     ff_int_avg_1 = FFInterpolate(alpha=0.1)
     pipeline_avg_1 = pipeline_bm25 >> ff_score_avg >> ff_int_avg_1
 
+    ff_int_avg_shN = FFInterpolate(alpha=args.avg_shared_int_alpha)
+    pipeline_chained_avg_shN = pipeline_bm25
+    for chain in range(args.avg_chains):
+        pipeline_chained_avg_shN = (
+            pipeline_chained_avg_shN >> ff_score_avg >> ff_int_avg_shN
+        )
+
     # Create re-ranking pipeline with individual tuning of FFInterpolate.
     # WARNING: validation time on this pipeline scales exponentially: args.alphas ** avg_chains.
     # TODO: Run big evaluation with different amount of chains and overwrite with best outcomes
@@ -390,13 +397,6 @@ def main(args: argparse.Namespace) -> None:
         >> ff_int_avg_un4_4
     )
 
-    ff_int_avg_shN = FFInterpolate(alpha=args.avg_shared_int_alpha)
-    pipeline_chained_avg_shN = pipeline_bm25
-    for chain in range(args.avg_chains):
-        pipeline_chained_avg_shN = (
-            pipeline_chained_avg_shN >> ff_score_avg >> ff_int_avg_shN
-        )
-
     # Validation and parameter tuning on dev set
     # TODO: Tune k_avg for WeightedAvgEncoder
     dev_dataset = pt.get_dataset(args.dev_dataset)
@@ -414,6 +414,7 @@ def main(args: argparse.Namespace) -> None:
     pipelines_to_validate = [
         (pipeline_tct, [ff_int_tct], "pipeline_tct"),
         (pipeline_avg_1, [ff_int_avg_1], "pipeline_avg_1"),
+        (pipeline_chained_avg_shN, [ff_int_avg_shN], "pipeline_chained_avg_shN"),
         (
             pipeline_chained_avg_un2,
             [ff_int_avg_un2_1, ff_int_avg_un2_2],
@@ -429,7 +430,6 @@ def main(args: argparse.Namespace) -> None:
             [ff_int_avg_un4_1, ff_int_avg_un4_2, ff_int_avg_un4_3, ff_int_avg_un4_4],
             "pipeline_chained_avg_un4",
         ),
-        (pipeline_chained_avg_shN, [ff_int_avg_shN], "pipeline_chained_avg_shN"),
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
         if name in args.validate_pipelines:
@@ -447,6 +447,7 @@ def main(args: argparse.Namespace) -> None:
             ~bm25,
             pipeline_tct,
             pipeline_avg_1,
+            pipeline_chained_avg_shN,
             pipeline_chained_avg_un2,
             pipeline_chained_avg_un3,
             pipeline_chained_avg_un4,
@@ -458,10 +459,10 @@ def main(args: argparse.Namespace) -> None:
             "BM25",
             f"pipeline_tct, α={ff_int_tct.alpha}",
             f"pipeline_avg_1, α={ff_int_avg_1.alpha}",
+            f"pipeline_chained_avg_sh{args.avg_chains}, α={ff_int_avg_shN.alpha}",
             f"pipeline_chained_avg_un2, α=[{ff_int_avg_un2_1.alpha},{ff_int_avg_un2_2.alpha}]",
             f"pipeline_chained_avg_un3, α=[{ff_int_avg_un3_1.alpha},{ff_int_avg_un3_2.alpha},{ff_int_avg_un3_3.alpha}]",
             f"pipeline_chained_avg_un4, α=[{ff_int_avg_un4_1.alpha},{ff_int_avg_un4_2.alpha},{ff_int_avg_un4_3.alpha},{ff_int_avg_un4_4.alpha}]",
-            f"pipeline_chained_avg_sh{args.avg_chains}, α={ff_int_avg_shN.alpha}",
         ],
     )
     print_settings()
