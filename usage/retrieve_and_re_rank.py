@@ -33,7 +33,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
     )
-    # TODO [at hand-in]: Remove default paths (sparse_ranking_path, index_path) form the arguments
+    # TODO [at hand-in]: Remove default paths (index_path) form the arguments
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -43,7 +43,7 @@ def parse_args():
         "--dataset",
         type=str,
         default="msmarco_passage",
-        help="Dataset (using package ir-datasets). Must match the sparse_ranking.",
+        help="Dataset (using package ir-datasets).",
     )
     parser.add_argument(
         "--index_path",
@@ -105,12 +105,6 @@ def parse_args():
         help="Dataset to validate and tune parameters. May never be equal to test_dataset.",
     )
     parser.add_argument(
-        "--dev_sparse_ranking_path",
-        type=Path,
-        default="/home/bvdb9/sparse_rankings/msmarco_passage-dev.small-BM25-top100.tsv",
-        help="Path to the sparse ranking file.",
-    )
-    parser.add_argument(
         "--dev_sample_size",
         type=int,
         default=32,
@@ -124,20 +118,12 @@ def parse_args():
         help="List of interpolation parameters for evaluation.",
     )
     # EVALUATION
-    # TODO: Add option to evaluate on multiple datasets, accepting multiple test_datasets and test_sparse_ranking_paths.
     parser.add_argument(
         "--test_datasets",
         type=str,
         nargs="+",
         default=["irds:msmarco-passage/trec-dl-2019/judged"],
-        help="Datasets to evaluate the rankings. May never be equal to dev_dataset. Each entry must match test_sparse_ranking_paths.",
-    )
-    parser.add_argument(
-        "--test_sparse_ranking_paths",
-        type=Path,
-        nargs="+",
-        default=["/home/bvdb9/sparse_rankings/msmarco_passage-trec-dl-2019.judged-BM25-top10000.tsv"],
-        help="Paths to the sparse ranking files. Each entry must match test_datasets.",
+        help="Datasets to evaluate the rankings. May never be equal to dev_dataset.",
     )
     parser.add_argument(
         "--eval_metrics",
@@ -259,7 +245,7 @@ def validate(
         param_grid,
         dev_queries,
         dev_dataset.get_qrels(),
-        metric="ndcg_cut_10", # TODO: Find why this scores so horribly.
+        metric="ndcg_cut_10",  # TODO: Find why this scores so horribly.
         verbose=True,
         batch_size=128,
     )
@@ -350,10 +336,8 @@ def main(args: argparse.Namespace) -> None:
     # Validation and parameter tuning on dev set
     # TODO: Tune k_avg for WeightedAvgEncoder
     dev_dataset = pt.get_dataset(args.dev_dataset)
-    # TODO: Create and add sparse_ranking file dynamically.
-    index_avg.query_encoder.sparse_ranking = Ranking.from_file(
-        args.dev_sparse_ranking_path,
-        queries={q.qid: q.query for q in dev_dataset.get_topics().itertuples()},
+    index_avg.query_encoder.sparse_ranking = Ranking(
+        df=bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
     )
 
     # Sample dev queries if dev_sample_size is set
@@ -375,12 +359,13 @@ def main(args: argparse.Namespace) -> None:
             validate(pipeline, tunable_alphas, name, dev_queries, dev_dataset)
 
     # Final evaluation on test sets
-    for test_dataset_name, test_sparse_ranking_path in zip(args.test_datasets, args.test_sparse_ranking_paths):
+    for test_dataset_name in args.test_datasets:
         test_dataset = pt.get_dataset(test_dataset_name)
-        index_avg.query_encoder.sparse_ranking = Ranking.from_file(
-            test_sparse_ranking_path,
-            queries={q.qid: q.query for q in test_dataset.get_topics().itertuples()},
+        test_queries = test_dataset.get_topics()
+        index_avg.query_encoder.sparse_ranking = Ranking(
+            df=bm25_cut(test_queries).rename(columns={"qid": "q_id", "docid": "id"})
         )
+
         print(f"\nRunning final evaluations on {test_dataset_name}...")
         results = pt.Experiment(
             [
@@ -392,7 +377,7 @@ def main(args: argparse.Namespace) -> None:
                 avg_3,
                 avg_4,
             ],
-            test_dataset.get_topics(),
+            test_queries,
             test_dataset.get_qrels(),
             eval_metrics=eval_metrics,
             names=[
