@@ -23,6 +23,7 @@ class InMemoryIndex(Index):
         encoder_batch_size: int = 32,
         init_size: int = 2**14,
         alloc_size: int = 2**14,
+        verbose: bool = False,
     ) -> None:
         """Create an index.
 
@@ -33,6 +34,7 @@ class InMemoryIndex(Index):
             encoder_batch_size (int, optional): Query encoder batch size. Defaults to 32.
             init_size (int, optional): Initial index size. Defaults to 2**14.
             alloc_size (int, optional): Size of shard allocated when index is full. Defaults to 2**14.
+            verbose (bool, optional): Whether to log progress. Defaults to False.
         """
         self._shards = []
         self._init_size = init_size
@@ -46,6 +48,7 @@ class InMemoryIndex(Index):
             quantizer=quantizer,
             mode=mode,
             encoder_batch_size=encoder_batch_size,
+            verbose=verbose,
         )
 
     def __len__(self) -> int:

@@ -35,6 +35,7 @@ class OnDiskIndex(Index):
         max_id_length: int = 8,
         overwrite: bool = False,
         ds_buffer_size: int = 2**10,
+        verbose: bool = False,
     ) -> None:
         """Create an index.
 
@@ -50,6 +51,7 @@ class OnDiskIndex(Index):
             max_id_length (int, optional): Maximum length of document and passage IDs (number of characters). Defaults to 8.
             overwrite (bool, optional): Overwrite index file if it exists. Defaults to False.
             ds_buffer_size (int, optional): Maximum number of vectors to retrieve from the HDF5 dataset at once. Defaults to 2**10.
+            verbose (bool, optional): Log progress. Defaults to False.
 
         Raises:
             ValueError: When the file exists and `overwrite=False`.
@@ -77,6 +79,7 @@ class OnDiskIndex(Index):
             quantizer=quantizer,
             mode=mode,
             encoder_batch_size=encoder_batch_size,
+            verbose=verbose,
         )
 
     @Index.quantizer.setter
@@ -157,6 +160,7 @@ class OnDiskIndex(Index):
             mode=self.mode,
             encoder_batch_size=self._encoder_batch_size,
             init_size=len(self),
+            verbose=self._verbose,
         )
         with h5py.File(self._index_file, "r") as fp:
             buffer_size = buffer_size or fp.attrs["num_vectors"]
@@ -312,6 +316,7 @@ class OnDiskIndex(Index):
         encoder_batch_size: int = 32,
         resize_min_val: int = 2**10,
         ds_buffer_size: int = 2**10,
+        verbose: bool = False,
     ) -> "OnDiskIndex":
         """Open an existing index on disk.
 
@@ -322,6 +327,7 @@ class OnDiskIndex(Index):
             encoder_batch_size (int, optional): Batch size for query encoder. Defaults to 32.
             resize_min_val (int, optional): Minimum value to increase index size by. Defaults to 2**10.
             ds_buffer_size (int, optional): Maximum number of vectors to retrieve from the HDF5 dataset at once. Defaults to 2**10.
+            verbose (bool, optional): Log progress. Defaults to False.
 
         Returns:
             OnDiskIndex: The index.
@@ -334,6 +340,7 @@ class OnDiskIndex(Index):
             quantizer=None,
             mode=mode,
             encoder_batch_size=encoder_batch_size,
+            verbose=verbose,
         )
         index._index_file = index_file.absolute()
         index._resize_min_val = resize_min_val

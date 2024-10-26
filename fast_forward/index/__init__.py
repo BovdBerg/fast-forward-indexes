@@ -37,6 +37,7 @@ class Index(abc.ABC):
 
     _query_encoder: Encoder = None
     _quantizer: Quantizer = None
+    _verbose: bool = False
 
     def __init__(
         self,
@@ -44,6 +45,7 @@ class Index(abc.ABC):
         quantizer: Quantizer = None,
         mode: Mode = Mode.MAXP,
         encoder_batch_size: int = 32,
+        verbose: bool = False,
     ) -> None:
         """Create an index.
 
@@ -52,6 +54,7 @@ class Index(abc.ABC):
             quantizer (Quantizer, optional): The quantizer to use. Defaults to None.
             mode (Mode, optional): Ranking mode. Defaults to Mode.MAXP.
             encoder_batch_size (int, optional): Encoder batch size. Defaults to 32.
+            verbose (bool, optional): Print progress. Defaults to True.
         """
         super().__init__()
         if query_encoder is not None:
@@ -60,6 +63,7 @@ class Index(abc.ABC):
         if quantizer is not None:
             self.quantizer = quantizer
         self._encoder_batch_size = encoder_batch_size
+        self._verbose = verbose
 
     def encode_queries(self, queries: Sequence[str]) -> np.ndarray:
         """Encode queries.
@@ -82,7 +86,7 @@ class Index(abc.ABC):
             range(0, len(queries), self._encoder_batch_size),
             desc="Encoding queries per batch",
             total=total_batches,
-            disable=total_batches == 1,
+            disable=total_batches == 1 or not self._verbose,
         ):
             batch = queries[i : i + self._encoder_batch_size]
             result.append(self.query_encoder(batch))
@@ -325,7 +329,8 @@ class Index(abc.ABC):
         select_vectors = []
         select_scores = []
         c = 0
-        LOGGER.info("Computing scores...")
+        if self._verbose:
+            LOGGER.info("Computing scores...")
         for id_no, q_no in zip(df["id_no"], df["q_no"]):
             vec_idxs = id_to_vec_idxs[id_no]
             select_vectors.extend(vec_idxs)
@@ -487,7 +492,8 @@ class Index(abc.ABC):
             result = self._compute_scores(df, query_vectors)
         result["score"] = result["ff_score"]
 
-        LOGGER.info("computed scores in %s seconds", perf_counter() - t0)
+        if self._verbose:
+            LOGGER.info("computed scores in %s seconds", perf_counter() - t0)
         return Ranking(
             result,
             name="fast-forward",

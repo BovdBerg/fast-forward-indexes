@@ -35,6 +35,11 @@ def parse_args():
     )
     # TODO [at hand-in]: Remove default paths (sparse_ranking_path, index_path) form the arguments
     parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print more information during re-ranking.",
+    )
+    parser.add_argument(
         "--dataset",
         type=str,
         default="msmarco_passage",
@@ -161,6 +166,7 @@ def print_settings() -> None:
     """
     # General settings
     settings_description: List[str] = [
+        f"verbose={args.verbose}",
         f"in_memory={args.in_memory}",
         f"rerank_cutoff={args.rerank_cutoff}",
         "TCTColBERTQueryEncoder:",
@@ -284,7 +290,7 @@ def main(args: argparse.Namespace) -> None:
     pt.init()
 
     # Load index
-    index: Index = OnDiskIndex.load(args.index_path)
+    index: Index = OnDiskIndex.load(args.index_path, verbose=args.verbose)
     if args.in_memory:
         index = index.to_memory(buffer_size=2**14)
 
