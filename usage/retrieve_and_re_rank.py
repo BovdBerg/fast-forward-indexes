@@ -134,7 +134,7 @@ def parse_args():
         "--alphas",
         type=float,
         nargs="+",
-        default=[round(x, 1) for x in np.arange(0, 1.0001, 0.1)],
+        default=[round(x, 2) for x in np.arange(0, 1.0001, 0.1)],
         help="List of interpolation parameters for evaluation.",
     )
     # EVALUATION
