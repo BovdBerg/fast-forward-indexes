@@ -129,7 +129,7 @@ def parse_args():
     parser.add_argument(
         "--dev_sample_size",
         type=int,
-        default=128,
+        default=32,
         help="Number of queries to sample for validation.",
     )
     parser.add_argument(
