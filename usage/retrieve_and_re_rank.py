@@ -339,16 +339,11 @@ def main(args: argparse.Namespace) -> None:
 
     # TODO: Check if PyTerrier supports caching now.
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
-    # TODO: find bug when validating on WEIGHTED_AVERAGE
-    # TODO: Add query_encoder as arg to FFScore.__init__.
-    # TODO: Try chained ff_avg + ff_tct
-    # TODO: Encode as weighted average of WeightedAvgEncoder and (lightweight) QueryEncoder
-    int_avg_1_1 = FFInterpolate(alpha=0.1)
-    avg_1 = bm25_cut >> ff_avg >> int_avg_1_1
+    int_avg_1 = FFInterpolate(alpha=0.1)
+    avg_1 = bm25_cut >> ff_avg >> int_avg_1
 
-    int_combo_avg = FFInterpolate(alpha=0.1)
-    int_combo_tct = FFInterpolate(alpha=0.1)
-    combo = bm25_cut >> ff_avg >> int_combo_avg >> ff_tct >> int_combo_tct
+    int_combo_tct = FFInterpolate(alpha=0.0)
+    combo = avg_1 >> ff_tct >> int_combo_tct
 
     int_avg_N_sh = FFInterpolate(alpha=args.avg_chains_alpha)
     avg_N_sh = bm25_cut
@@ -357,40 +352,15 @@ def main(args: argparse.Namespace) -> None:
 
     # Create re-ranking pipeline with individual tuning of FFInterpolate.
     # WARNING: validation time on this pipeline scales exponentially: args.alphas ** avg_chains_N.
-    # TODO: Are these pipelines markov-like? Then rename to int_avg_1 and re-use int + pipelines, and only tune on next param.
-    int_avg_2_1 = FFInterpolate(alpha=0.1)
-    int_avg_2_2 = FFInterpolate(alpha=0.9)
-    avg_2 = bm25_cut >> ff_avg >> int_avg_2_1 >> ff_avg >> int_avg_2_2
+    int_avg_2 = FFInterpolate(alpha=0.9)
+    avg_2 = avg_1 >> ff_avg >> int_avg_2
 
     # WARNING: validation time on this pipeline scales exponentially: args.alphas ** avg_chains_N.
-    int_avg_3_1 = FFInterpolate(alpha=0.1)
-    int_avg_3_2 = FFInterpolate(alpha=0.9)
-    int_avg_3_3 = FFInterpolate(alpha=0.8)
-    avg_3 = (
-        bm25_cut
-        >> ff_avg
-        >> int_avg_3_1
-        >> ff_avg
-        >> int_avg_3_2
-        >> ff_avg
-        >> int_avg_3_3
-    )
+    int_avg_3 = FFInterpolate(alpha=0.8)
+    avg_3 = avg_2 >> ff_avg >> int_avg_3
 
-    int_avg_4_1 = FFInterpolate(alpha=0.1)
-    int_avg_4_2 = FFInterpolate(alpha=0.9)
-    int_avg_4_3 = FFInterpolate(alpha=0.8)
-    int_avg_4_4 = FFInterpolate(alpha=0.5)  # TODO: tune param
-    avg_4 = (
-        bm25_cut
-        >> ff_avg
-        >> int_avg_4_1
-        >> ff_avg
-        >> int_avg_4_2
-        >> ff_avg
-        >> int_avg_4_3
-        >> ff_avg
-        >> int_avg_4_4
-    )
+    int_avg_4 = FFInterpolate(alpha=0.5)  # TODO: tune param
+    avg_4 = avg_3 >> ff_avg >> int_avg_4
 
     # Validation and parameter tuning on dev set
     # TODO: Tune k_avg for WeightedAvgEncoder
@@ -408,12 +378,12 @@ def main(args: argparse.Namespace) -> None:
     # Validate pipelines in args.validate_pipelines.
     pipelines_to_validate = [
         (tct, [int_tct_1], "tct"),
-        (avg_1, [int_avg_1_1], "avg_1"),
+        (avg_1, [int_avg_1], "avg_1"),
         (avg_N_sh, [int_avg_N_sh], "avg_N_sh"),
         (combo, [int_combo_tct], "combo"),
-        (avg_2, [int_avg_2_2], "avg_2"),
-        (avg_3, [int_avg_3_3], "avg_3"),
-        (avg_4, [int_avg_4_4], "avg_4"),
+        (avg_2, [int_avg_2], "avg_2"),
+        (avg_3, [int_avg_3], "avg_3"),
+        (avg_4, [int_avg_4], "avg_4"),
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
         if name in args.validate_pipelines:
@@ -443,12 +413,12 @@ def main(args: argparse.Namespace) -> None:
         names=[
             "BM25",
             f"tct, α={int_tct_1.alpha}",
-            f"avg_1, α={int_avg_1_1.alpha}",
-            f"combo, α_AVG={int_combo_avg.alpha}, α_TCT={int_combo_tct.alpha}",
+            f"avg_1, α={int_avg_1.alpha}",
+            f"combo, α_AVG={int_avg_1.alpha}, α_TCT={int_combo_tct.alpha}",
             f"avg_N_sh, N={args.avg_chains_N}, α={int_avg_N_sh.alpha}",
-            f"avg_2, α=[{int_avg_2_1.alpha},{int_avg_2_2.alpha}]",
-            f"avg_3, α=[{int_avg_3_1.alpha},{int_avg_3_2.alpha},{int_avg_3_3.alpha}]",
-            f"avg_4, α=[{int_avg_4_1.alpha},{int_avg_4_2.alpha},{int_avg_4_3.alpha},{int_avg_4_4.alpha}]",
+            f"avg_2, α=[{int_avg_1.alpha},{int_avg_2.alpha}]",
+            f"avg_3, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha}]",
+            f"avg_4, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha},{int_avg_4.alpha}]",
         ],
     )
     print_settings()
