@@ -109,6 +109,7 @@ def parse_args():
             "pipeline_avg_1",
             "pipeline_chained_avg_un2",
             "pipeline_chained_avg_un3",
+            "pipeline_chained_avg_un4",
             "pipeline_chained_avg_shN",
         ],
         help="List of pipelines to validate, based on exact pipeline names.",
@@ -372,6 +373,23 @@ def main(args: argparse.Namespace) -> None:
         >> ff_int_avg_un3_3
     )
 
+    # TODO: Find defaults for below parameters by running evaluation once.
+    ff_int_avg_un4_1 = FFInterpolate(alpha=0.5)
+    ff_int_avg_un4_2 = FFInterpolate(alpha=0.5)
+    ff_int_avg_un4_3 = FFInterpolate(alpha=0.5)
+    ff_int_avg_un4_4 = FFInterpolate(alpha=0.5)
+    pipeline_chained_avg_un4 = (
+        pipeline_bm25
+        >> ff_score_avg
+        >> ff_int_avg_un4_1
+        >> ff_score_avg
+        >> ff_int_avg_un4_2
+        >> ff_score_avg
+        >> ff_int_avg_un4_3
+        >> ff_score_avg
+        >> ff_int_avg_un4_4
+    )
+
     ff_int_avg_shN = FFInterpolate(alpha=args.avg_shared_int_alpha)
     pipeline_chained_avg_shN = pipeline_bm25
     for chain in range(args.avg_chains):
@@ -406,6 +424,11 @@ def main(args: argparse.Namespace) -> None:
             [ff_int_avg_un3_1, ff_int_avg_un3_2, ff_int_avg_un3_3],
             "pipeline_chained_avg_un3",
         ),
+        (
+            pipeline_chained_avg_un4,
+            [ff_int_avg_un4_1, ff_int_avg_un4_2, ff_int_avg_un4_3, ff_int_avg_un4_4],
+            "pipeline_chained_avg_un4",
+        ),
         (pipeline_chained_avg_shN, [ff_int_avg_shN], "pipeline_chained_avg_shN"),
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
@@ -426,7 +449,7 @@ def main(args: argparse.Namespace) -> None:
             pipeline_avg_1,
             pipeline_chained_avg_un2,
             pipeline_chained_avg_un3,
-            pipeline_chained_avg_shN,
+            pipeline_chained_avg_un4,
         ],
         test_dataset.get_topics(),
         test_dataset.get_qrels(),
@@ -437,6 +460,7 @@ def main(args: argparse.Namespace) -> None:
             f"pipeline_avg_1, α={ff_int_avg_1.alpha}",
             f"pipeline_chained_avg_un2, α=[{ff_int_avg_un2_1.alpha},{ff_int_avg_un2_2.alpha}]",
             f"pipeline_chained_avg_un3, α=[{ff_int_avg_un3_1.alpha},{ff_int_avg_un3_2.alpha},{ff_int_avg_un3_3.alpha}]",
+            f"pipeline_chained_avg_un4, α=[{ff_int_avg_un4_1.alpha},{ff_int_avg_un4_2.alpha},{ff_int_avg_un4_3.alpha},{ff_int_avg_un4_4.alpha}]",
             f"pipeline_chained_avg_sh{args.avg_chains}, α={ff_int_avg_shN.alpha}",
         ],
     )
