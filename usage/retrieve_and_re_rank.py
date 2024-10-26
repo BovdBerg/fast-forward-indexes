@@ -350,6 +350,7 @@ def main(args: argparse.Namespace) -> None:
     # Validation and parameter tuning on dev set
     # TODO: Tune k_avg for WeightedAvgEncoder
     dev_dataset = pt.get_dataset(args.dev_dataset)
+    # TODO: Create and add sparse_ranking file dynamically.
     index_avg.query_encoder.sparse_ranking = Ranking.from_file(
         args.dev_sparse_ranking_path,
         queries={q.qid: q.query for q in dev_dataset.get_topics().itertuples()},
