@@ -336,12 +336,12 @@ def main(args: argparse.Namespace) -> None:
     # Validation and parameter tuning on dev set
     # TODO: Tune k_avg for WeightedAvgEncoder
     dev_dataset = pt.get_dataset(args.dev_dataset)
+    dev_queries = dev_dataset.get_topics()
     index_avg.query_encoder.sparse_ranking = Ranking(
         df=bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
     )
 
     # Sample dev queries if dev_sample_size is set
-    dev_queries = dev_dataset.get_topics()
     if args.dev_sample_size is not None:
         dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
