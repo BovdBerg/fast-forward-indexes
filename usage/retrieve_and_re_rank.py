@@ -107,6 +107,7 @@ def parse_args():
         choices=[
             "tct",
             "avg_1",
+            "combo",
             "avg_N_sh",
             "avg_2",
             "avg_3",
