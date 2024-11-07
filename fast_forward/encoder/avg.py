@@ -24,8 +24,8 @@ class ProbDist(Enum):
     EXPONENTIAL = "EXPONENTIAL"
     HALF_NORMAL = "HALF_NORMAL"
     SCORE_SOFTMAX = "SCORE_SOFTMAX"
+    LINEAR_DECAY = "LINEAR_DECAY"
     # TODO: Add LEARNED distribution, with learned model weights based on training/validation data
-    # TODO: Add LINEAR_DECAY distribution, with weights decreasing linearly with rank
 
 
 # TODO: consider which document embeddings to average over. The output ranking should probably be the (sparse_)ranking for consecutive reranking. Print top-ranked docs for multiple chained rerankings.
@@ -71,6 +71,7 @@ class WeightedAvgEncoder(Encoder):
             Sequence[float]: A sequence of interpolation parameters.
         """
         match self.prob_dist:
+            # See description of ProbDist for details on each distribution
             case ProbDist.UNIFORM:
                 return np.ones(n_docs) / n_docs
             case ProbDist.EXPONENTIAL:
@@ -79,6 +80,8 @@ class WeightedAvgEncoder(Encoder):
                 return np.flip(np.exp(-np.linspace(0, 1, n_docs) ** 2))
             case ProbDist.SCORE_SOFTMAX:
                 return np.exp(scores) / np.sum(np.exp(scores))
+            case ProbDist.LINEAR_DECAY:
+                return np.linspace(1, 0, n_docs)
             case _:
                 raise ValueError(
                     f"Unknown probability distribution type: {self.prob_dist}"
