@@ -17,11 +17,13 @@ class ProbDist(Enum):
         UNIFORM: all top-ranked documents are weighted equally.
         EXPONENTIAL: weights decrease exponentially with rank.
         HALF_NORMAL: weights decrease with the half-normal distribution.
+        SCORE: weights are assigned linearly based on the scores of the top-ranked documents.
     """
 
     UNIFORM = "UNIFORM"
     EXPONENTIAL = "EXPONENTIAL"
     HALF_NORMAL = "HALF_NORMAL"
+    SCORE_SOFTMAX = "SCORE_SOFTMAX"
     # TODO: Add LEARNED distribution, with learned model weights based on training/validation data
     # TODO: Add LINEAR_DECAY distribution, with weights decreasing linearly with rank
 
@@ -58,8 +60,7 @@ class WeightedAvgEncoder(Encoder):
         self.sparse_ranking = sparse_ranking if sparse_ranking is not None else None
         super().__init__()
 
-    # TODO: Add weight over scores, not ranks. Could be a softmax over scores, or a learned model.
-    def _get_weights(self, n_docs: int) -> Sequence[float]:
+    def _get_weights(self, n_docs: int, scores: Sequence[float]) -> Sequence[float]:
         """
         Get the weights for the top-ranked documents based on the probability distribution type.
 
@@ -76,6 +77,8 @@ class WeightedAvgEncoder(Encoder):
                 return np.exp(-np.linspace(0, 1, n_docs))
             case ProbDist.HALF_NORMAL:
                 return np.flip(np.exp(-np.linspace(0, 1, n_docs) ** 2))
+            case ProbDist.SCORE_SOFTMAX:
+                return np.exp(scores) / np.sum(np.exp(scores))
             case _:
                 raise ValueError(
                     f"Unknown probability distribution type: {self.prob_dist}"
@@ -105,6 +108,7 @@ class WeightedAvgEncoder(Encoder):
             # Get the ids of the top-ranked documents for the query
             top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
             top_docs_ids: Sequence[int] = top_docs["id"].values
+            top_docs_scores: Sequence[float] = top_docs["score"].values
             # TODO: top_ranking should probably be updated in each chain reranking. Check if only top_docs from original top_ranking are considered?
 
             # Get the embeddings of the top-ranked documents
@@ -114,7 +118,7 @@ class WeightedAvgEncoder(Encoder):
 
             # Calculate the weighted average of the embeddings and save it to q_no index in q_reps
             q_reps[i] = np.average(
-                d_reps, axis=0, weights=self._get_weights(len(d_reps))
+                d_reps, axis=0, weights=self._get_weights(len(d_reps), top_docs_scores)
             )
 
         return q_reps

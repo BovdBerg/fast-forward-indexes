@@ -72,7 +72,7 @@ def parse_args():
         "--prob_dist",
         type=ProbDist,
         choices=list(ProbDist),
-        default="UNIFORM",
+        default="SCORE_SOFTMAX",
         help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     parser.add_argument(
