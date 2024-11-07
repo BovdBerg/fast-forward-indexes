@@ -394,7 +394,7 @@ def main(args: argparse.Namespace) -> None:
         ),
     ]
     test_pipelines = [
-        (pipeline, name)
+        (pipeline, desc)
         for name, pipeline, desc in test_pipelines
         if name in args.test_pipelines
     ]
