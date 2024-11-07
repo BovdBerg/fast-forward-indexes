@@ -3,6 +3,7 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
+
 from fast_forward.encoder import Encoder
 from fast_forward.index import Index
 from fast_forward.ranking import Ranking
@@ -14,7 +15,6 @@ class ProbDist(Enum):
 
     Attributes:
         UNIFORM: all top-ranked documents are weighted equally.
-        GEOMETRIC: weights decrease geometrically with rank.
         EXPONENTIAL: weights decrease exponentially with rank.
         HALF_NORMAL: weights decrease with the half-normal distribution.
     """
