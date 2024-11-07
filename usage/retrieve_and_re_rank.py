@@ -31,15 +31,7 @@ def parse_args():
         Run the script with --help or -h to see the full list of arguments.
     """
     # TODO [final]: update pipelines choices here
-    pipelines = [
-        "bm25",
-        "tct",
-        "avg_1",
-        "combo",
-        "avg_2",
-        "avg_3",
-        "avg_4",
-    ]
+    pipelines = ["bm25", "tct", "combo"] + [f"avg_{i}" for i in range(1, 6)]
 
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
@@ -333,19 +325,13 @@ def main(args: argparse.Namespace) -> None:
 
     # Create int_avg array of length 4 with each alpha value
     # TODO: tune params again and update their defaults here
-    int_avg = [
-        FFInterpolate(alpha=0.3),
-        FFInterpolate(alpha=0.9),
-        FFInterpolate(alpha=0.8),
-        FFInterpolate(alpha=0.5),
-    ]
-    avg_1 = bm25_cut >> ff_avg >> int_avg[0]
-    avg_2 = avg_1 >> ff_avg >> int_avg[1]
-    avg_3 = avg_2 >> ff_avg >> int_avg[2]
-    avg_4 = avg_3 >> ff_avg >> int_avg[3]
+    int_avg = [FFInterpolate(alpha=a) for a in [0.3, 0.9, 0.8, 0.5, 0.5]]
+    avg_pipelines = [bm25_cut >> ff_avg >> int_avg[0]]
+    for i in range(1, len(int_avg)):
+        avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
 
     int_combo_tct = FFInterpolate(alpha=0.3)
-    combo = avg_1 >> ff_tct >> int_combo_tct
+    combo = avg_pipelines[0] >> ff_tct >> int_combo_tct
 
     # Validation and parameter tuning on dev set
     # TODO: Tune k_avg for WeightedAvgEncoder
@@ -363,11 +349,9 @@ def main(args: argparse.Namespace) -> None:
     pipelines_to_validate = [
         # bm25 has no tunable parameters, so it is not included here
         (tct, [int_tct], "tct"),
-        (avg_1, [int_avg[0]], "avg_1"),
         (combo, [int_combo_tct], "combo"),
-        (avg_2, [int_avg[1]], "avg_2"),
-        (avg_3, [int_avg[2]], "avg_3"),
-        (avg_4, [int_avg[3]], "avg_4"),
+    ] + [
+        (pipeline, [int_avg[i]], f"avg_{i+1}") for i, pipeline in enumerate(avg_pipelines)
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
         if name in args.val_pipelines:
@@ -377,23 +361,10 @@ def main(args: argparse.Namespace) -> None:
     test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
         ("bm25", ~bm25, "bm25"),
         ("tct", tct, f"tct, α={int_tct.alpha}"),
-        ("avg_1", avg_1, f"avg_1, α={int_avg[0].alpha}"),
-        (
-            "combo",
-            combo,
-            f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}",
-        ),
-        ("avg_2", avg_2, f"avg_2, α=[{int_avg[0].alpha},{int_avg[1].alpha}]"),
-        (
-            "avg_3",
-            avg_3,
-            f"avg_3, α=[{int_avg[0].alpha},{int_avg[1].alpha},{int_avg[2].alpha}]",
-        ),
-        (
-            "avg_4",
-            avg_4,
-            f"avg_4, α=[{int_avg[0].alpha},{int_avg[1].alpha},{int_avg[2].alpha},{int_avg[3].alpha}]",
-        ),
+        ("combo", combo, f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}"),
+    ] + [
+        (f"avg_{i}", eval(f"avg_{i}"), f"avg_{i}, α=[{','.join(str(int_avg[j].alpha) for j in range(i))}]")
+        for i in range(1, 6)
     ]
     test_pipelines = [
         (pipeline, desc)
