@@ -328,7 +328,7 @@ def main(args: argparse.Namespace) -> None:
     index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.w_method)
     ff_avg = FFScore(index_avg)
 
-    # TODO: Check if PyTerrier supports caching now.
+    # TODO: Check if PyTerrier supports caching now. Or try https://github.com/seanmacavaney/pyterrier-caching
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
     int_avg_1 = FFInterpolate(alpha=0.3)
     avg_1 = bm25_cut >> ff_avg >> int_avg_1
