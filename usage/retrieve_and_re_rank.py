@@ -2,7 +2,7 @@ import argparse
 import warnings
 from copy import copy
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import ir_datasets
 import numpy as np
@@ -30,6 +30,17 @@ def parse_args():
     Arguments:
         Run the script with --help or -h to see the full list of arguments.
     """
+    # TODO [final]: update pipelines choices here
+    pipelines = [
+        "bm25",
+        "tct",
+        "avg_1",
+        "combo",
+        "avg_2",
+        "avg_3",
+        "avg_4",
+    ]
+
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
     )
@@ -83,19 +94,11 @@ def parse_args():
     )
     # VALIDATION
     parser.add_argument(
-        "--validate_pipelines",
+        "--val_pipelines",
         type=str,
         nargs="+",
         default=[],
-        # TODO [final]: update pipelines choices here
-        choices=[
-            "tct",
-            "avg_1",
-            "combo",
-            "avg_2",
-            "avg_3",
-            "avg_4",
-        ],
+        choices=pipelines,
         help="List of pipelines to validate, based on exact pipeline names.",
     )
     parser.add_argument(
@@ -132,6 +135,14 @@ def parse_args():
         default=["nDCG@10", "RR@10", "AP@1000"],
         help="Metrics used for evaluation.",
     )
+    parser.add_argument(
+        "--test_pipelines",
+        type=str,
+        nargs="+",
+        default=pipelines,
+        choices=pipelines,
+        help="List of pipelines to evaluate, based on exact pipeline names.",
+    )
     return parser.parse_args()
 
 
@@ -154,8 +165,8 @@ def print_settings() -> None:
         f"\tk_avg={args.k_avg}",
     ]
     # Validation settings
-    settings_description.append(f"validate_pipelines={args.validate_pipelines}")
-    if args.validate_pipelines:
+    settings_description.append(f"val_pipelines={args.val_pipelines}")
+    if args.val_pipelines:
         settings_description[-1] += ":"
         settings_description.extend(
             [
@@ -170,6 +181,7 @@ def print_settings() -> None:
         settings_description.extend(
             [
                 f"\teval_metrics={args.eval_metrics}",
+                f"\ttest_pipelines={args.test_pipelines}",
             ]
         )
 
@@ -229,12 +241,12 @@ def validate(
 ) -> None:
     """
     Validate the pipeline and tune the alpha parameters based on the dev set.
-    Only validate if the pipeline name is in args.validate_pipelines.
+    Only validate if the pipeline name is in args.val_pipelines.
 
     Args:
         pipeline (pt.Transformer): The pipeline to validate.
         tunable_alphas (List[pt.Transformer]): List of FFInterpolate blocks with tunable alpha parameters.
-        name (str): Name of the pipeline for logging purposes. Must EXACTLY match args.validate_pipelines.
+        name (str): Name of the pipeline for logging purposes. Must EXACTLY match args.val_pipelines.
         dev_queries (pd.DataFrame): DataFrame with dev queries.
         dev_dataset (ir_datasets.Dataset): Dataset to validate the pipeline.
     """
@@ -345,8 +357,9 @@ def main(args: argparse.Namespace) -> None:
     if args.dev_sample_size is not None:
         dev_queries = dev_queries.sample(n=args.dev_sample_size)
 
-    # Validate pipelines in args.validate_pipelines.
+    # Validate pipelines in args.val_pipelines.
     pipelines_to_validate = [
+        # bm25 has no tunable parameters, so it is not included here
         (tct, [int_tct_1], "tct"),
         (avg_1, [int_avg_1], "avg_1"),
         (combo, [int_combo_tct], "combo"),
@@ -355,8 +368,36 @@ def main(args: argparse.Namespace) -> None:
         (avg_4, [int_avg_4], "avg_4"),
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
-        if name in args.validate_pipelines:
+        if name in args.val_pipelines:
             validate(pipeline, tunable_alphas, name, dev_queries, dev_dataset)
+
+    # Define which pipelines to evaluate on test sets
+    test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
+        ("bm25", ~bm25, "bm25"),
+        ("tct", tct, f"tct, α={int_tct_1.alpha}"),
+        ("avg_1", avg_1, f"avg_1, α={int_avg_1.alpha}"),
+        (
+            "combo",
+            combo,
+            f"combo, α_AVG={int_avg_1.alpha}, α_TCT={int_combo_tct.alpha}",
+        ),
+        ("avg_2", avg_2, f"avg_2, α=[{int_avg_1.alpha},{int_avg_2.alpha}]"),
+        (
+            "avg_3",
+            avg_3,
+            f"avg_3, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha}]",
+        ),
+        (
+            "avg_4",
+            avg_4,
+            f"avg_4, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha},{int_avg_4.alpha}]",
+        ),
+    ]
+    test_pipelines = [
+        (pipeline, name)
+        for name, pipeline, desc in test_pipelines
+        if name in args.test_pipelines
+    ]
 
     # Final evaluation on test sets
     for test_dataset_name in args.test_datasets:
@@ -368,27 +409,11 @@ def main(args: argparse.Namespace) -> None:
 
         print(f"\nRunning final evaluations on {test_dataset_name}...")
         results = pt.Experiment(
-            [
-                ~bm25,
-                tct,
-                avg_1,
-                combo,
-                avg_2,
-                avg_3,
-                avg_4,
-            ],
+            [pipeline for pipeline, _ in test_pipelines],
             test_queries,
             test_dataset.get_qrels(),
             eval_metrics=eval_metrics,
-            names=[
-                "BM25",
-                f"tct, α={int_tct_1.alpha}",
-                f"avg_1, α={int_avg_1.alpha}",
-                f"combo, α_AVG={int_avg_1.alpha}, α_TCT={int_combo_tct.alpha}",
-                f"avg_2, α=[{int_avg_1.alpha},{int_avg_2.alpha}]",
-                f"avg_3, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha}]",
-                f"avg_4, α=[{int_avg_1.alpha},{int_avg_2.alpha},{int_avg_3.alpha},{int_avg_4.alpha}]",
-            ],
+            names=[desc for _, desc in test_pipelines],
         )
         print_settings()
         print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
