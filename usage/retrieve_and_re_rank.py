@@ -11,7 +11,7 @@ import pyterrier as pt
 import torch
 from ir_measures import calc_aggregate, measures
 
-from fast_forward.encoder.avg import ProbDist, WeightedAvgEncoder
+from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
@@ -69,9 +69,9 @@ def parse_args():
     )
     # WeightedAvgEncoder
     parser.add_argument(
-        "--prob_dist",
-        type=ProbDist,
-        choices=list(ProbDist),
+        "--w_method",
+        type=W_METHOD,
+        choices=list(W_METHOD),
         default="SCORE_SOFTMAX",
         help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
@@ -150,7 +150,7 @@ def print_settings() -> None:
         "TCTColBERTQueryEncoder:",
         f"\tdevice={args.device}",
         "WeightedAvgEncoder:",
-        f"\tprob_dist={args.prob_dist.name}",
+        f"\tw_method={args.w_method.name}",
         f"\tk_avg={args.k_avg}",
     ]
     # Validation settings
@@ -313,7 +313,7 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Add profiling to re-ranking step
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index)
-    index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.prob_dist)
+    index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.w_method)
     ff_avg = FFScore(index_avg)
 
     # TODO: Check if PyTerrier supports caching now.

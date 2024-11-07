@@ -9,7 +9,7 @@ from fast_forward.index import Index
 from fast_forward.ranking import Ranking
 
 
-class ProbDist(Enum):
+class W_METHOD(Enum):
     """
     Enumeration for different types of probability distributions used to assign weights to top-ranked documents in the WeightedAvgEncoder.
 
@@ -23,8 +23,9 @@ class ProbDist(Enum):
     UNIFORM = "UNIFORM"
     EXPONENTIAL = "EXPONENTIAL"
     HALF_NORMAL = "HALF_NORMAL"
-    SCORE_SOFTMAX = "SCORE_SOFTMAX"
-    LINEAR_DECAY = "LINEAR_DECAY"
+    SOFTMAX_SCORES = "SOFTMAX_SCORES"
+    LINEAR_DECAY_DOCS = "LINEAR_DECAY_DOCS"
+    LINEAR_DECAY_SCORES = "LINEAR_DECAY_SCORES"
     # TODO: Add LEARNED distribution, with learned model weights based on training/validation data
 
 
@@ -42,7 +43,7 @@ class WeightedAvgEncoder(Encoder):
         self,
         index: Index,
         k_avg: int,
-        prob_dist: ProbDist,
+        w_method: W_METHOD,
         sparse_ranking: Ranking = None,
     ) -> None:
         """
@@ -51,11 +52,11 @@ class WeightedAvgEncoder(Encoder):
         Args:
             index (Index): The index containing document embeddings.
             k_avg (int): Number of top-ranked documents to use for averaging.
-            prob_dist (ProbDist): The probability distribution type used to assign weights to top-ranked documents.
+            w_method (ProbDist): The probability distribution type used to assign weights to top-ranked documents.
             sparse_ranking (Ranking): The initial sparse ranking of documents.
         """
         self.index = index
-        self.prob_dist: ProbDist = prob_dist
+        self.w_method: W_METHOD = w_method
         self.k_avg: int = k_avg
         self.sparse_ranking = sparse_ranking if sparse_ranking is not None else None
         super().__init__()
@@ -70,21 +71,23 @@ class WeightedAvgEncoder(Encoder):
         Returns:
             Sequence[float]: A sequence of interpolation parameters.
         """
-        match self.prob_dist:
+        match self.w_method:
             # See description of ProbDist for details on each distribution
-            case ProbDist.UNIFORM:
+            case W_METHOD.UNIFORM:
                 return np.ones(n_docs) / n_docs
-            case ProbDist.EXPONENTIAL:
+            case W_METHOD.EXPONENTIAL:
                 return np.exp(-np.linspace(0, 1, n_docs))
-            case ProbDist.HALF_NORMAL:
+            case W_METHOD.HALF_NORMAL:
                 return np.flip(np.exp(-np.linspace(0, 1, n_docs) ** 2))
-            case ProbDist.SCORE_SOFTMAX:
+            case W_METHOD.SOFTMAX_SCORES:
                 return np.exp(scores) / np.sum(np.exp(scores))
-            case ProbDist.LINEAR_DECAY:
+            case W_METHOD.LINEAR_DECAY_DOCS:
                 return np.linspace(1, 0, n_docs)
+            case W_METHOD.LINEAR_DECAY_SCORES:
+                return np.linspace(1, 0, n_docs) * scores
             case _:
                 raise ValueError(
-                    f"Unknown probability distribution type: {self.prob_dist}"
+                    f"Unknown probability distribution type: {self.w_method}"
                 )
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
