@@ -7,6 +7,7 @@ import logging
 from enum import Enum
 from time import perf_counter
 from typing import Iterable, Iterator, List, Optional, Sequence, Set, Tuple
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -64,6 +65,7 @@ class Index(abc.ABC):
             self.quantizer = quantizer
         self._encoder_batch_size = encoder_batch_size
         self._verbose = verbose
+        warnings.filterwarnings("ignore", category=FutureWarning, message="`resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.")
 
     def encode_queries(self, queries: Sequence[str]) -> np.ndarray:
         """Encode queries.
