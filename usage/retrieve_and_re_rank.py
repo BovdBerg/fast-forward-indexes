@@ -83,7 +83,7 @@ def parse_args():
         "--w_method",
         type=W_METHOD,
         choices=list(W_METHOD),
-        default="SCORE_SOFTMAX",
+        default="SOFTMAX_SCORES",
         help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     parser.add_argument(
