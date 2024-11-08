@@ -94,7 +94,7 @@ def parse_args():
         type=float,
         nargs="+",
         default=[0.1, 0.8, 0.9, 0.5, 0.5],
-        help="List of interpolation \"alpha\" parameters we initialize the WeightedAvgEncoder chains with. Must be larger than --avg_chains: len(avg_alphas) >= avg_chains.",
+        help='List of interpolation "alpha" parameters we initialize the WeightedAvgEncoder chains with. Must be larger than --avg_chains: len(avg_alphas) >= avg_chains.',
     )
     # VALIDATION
     parser.add_argument(
@@ -327,8 +327,8 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
 
     # Create int_avg array of length 4 with each alpha value
-    # TODO: tune params again and update their defaults here
-    int_avg = [FFInterpolate(alpha=a) for a in args.avg_int_alphas[:args.avg_chains]]
+    avg_chains = max([1, args.avg_chains])
+    int_avg = [FFInterpolate(alpha=a) for a in args.avg_int_alphas[:avg_chains]]
     avg_pipelines = [bm25_cut >> ff_avg >> int_avg[0]]
     for i in range(1, len(int_avg)):
         avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
@@ -354,7 +354,8 @@ def main(args: argparse.Namespace) -> None:
         (tct, [int_tct], "tct"),
         (combo, [int_combo_tct], "combo"),
     ] + [
-        (pipeline, [int_avg[i]], f"avg_{i+1}") for i, pipeline in enumerate(avg_pipelines)
+        (pipeline, [int_avg[i]], f"avg_{i+1}")
+        for i, pipeline in enumerate(avg_pipelines)
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
         if name in args.val_pipelines:
@@ -364,9 +365,17 @@ def main(args: argparse.Namespace) -> None:
     test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
         ("bm25", ~bm25, "bm25"),
         ("tct", tct, f"tct, α={int_tct.alpha}"),
-        ("combo", combo, f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}"),
+        (
+            "combo",
+            combo,
+            f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}",
+        ),
     ] + [
-        (f"avg_{i+1}", avg_pipelines[i], f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]")
+        (
+            f"avg_{i+1}",
+            avg_pipelines[i],
+            f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]",
+        )
         for i in range(len(int_avg))
     ]
     test_pipelines = [
