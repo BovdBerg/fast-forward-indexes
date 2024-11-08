@@ -84,6 +84,18 @@ def parse_args():
         default=30,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
+    parser.add_argument(
+        "--avg_chains",
+        type=int,
+        default=3,
+    )
+    parser.add_argument(
+        "--avg_int_alphas",
+        type=float,
+        nargs="+",
+        default=[0.1, 0.8, 0.9, 0.5, 0.5],
+        help="List of interpolation \"alpha\" parameters we initialize the WeightedAvgEncoder chains with. Must be larger than --avg_chains: len(avg_alphas) >= avg_chains.",
+    )
     # VALIDATION
     parser.add_argument(
         "--val_pipelines",
@@ -132,7 +144,6 @@ def parse_args():
         type=str,
         nargs="+",
         default=pipelines,
-        choices=pipelines,
         help="List of pipelines to evaluate, based on exact pipeline names.",
     )
     return parser.parse_args()
@@ -168,14 +179,6 @@ def print_settings() -> None:
             ]
         )
     settings_description.append(f"test_datasets={args.test_datasets}")
-    if args.test_datasets:
-        settings_description[-1] += ":"
-        settings_description.extend(
-            [
-                f"\teval_metrics={args.eval_metrics}",
-                f"\ttest_pipelines={args.test_pipelines}",
-            ]
-        )
 
     print(f"Settings:\n\t{'\n\t'.join(settings_description)}")
 
@@ -325,7 +328,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Create int_avg array of length 4 with each alpha value
     # TODO: tune params again and update their defaults here
-    int_avg = [FFInterpolate(alpha=a) for a in [0.3, 0.9, 0.8, 0.5, 0.5]]
+    int_avg = [FFInterpolate(alpha=a) for a in args.avg_int_alphas[:args.avg_chains]]
     avg_pipelines = [bm25_cut >> ff_avg >> int_avg[0]]
     for i in range(1, len(int_avg)):
         avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
@@ -363,8 +366,8 @@ def main(args: argparse.Namespace) -> None:
         ("tct", tct, f"tct, α={int_tct.alpha}"),
         ("combo", combo, f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}"),
     ] + [
-        (f"avg_{i}", eval(f"avg_{i}"), f"avg_{i}, α=[{','.join(str(int_avg[j].alpha) for j in range(i))}]")
-        for i in range(1, 6)
+        (f"avg_{i+1}", avg_pipelines[i], f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]")
+        for i in range(len(int_avg))
     ]
     test_pipelines = [
         (pipeline, desc)
@@ -387,6 +390,7 @@ def main(args: argparse.Namespace) -> None:
             test_dataset.get_qrels(),
             eval_metrics=eval_metrics,
             names=[desc for _, desc in test_pipelines],
+            verbose=True,
         )
         print_settings()
         print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
