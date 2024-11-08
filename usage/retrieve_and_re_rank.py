@@ -309,6 +309,7 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Tune k_avg for WeightedAvgEncoder
     dev_dataset = pt.get_dataset(args.dev_dataset)
     dev_queries = dev_dataset.get_topics()
+    dev_qrels = dev_dataset.get_qrels()
     index_avg.query_encoder.sparse_ranking = Ranking(
         df=bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
     )
@@ -316,6 +317,7 @@ def main(args: argparse.Namespace) -> None:
     # Sample dev queries if dev_sample_size is set
     if args.dev_sample_size is not None:
         dev_queries = dev_queries.sample(n=args.dev_sample_size)
+        dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
     # Validate pipelines in args.val_pipelines.
     pipelines_to_validate = [
@@ -333,8 +335,8 @@ def main(args: argparse.Namespace) -> None:
                 pipeline,
                 {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
                 dev_queries,
-                dev_dataset.get_qrels(),
-                metric="ndcg_cut_10",  # TODO: Find why this scores so horribly.
+                dev_qrels,
+                metric="ndcg_cut_10",
                 verbose=True,
                 batch_size=128,
             )
