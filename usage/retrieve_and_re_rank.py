@@ -227,37 +227,6 @@ def estimate_best_alpha(
     )
 
 
-def validate(
-    pipeline: pt.Transformer,
-    tunable_alphas: List[pt.Transformer],
-    name: str,
-    dev_queries: pd.DataFrame,
-    dev_dataset: ir_datasets.Dataset,
-) -> None:
-    """
-    Validate the pipeline and tune the alpha parameters based on the dev set.
-    Only validate if the pipeline name is in args.val_pipelines.
-
-    Args:
-        pipeline (pt.Transformer): The pipeline to validate.
-        tunable_alphas (List[pt.Transformer]): List of FFInterpolate blocks with tunable alpha parameters.
-        name (str): Name of the pipeline for logging purposes. Must EXACTLY match args.val_pipelines.
-        dev_queries (pd.DataFrame): DataFrame with dev queries.
-        dev_dataset (ir_datasets.Dataset): Dataset to validate the pipeline.
-    """
-    print(f"\nValidating pipeline: {name}...")
-    param_grid = {tunable: {"alpha": args.alphas} for tunable in tunable_alphas}
-    pt.GridSearch(
-        pipeline,
-        param_grid,
-        dev_queries,
-        dev_dataset.get_qrels(),
-        metric="ndcg_cut_10",  # TODO: Find why this scores so horribly.
-        verbose=True,
-        batch_size=128,
-    )
-
-
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 def main(args: argparse.Namespace) -> None:
     """
@@ -359,7 +328,16 @@ def main(args: argparse.Namespace) -> None:
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
         if name in args.val_pipelines:
-            validate(pipeline, tunable_alphas, name, dev_queries, dev_dataset)
+            print(f"\nValidating pipeline: {name}...")
+            pt.GridSearch(
+                pipeline,
+                {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
+                dev_queries,
+                dev_dataset.get_qrels(),
+                metric="ndcg_cut_10",  # TODO: Find why this scores so horribly.
+                verbose=True,
+                batch_size=128,
+            )
 
     # Define which pipelines to evaluate on test sets
     test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
