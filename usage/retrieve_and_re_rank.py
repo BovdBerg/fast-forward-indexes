@@ -6,7 +6,6 @@ from typing import List, Tuple
 
 import ir_datasets
 import numpy as np
-import pandas as pd
 import pyterrier as pt
 import torch
 from ir_measures import calc_aggregate, measures
@@ -155,6 +154,7 @@ def print_settings() -> None:
         "WeightedAvgEncoder:",
         f"\tw_method={args.w_method.name}",
         f"\tk_avg={args.k_avg}",
+        f"\tavg_chains={args.avg_chains}",
     ]
     # Validation settings
     settings_description.append(f"val_pipelines={args.val_pipelines}")
@@ -352,7 +352,7 @@ def main(args: argparse.Namespace) -> None:
             df=bm25_cut(test_queries).rename(columns={"qid": "q_id", "docid": "id"})
         )
 
-        print(f"\nRunning final evaluations on {test_dataset_name}...")
+        print(f"\nRunning final tests on {test_dataset_name}...")
         results = pt.Experiment(
             [pipeline for pipeline, _ in test_pipelines],
             test_queries,

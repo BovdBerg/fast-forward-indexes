@@ -30,6 +30,7 @@ class W_METHOD(Enum):
 
 
 # TODO: consider which document embeddings to average over. The output ranking should probably be the (sparse_)ranking for consecutive reranking. Print top-ranked docs for multiple chained rerankings.
+# TODO: [Discuss w/ Jurek] should both scores be normalized before interpolating them? Did Jurek try this already?
 class WeightedAvgEncoder(Encoder):
     """
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.
