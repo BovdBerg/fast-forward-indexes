@@ -30,9 +30,6 @@ def parse_args():
     Arguments:
         Run the script with --help or -h to see the full list of arguments.
     """
-    # TODO [final]: update pipelines choices here
-    pipelines = ["bm25", "tct", "combo"] + [f"avg_{i}" for i in range(1, 6)]
-
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
     )
@@ -102,7 +99,6 @@ def parse_args():
         type=str,
         nargs="+",
         default=[],
-        choices=pipelines,
         help="List of pipelines to validate, based on exact pipeline names.",
     )
     parser.add_argument(
@@ -114,7 +110,7 @@ def parse_args():
     parser.add_argument(
         "--dev_sample_size",
         type=int,
-        default=32,
+        default=256,
         help="Number of queries to sample for validation.",
     )
     parser.add_argument(
@@ -138,13 +134,6 @@ def parse_args():
         nargs="+",
         default=["nDCG@10", "RR@10", "AP@1000"],
         help="Metrics used for evaluation.",
-    )
-    parser.add_argument(
-        "--test_pipelines",
-        type=str,
-        nargs="+",
-        default=pipelines,
-        help="List of pipelines to evaluate, based on exact pipeline names.",
     )
     return parser.parse_args()
 
@@ -343,26 +332,17 @@ def main(args: argparse.Namespace) -> None:
 
     # Define which pipelines to evaluate on test sets
     test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
-        ("bm25", ~bm25, "bm25"),
-        ("tct", tct, f"tct, α={int_tct.alpha}"),
-        (
-            "combo",
-            combo,
-            f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}",
-        ),
+        (~bm25, "bm25"),
+        (tct, f"tct, α={int_tct.alpha}"),
+        (combo, f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}"),
     ] + [
         (
-            f"avg_{i+1}",
             avg_pipelines[i],
             f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]",
         )
         for i in range(len(int_avg))
     ]
-    test_pipelines = [
-        (pipeline, desc)
-        for name, pipeline, desc in test_pipelines
-        if name in args.test_pipelines
-    ]
+    test_pipelines = [(pipeline, desc) for pipeline, desc in test_pipelines]
 
     # Final evaluation on test sets
     for test_dataset_name in args.test_datasets:
