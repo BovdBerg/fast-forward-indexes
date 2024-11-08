@@ -80,7 +80,9 @@ class WeightedAvgEncoder(Encoder):
             case W_METHOD.HALF_NORMAL:
                 return np.flip(np.exp(-np.linspace(0, 1, n_docs) ** 2))
             case W_METHOD.SOFTMAX_SCORES:
-                return np.exp(scores) / np.sum(np.exp(scores))
+                max_score = np.max(scores)
+                exp_scores = np.exp(scores - max_score)
+                return exp_scores / np.sum(exp_scores)
             case W_METHOD.LINEAR_DECAY_DOCS:
                 return np.linspace(1, 0, n_docs)
             case W_METHOD.LINEAR_DECAY_SCORES:
