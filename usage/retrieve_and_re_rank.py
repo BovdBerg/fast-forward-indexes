@@ -251,6 +251,7 @@ def main(args: argparse.Namespace) -> None:
         metric_name, at_value = metric_str.split("@")
         eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
 
+    # TODO: Add intermediate prints here because something is a little slow and I want to print the progress.
     # Load dataset and create sparse retriever (e.g. BM25)
     dataset = pt.get_dataset(args.dataset)
     try:
