@@ -101,12 +101,6 @@ def parse_args():
         help="List of pipelines to validate, based on exact pipeline names.",
     )
     parser.add_argument(
-        "--dev_dataset",
-        type=str,
-        default="irds:msmarco-passage/dev/small",
-        help="Dataset to validate and tune parameters. May never be equal to test_dataset.",
-    )
-    parser.add_argument(
         "--dev_sample_size",
         type=int,
         default=256,
@@ -125,7 +119,7 @@ def parse_args():
         type=str,
         nargs="+",
         default=["irds:msmarco-passage/trec-dl-2019/judged"],
-        help="Datasets to evaluate the rankings. May never be equal to dev_dataset.",
+        help="Datasets to evaluate the rankings. May never be equal to dev_dataset (=msmarco_passage/dev or msmarco_passage/dev.small).",
     )
     parser.add_argument(
         "--eval_metrics",
@@ -162,7 +156,6 @@ def print_settings() -> None:
         settings_description[-1] += ":"
         settings_description.extend(
             [
-                f"\tdev_dataset={args.dev_dataset}",
                 f"\tdev_sample_size={args.dev_sample_size}",
                 f"\talphas={args.alphas}",
             ]
@@ -301,7 +294,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Validation and parameter tuning on dev set
     # TODO: Tune k_avg for WeightedAvgEncoder
-    dev_dataset = pt.get_dataset(args.dev_dataset)
+    dev_dataset = pt.get_dataset("irds:msmarco-passage/dev/small")
     dev_queries = dev_dataset.get_topics()
     dev_qrels = dev_dataset.get_qrels()
 
