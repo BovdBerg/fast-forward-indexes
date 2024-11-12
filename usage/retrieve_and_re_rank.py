@@ -89,8 +89,8 @@ def parse_args():
         "--avg_int_alphas",
         type=float,
         nargs="+",
-        default=[0.1, 0.8, 0.9, 0.5, 0.5],
-        help='List of interpolation "alpha" parameters we initialize the WeightedAvgEncoder chains with. Must be larger than --avg_chains: len(avg_alphas) >= avg_chains.',
+        default=[0.1, 0.8, 0.9],
+        help='List of interpolation "alpha" parameters we initialize the WeightedAvgEncoder chains with. If --avg_chains is larger than its length, the remaining values are initialized as 0.5.',
     )
     # VALIDATION
     parser.add_argument(
@@ -286,7 +286,8 @@ def main(args: argparse.Namespace) -> None:
 
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
-    int_avg = [FFInterpolate(alpha=a) for a in args.avg_int_alphas[:avg_chains]]
+    avg_int_alphas = args.avg_int_alphas + [0.5] * (avg_chains - len(args.avg_int_alphas))
+    int_avg = [FFInterpolate(alpha=a) for a in avg_int_alphas[:avg_chains]]
     avg_pipelines = [bm25_cut >> ff_avg >> int_avg[0]]
     for i in range(1, len(int_avg)):
         avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
