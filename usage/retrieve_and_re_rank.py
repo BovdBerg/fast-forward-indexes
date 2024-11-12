@@ -217,6 +217,7 @@ def estimate_best_alpha(
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
+# TODO: Update main branch with Jurek's latest changes.
 def main(args: argparse.Namespace) -> None:
     """
     Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
