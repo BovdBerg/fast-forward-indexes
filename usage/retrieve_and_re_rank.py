@@ -313,10 +313,11 @@ def main(args: argparse.Namespace) -> None:
     pipelines_to_validate = [
         # bm25 has no tunable parameters, so it is not included here
         (tct, [int_tct], "tct"),
+        (avg_pipelines[0], [int_avg[0]], "avg_1"),
         (combo, [int_combo_tct], "combo"),
     ] + [
         (pipeline, [int_avg[i]], f"avg_{i+1}")
-        for i, pipeline in enumerate(avg_pipelines)
+        for i, pipeline in enumerate(avg_pipelines[1:], start=1)
     ]
     for pipeline, tunable_alphas, name in pipelines_to_validate:
         if name in args.val_pipelines:
