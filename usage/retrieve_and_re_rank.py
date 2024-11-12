@@ -255,17 +255,20 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Add intermediate prints here because something is a little slow and I want to print the progress.
     # Load dataset and create sparse retriever (e.g. BM25)
     dataset = pt.get_dataset(args.dataset)
+    print("Creating BM25 retriever via PyTerrier index...")
     try:
         bm25 = pt.BatchRetrieve.from_dataset(
             dataset, "terrier_stemmed", wmodel="BM25", verbose=True
         )
     except:
+        print("Failed via PyTerrier index. Trying via IterDictIndexer...")
         indexer = pt.IterDictIndexer(
             str(Path.cwd()),  # ignored but must be a valid path
             type=pt.index.IndexingType.MEMORY,
         )
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
         bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
+    print("Done creating BM25 retriever.")
     bm25_cut = ~bm25 % args.rerank_cutoff
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
