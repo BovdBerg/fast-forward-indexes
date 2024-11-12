@@ -252,7 +252,6 @@ def main(args: argparse.Namespace) -> None:
         metric_name, at_value = metric_str.split("@")
         eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
 
-    # TODO: Add intermediate prints here because something is a little slow and I want to print the progress.
     # Load dataset and create sparse retriever (e.g. BM25)
     dataset = pt.get_dataset(args.dataset)
     print("Creating BM25 retriever via PyTerrier index...")
@@ -305,9 +304,12 @@ def main(args: argparse.Namespace) -> None:
     dev_dataset = pt.get_dataset(args.dev_dataset)
     dev_queries = dev_dataset.get_topics()
     dev_qrels = dev_dataset.get_qrels()
-    index_avg.query_encoder.sparse_ranking = Ranking(
-        df=bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
-    )
+
+    print("Adding queries to BM25 ranking...")
+    bm25_df = bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
+    print("Creating BM25 ranking for dev queries...")
+    index_avg.query_encoder.sparse_ranking = Ranking(bm25_df)
+    print("Done creating BM25 ranking for dev queries.")
 
     # Sample dev queries if dev_sample_size is set
     if args.dev_sample_size is not None:
