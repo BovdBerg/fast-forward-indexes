@@ -17,7 +17,9 @@ class W_METHOD(Enum):
         UNIFORM: all top-ranked documents are weighted equally.
         EXPONENTIAL: weights decrease exponentially with rank.
         HALF_NORMAL: weights decrease with the half-normal distribution.
-        SCORE: weights are assigned linearly based on the scores of the top-ranked documents.
+        SOFTMAX_SCORES: weights are assigned based on the softmax of the scores.
+        LINEAR_DECAY_DOCS: weights decrease linearly with rank.
+        LINEAR_DECAY_SCORES: weights decrease linearly with rank, multiplied by the scores.
     """
 
     UNIFORM = "UNIFORM"
