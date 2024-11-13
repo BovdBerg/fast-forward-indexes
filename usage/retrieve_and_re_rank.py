@@ -126,7 +126,7 @@ def parse_args():
         "--eval_metrics",
         type=str,
         nargs="+",
-        default=["nDCG@10", "RR@10", "AP@1000"],
+        default=["nDCG@10", "RR(rel=2)", "AP(rel=2)"], # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
         help="Metrics used for evaluation.",
     )
     return parser.parse_args()
@@ -246,6 +246,12 @@ def main(args: argparse.Namespace) -> None:
     for metric_str in args.eval_metrics:
         metric_name, at_value = metric_str.split("@")
         eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
+        if "(" in metric_name:
+            metric_name, rel = metric_name.split("(")
+            rel = int(rel.split("=")[1].strip(")"))
+            eval_metrics.append(getattr(measures, metric_name)(rel=rel) @ int(at_value))
+        else:
+            eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
 
     # Load dataset and create sparse retriever (e.g. BM25)
     dataset = pt.get_dataset(args.dataset)
