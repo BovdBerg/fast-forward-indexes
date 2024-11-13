@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Iterable, Iterator, List, Optional, Sequence, Set, Tuple
+from typing import Iterable, Iterator, List, Optional, Set, Tuple
 
 import h5py
 import numpy as np
@@ -19,7 +19,7 @@ LOGGER = logging.getLogger(__name__)
 class OnDiskIndex(Index):
     """Fast-Forward index that is read on-demand from disk.
 
-    Uses HDF5 via h5py under the hood. The buffer (`ds_buffer_size`) works around a [h5py limitation](https://docs.h5py.org/en/latest/high/dataset.html#fancy-indexing).
+    Uses HDF5 via h5py under the hood. The `max_indexing_size` works around a [h5py limitation](https://docs.h5py.org/en/latest/high/dataset.html#fancy-indexing).
     """
 
     def __init__(
@@ -34,7 +34,7 @@ class OnDiskIndex(Index):
         hdf5_chunk_size: int = None,
         max_id_length: int = 8,
         overwrite: bool = False,
-        ds_buffer_size: int = 2**10,
+        max_indexing_size: int = 2**10,
         verbose: bool = False,
     ) -> None:
         """Create an index.
@@ -50,7 +50,7 @@ class OnDiskIndex(Index):
             hdf5_chunk_size (int, optional): Override chunk size used by HDF5. Defaults to None.
             max_id_length (int, optional): Maximum length of document and passage IDs (number of characters). Defaults to 8.
             overwrite (bool, optional): Overwrite index file if it exists. Defaults to False.
-            ds_buffer_size (int, optional): Maximum number of vectors to retrieve from the HDF5 dataset at once. Defaults to 2**10.
+            max_indexing_size (int, optional): Maximum number of vectors to retrieve from the HDF5 dataset at once. Defaults to 2**10.
             verbose (bool, optional): Log progress. Defaults to False.
 
         Raises:
@@ -67,7 +67,7 @@ class OnDiskIndex(Index):
         self._resize_min_val = resize_min_val
         self._hdf5_chunk_size = hdf5_chunk_size
         self._max_id_length = max_id_length
-        self._ds_buffer_size = ds_buffer_size
+        self._max_indexing_size = max_indexing_size
 
         LOGGER.debug("creating file %s", self._index_file)
         with h5py.File(self._index_file, "w") as fp:
@@ -145,11 +145,11 @@ class OnDiskIndex(Index):
                 return fp["vectors"].shape[1]
         return None
 
-    def to_memory(self, buffer_size=None) -> InMemoryIndex:
+    def to_memory(self, batch_size=None) -> InMemoryIndex:
         """Load the index entirely into memory.
 
         Args:
-            buffer_size (int, optional): Use batches instead of adding all vectors at once. Defaults to None.
+            batch_size (int, optional): Use batches instead of adding all vectors at once. Defaults to None.
 
         Returns:
             InMemoryIndex: The loaded index.
@@ -163,14 +163,14 @@ class OnDiskIndex(Index):
             verbose=self._verbose,
         )
         with h5py.File(self._index_file, "r") as fp:
-            buffer_size = buffer_size or fp.attrs["num_vectors"]
-            total = fp.attrs["num_vectors"] // buffer_size + 1
+            batch_size = batch_size or fp.attrs["num_vectors"]
+            total = fp.attrs["num_vectors"] // batch_size + 1
             for i_low in tqdm(
-                range(0, fp.attrs["num_vectors"], buffer_size),
+                range(0, fp.attrs["num_vectors"], batch_size),
                 desc="Loading index into memory",
                 total=total
             ):
-                i_up = min(i_low + buffer_size, fp.attrs["num_vectors"])
+                i_up = min(i_low + batch_size, fp.attrs["num_vectors"])
 
                 # IDs that don't exist will be returned as empty strings here
                 doc_ids = fp["doc_ids"].asstr()[i_low:i_up]
@@ -213,7 +213,8 @@ class OnDiskIndex(Index):
             space_left = capacity - cur_num_vectors
             if num_new_vecs > space_left:
                 new_size = max(
-                    capacity + num_new_vecs - space_left, self._resize_min_val
+                    cur_num_vectors + num_new_vecs,
+                    capacity + self._resize_min_val,
                 )
                 LOGGER.debug("resizing index from %s to %s", capacity, new_size)
                 fp["vectors"].resize(new_size, axis=0)
@@ -279,9 +280,9 @@ class OnDiskIndex(Index):
             total = len(vec_idxs) // self._ds_buffer_size + 1
             vectors = np.concatenate(
                 [
-                    fp["vectors"][vec_idxs[i : i + self._ds_buffer_size]]
+                    fp["vectors"][vec_idxs[i : i + self._max_indexing_size]]
                     for i in tqdm(
-                        range(0, len(vec_idxs), self._ds_buffer_size), 
+                        range(0, len(vec_idxs), self._max_indexing_size), 
                         desc="Reading vectors", 
                         total=total, 
                         disable=total == 1 or not self._verbose
@@ -315,7 +316,7 @@ class OnDiskIndex(Index):
         mode: Mode = Mode.MAXP,
         encoder_batch_size: int = 32,
         resize_min_val: int = 2**10,
-        ds_buffer_size: int = 2**10,
+        max_indexing_size: int = 2**10,
         verbose: bool = False,
     ) -> "OnDiskIndex":
         """Open an existing index on disk.
@@ -326,7 +327,7 @@ class OnDiskIndex(Index):
             mode (Mode, optional): Ranking mode. Defaults to Mode.MAXP.
             encoder_batch_size (int, optional): Batch size for query encoder. Defaults to 32.
             resize_min_val (int, optional): Minimum value to increase index size by. Defaults to 2**10.
-            ds_buffer_size (int, optional): Maximum number of vectors to retrieve from the HDF5 dataset at once. Defaults to 2**10.
+            max_indexing_size (int, optional): Maximum number of vectors to retrieve from the HDF5 dataset at once. Defaults to 2**10.
             verbose (bool, optional): Log progress. Defaults to False.
 
         Returns:
@@ -344,7 +345,7 @@ class OnDiskIndex(Index):
         )
         index._index_file = index_file.absolute()
         index._resize_min_val = resize_min_val
-        index._ds_buffer_size = ds_buffer_size
+        index._max_indexing_size = max_indexing_size
 
         # deserialize quantizer if any
         with h5py.File(index_file, "r") as fp:

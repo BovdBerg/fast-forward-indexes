@@ -129,11 +129,14 @@ class TestIndex(unittest.TestCase):
                 idxs,
             )
 
+    def test_queries(self):
+        self.doc_psg_index.mode = Mode.MAXP
+        self.assertTrue(self.doc_psg_index(DUMMY_DOC_RANKING).has_queries)
+
     def test_maxp(self):
         self.doc_psg_index.mode = Mode.MAXP
-        result = self.doc_psg_index(DUMMY_DOC_RANKING)
         self.assertEqual(
-            result,
+            self.doc_psg_index(DUMMY_DOC_RANKING),
             Ranking.from_run(
                 {
                     "q1": {"d0": 2, "d1": 3, "d2": 4, "d3": 5},
@@ -312,6 +315,22 @@ class TestIndex(unittest.TestCase):
             result_expected,
         )
 
+    def test_batch_size(self):
+        r = Ranking.from_run(
+            {
+                "q1": {"d0": 2, "d1": 3, "d2": 4, "d3": 10},
+                "q2": {"d0": 5, "d1": 4, "d2": 3, "d3": 12},
+                "q3": {"d0": 8, "d1": 5, "d2": 2, "d3": 1},
+                "q4": {"d0": 11, "d1": 6, "d2": 1, "d3": 2},
+                "q5": {"d0": 14, "d1": 7, "d2": 0, "d3": 3},
+            },
+            queries={f"q{n}": f"query {n}" for n in range(1, 6)},
+        )
+        expected = self.doc_psg_index(r)
+        self.assertEqual(expected, self.doc_psg_index(r, batch_size=2))
+        self.assertEqual(expected, self.doc_psg_index(r, batch_size=5))
+        self.assertEqual(expected, self.doc_psg_index(r, batch_size=10))
+
     def test_coalescing(self):
         # delta = 0.3: vectors of d0 should be averaged
         create_coalesced_index(self.doc_index, self.coalesced_indexes[0], 0.3)
@@ -323,7 +342,7 @@ class TestIndex(unittest.TestCase):
 
         # delta = 0.2: nothing should change
         create_coalesced_index(
-            self.doc_index, self.coalesced_indexes[1], 0.2, buffer_size=2
+            self.doc_index, self.coalesced_indexes[1], 0.2, batch_size=2
         )
         self.assertEqual(self.doc_index.doc_ids, self.coalesced_indexes[1].doc_ids)
         for doc_id in self.doc_index.doc_ids:
@@ -531,20 +550,20 @@ class TestOnDiskIndex(TestIndex):
             ),
         ]:
             mem_index = index.to_memory()
-            mem_index_buffered = index.to_memory(buffer_size=2)
+            mem_index_batched = index.to_memory(batch_size=2)
 
             for mode, ids in params:
                 index.mode = mode
                 mem_index.mode = mode
-                mem_index_buffered.mode = mode
+                mem_index_batched.mode = mode
 
                 self.assertEqual(mem_index.doc_ids, index.doc_ids)
                 self.assertEqual(mem_index.psg_ids, index.psg_ids)
-                self.assertEqual(mem_index_buffered.doc_ids, index.doc_ids)
-                self.assertEqual(mem_index_buffered.psg_ids, index.psg_ids)
+                self.assertEqual(mem_index_batched.doc_ids, index.doc_ids)
+                self.assertEqual(mem_index_batched.psg_ids, index.psg_ids)
 
                 _test_get_vectors(mem_index, index, ids)
-                _test_get_vectors(mem_index_buffered, index, ids)
+                _test_get_vectors(mem_index_batched, index, ids)
 
         mem_quantized_index = self.quantized_index.to_memory()
         self.assertEqual(
@@ -571,11 +590,11 @@ class TestOnDiskIndex(TestIndex):
         self.assertEqual(index.psg_ids, set(psg_ids_ok))
         self.assertEqual(16, len(index))
 
-    def test_ds_buffer_size(self):
+    def test_max_indexing_size(self):
         index = OnDiskIndex(
-            self.temp_dir / "ds_buffer_size_index.h5",
+            self.temp_dir / "max_indexing_size_index.h5",
             mode=Mode.PASSAGE,
-            ds_buffer_size=5,
+            max_indexing_size=5,
         )
         psg_reps = np.random.normal(size=(16, 16))
         psg_ids = [f"p{i}" for i in range(16)]

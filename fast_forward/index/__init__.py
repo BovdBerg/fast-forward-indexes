@@ -384,9 +384,6 @@ class Index(abc.ABC):
         Returns:
             pd.DataFrame: Data frame with computed scores.
         """
-        # early stopping splits the data frame, hence we need to keep track of the original index
-        df["orig_index"] = df.index
-
         # data frame for computed scores
         scores_so_far = None
 
@@ -446,6 +443,7 @@ class Index(abc.ABC):
         early_stopping: int = None,
         early_stopping_alpha: float = None,
         early_stopping_depths: Iterable[int] = None,
+        batch_size: int = None,
     ) -> Ranking:
         """Compute scores for a ranking.
 
@@ -454,6 +452,7 @@ class Index(abc.ABC):
             early_stopping (int, optional): Perform early stopping at this cut-off depth. Defaults to None.
             early_stopping_alpha (float, optional): Interpolation parameter for early stopping. Defaults to None.
             early_stopping_depths (Iterable[int], optional): Depths for early stopping. Defaults to None.
+            batch_size (int, optional): How many queries to process at once. Defaults to None.
 
         Returns:
             Ranking: Ranking with the computed scores.
@@ -475,25 +474,42 @@ class Index(abc.ABC):
             ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
         )
         query_df["q_no"] = query_df.index
+        df_with_q_no = ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
 
-        # attach query numbers to data frame
-        df = ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
+        # early stopping splits the data frame, hence we need to keep track of the original index
+        df_with_q_no["orig_index"] = df_with_q_no.index
 
         # batch encode queries
         query_vectors = self.encode_queries(list(query_df["query"]))
 
-        if early_stopping is not None:
-            result = self._early_stopping(
+        def _get_result(df):
+            if early_stopping is None:
+                return self._compute_scores(df, query_vectors)
+            return self._early_stopping(
                 df,
                 query_vectors,
                 early_stopping,
                 early_stopping_alpha,
                 early_stopping_depths,
             )
-        else:
-            result = self._compute_scores(df, query_vectors)
-        result["score"] = result["ff_score"]
 
+        num_queries = len(query_df)
+        if batch_size is None or batch_size >= num_queries:
+            result = _get_result(df_with_q_no)
+        else:
+            # assign batch indices to query IDs
+            df_with_q_no["batch_idx"] = (
+                df_with_q_no.groupby("q_id").ngroup() / batch_size
+            ).astype(int)
+
+            chunks = []
+            num_batches = int(num_queries / batch_size) + 1
+            for batch_idx in tqdm(range(num_batches)):
+                batch = df_with_q_no[df_with_q_no["batch_idx"] == batch_idx]
+                chunks.append(_get_result(batch))
+            result = pd.concat(chunks)
+
+        result["score"] = result["ff_score"]
         if self._verbose:
             LOGGER.info("computed scores in %s seconds", perf_counter() - t0)
         return Ranking(

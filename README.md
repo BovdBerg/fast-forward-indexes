@@ -20,6 +20,8 @@ by J. Leonhardt, et al.
 
     - [Docs](https://mrjleo.github.io/fast-forward-indexes/docs)
 
+> [!IMPORTANT]
+> As this library is still in its early stages, the API is subject to change!
 
 ## Installation
 
