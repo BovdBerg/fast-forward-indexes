@@ -295,80 +295,84 @@ def main(args: argparse.Namespace) -> None:
     combo = avg_pipelines[0] >> ff_tct >> int_combo_tct
 
     # Validation and parameter tuning on dev set
-    # TODO: Tune k_avg for WeightedAvgEncoder
-    # TODO: maybe use dev.small variant for faster validation if it speeds up loading time.
-    print("Loading dev queries and qrels...")
-    dev_variant = "dev.small"
-    dev_queries = dataset.get_topics(dev_variant)
-    dev_qrels = dataset.get_qrels(dev_variant)
+    if args.val_pipelines:
+        # TODO: Tune k_avg for WeightedAvgEncoder
+        # TODO: maybe use dev.small variant for faster validation if it speeds up loading time.
+        print("Loading dev queries and qrels...")
+        dev_variant = "dev.small"
+        dev_queries = dataset.get_topics(dev_variant)
+        dev_qrels = dataset.get_qrels(dev_variant)
 
-    print("Adding queries to BM25 ranking...")
-    bm25_df = bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
-    print("Creating BM25 ranking for dev queries...")
-    index_avg.query_encoder.sparse_ranking = Ranking(bm25_df)
-    print("Done creating BM25 ranking for dev queries.")
+        print("Adding queries to BM25 ranking...")
+        bm25_df = bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
+        print("Creating BM25 ranking for dev queries...")
+        index_avg.query_encoder.sparse_ranking = Ranking(bm25_df)
+        print("Done creating BM25 ranking for dev queries.")
 
-    # Sample dev queries if dev_sample_size is set
-    if args.dev_sample_size is not None:
-        dev_queries = dev_queries.sample(n=args.dev_sample_size)
-        dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
+        # Sample dev queries if dev_sample_size is set
+        if args.dev_sample_size is not None:
+            dev_queries = dev_queries.sample(n=args.dev_sample_size)
+            dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
-    # Validate pipelines in args.val_pipelines.
-    pipelines_to_validate = [
-        # bm25 has no tunable parameters, so it is not included here
-        (tct, [int_tct], "tct"),
-        (avg_pipelines[0], [int_avg[0]], "avg_1"),
-        (combo, [int_combo_tct], "combo"),
-    ] + [
-        (pipeline, [int_avg[i]], f"avg_{i+1}")
-        for i, pipeline in enumerate(avg_pipelines[1:], start=1)
-    ]
-    for pipeline, tunable_alphas, name in pipelines_to_validate:
-        if name in args.val_pipelines:
-            print(f"\nValidating pipeline: {name}...")
-            pt.GridSearch(
-                pipeline,
-                {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
-                dev_queries,
-                dev_qrels,
-                metric="ndcg_cut_10",
-                verbose=True,
-                batch_size=128,
+        # Validate pipelines in args.val_pipelines.
+        pipelines_to_validate = [
+            # bm25 has no tunable parameters, so it is not included here
+            (tct, [int_tct], "tct"),
+            (avg_pipelines[0], [int_avg[0]], "avg_1"),
+            (combo, [int_combo_tct], "combo"),
+        ] + [
+            (pipeline, [int_avg[i]], f"avg_{i+1}")
+            for i, pipeline in enumerate(avg_pipelines[1:], start=1)
+        ]
+
+        for pipeline, tunable_alphas, name in pipelines_to_validate:
+            if name in args.val_pipelines:
+                print(f"\nValidating pipeline: {name}...")
+                pt.GridSearch(
+                    pipeline,
+                    {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
+                    dev_queries,
+                    dev_qrels,
+                    metric="ndcg_cut_10",
+                    verbose=True,
+                    batch_size=128,
+                )
+
+    if args.test_datasets:
+        # Define which pipelines to evaluate on test sets
+        test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
+            (~bm25, "bm25"),
+            (tct, f"tct, α={int_tct.alpha}"),
+            (combo, f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}"),
+        ] + [
+            (
+                avg_pipelines[i],
+                f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]",
+            )
+            for i in range(len(int_avg))
+        ]
+        test_pipelines = [(pipeline, desc) for pipeline, desc in test_pipelines]
+
+        # Final evaluation on test sets
+        for test_dataset_name in args.test_datasets:
+            test_dataset = pt.get_dataset(test_dataset_name)
+            test_queries = test_dataset.get_topics()
+            index_avg.query_encoder.sparse_ranking = Ranking(
+                df=bm25_cut(test_queries).rename(columns={"qid": "q_id", "docid": "id"})
             )
 
-    # Define which pipelines to evaluate on test sets
-    test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
-        (~bm25, "bm25"),
-        (tct, f"tct, α={int_tct.alpha}"),
-        (combo, f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}"),
-    ] + [
-        (
-            avg_pipelines[i],
-            f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]",
-        )
-        for i in range(len(int_avg))
-    ]
-    test_pipelines = [(pipeline, desc) for pipeline, desc in test_pipelines]
+            print(f"\nRunning final tests on {test_dataset_name}...")
+            results = pt.Experiment(
+                [pipeline for pipeline, _ in test_pipelines],
+                test_queries,
+                test_dataset.get_qrels(),
+                eval_metrics=eval_metrics,
+                names=[desc for _, desc in test_pipelines],
+                verbose=True,
+            )
+            print_settings()
+            print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
 
-    # Final evaluation on test sets
-    for test_dataset_name in args.test_datasets:
-        test_dataset = pt.get_dataset(test_dataset_name)
-        test_queries = test_dataset.get_topics()
-        index_avg.query_encoder.sparse_ranking = Ranking(
-            df=bm25_cut(test_queries).rename(columns={"qid": "q_id", "docid": "id"})
-        )
-
-        print(f"\nRunning final tests on {test_dataset_name}...")
-        results = pt.Experiment(
-            [pipeline for pipeline, _ in test_pipelines],
-            test_queries,
-            test_dataset.get_qrels(),
-            eval_metrics=eval_metrics,
-            names=[desc for _, desc in test_pipelines],
-            verbose=True,
-        )
-        print_settings()
-        print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
 
