@@ -239,7 +239,7 @@ def main(args: argparse.Namespace) -> None:
     # Load index
     index: Index = OnDiskIndex.load(args.index_path, verbose=args.verbose)
     if args.in_memory:
-        index = index.to_memory(buffer_size=2**14)
+        index = index.to_memory(2**14)
 
     # Parse eval_metrics to ir-measures' measure objects
     eval_metrics = []
