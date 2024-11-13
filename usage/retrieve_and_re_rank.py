@@ -315,6 +315,7 @@ def main(args: argparse.Namespace) -> None:
         print("Done creating BM25 ranking for dev queries.")
 
         # Sample dev queries if dev_sample_size is set
+        # TODO: see if nDCG is proper without sampling. Maybe on a smaller dataset.
         if args.dev_sample_size is not None:
             dev_queries = dev_queries.sample(n=args.dev_sample_size)
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
