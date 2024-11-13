@@ -299,9 +299,9 @@ def main(args: argparse.Namespace) -> None:
         # TODO: Tune k_avg for WeightedAvgEncoder
         # TODO: maybe use dev.small variant for faster validation if it speeds up loading time.
         print("Loading dev queries and qrels...")
-        dev_variant = "dev.small"
-        dev_queries = dataset.get_topics(dev_variant)
-        dev_qrels = dataset.get_qrels(dev_variant)
+        dev_dataset = pt.get_dataset("irds:msmarco-passage/dev/small")
+        dev_queries = dev_dataset.get_topics()
+        dev_qrels = dev_dataset.get_qrels()
 
         print("Adding queries to BM25 ranking...")
         bm25_df = bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
