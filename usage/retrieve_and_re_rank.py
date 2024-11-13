@@ -328,6 +328,7 @@ def main(args: argparse.Namespace) -> None:
         for pipeline, tunable_alphas, name in pipelines_to_validate:
             if name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
+                # TODO [IMPORTANT!]: Find why this reaches ~0.5 performance (ndCG@10 ~= 0.35 instead of 0.7)
                 pt.GridSearch(
                     pipeline,
                     {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
