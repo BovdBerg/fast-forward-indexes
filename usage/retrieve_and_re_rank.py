@@ -17,6 +17,7 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from fast_forward.util import to_ir_measures
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
+import time
 
 
 def parse_args():
@@ -231,6 +232,7 @@ def main(args: argparse.Namespace) -> None:
     Output:
         ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
     """
+    start_time = time.time()
     print_settings()
     pt.init()
 
@@ -366,6 +368,8 @@ def main(args: argparse.Namespace) -> None:
         )
         print_settings()
         print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
+    end_time = time.time()
+    print(f"Total time: {end_time - start_time:.2f} seconds.")
 
 
 if __name__ == "__main__":
