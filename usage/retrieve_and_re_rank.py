@@ -303,7 +303,6 @@ def main(args: argparse.Namespace) -> None:
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
         # TODO: Tune k_avg for WeightedAvgEncoder
-        # TODO: maybe use dev.small variant for faster validation if it speeds up loading time.
         print("Loading dev queries and qrels...")
         dev_dataset = pt.get_dataset("irds:msmarco-passage/dev/small")
         dev_queries = dev_dataset.get_topics()
