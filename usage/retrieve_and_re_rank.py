@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 import ir_datasets
+from ir_measures import measures
 import numpy as np
 import pyterrier as pt
 import torch
@@ -126,7 +127,7 @@ def parse_args():
         "--eval_metrics",
         type=str,
         nargs="+",
-        default=["nDCG@10", "RR(rel=2)", "AP(rel=2)"], # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
+        default=["nDCG@10", "RR(rel=2)@10", "AP(rel=2)@10"], # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
         help="Metrics used for evaluation.",
     )
     return parser.parse_args()
@@ -241,16 +242,16 @@ def main(args: argparse.Namespace) -> None:
     if args.in_memory:
         index = index.to_memory(2**14)
 
-    # Parse eval_metrics to ir-measures' measure objects
+    # Parse eval_metrics (e.g. "nDCG@10", "RR(rel=2)", "AP") to ir-measures' measure objects.
     eval_metrics = []
     for metric_str in args.eval_metrics:
-        metric_name, at_value = metric_str.split("@")
-        eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
-        if "(" in metric_name:
-            metric_name, rel = metric_name.split("(")
-            rel = int(rel.split("=")[1].strip(")"))
-            eval_metrics.append(getattr(measures, metric_name)(rel=rel) @ int(at_value))
+        if "(" in metric_str:
+            metric_name, rest = metric_str.split("(")
+            params, at_value = rest.split(")@")
+            param_dict = {k: int(v) for k, v in (param.split("=") for param in params.split(","))}
+            eval_metrics.append(getattr(measures, metric_name)(**param_dict) @ int(at_value))
         else:
+            metric_name, at_value = metric_str.split("@")
             eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
 
     # Load dataset and create sparse retriever (e.g. BM25)
