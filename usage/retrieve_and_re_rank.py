@@ -336,12 +336,13 @@ def main(args: argparse.Namespace) -> None:
             if name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
                 # TODO [IMPORTANT!]: Find why this reaches ~0.5 performance (ndCG@10 ~= 0.35 instead of 0.7)
+                # TODO: metric should be RR@10 for dev/small.
                 pt.GridSearch(
                     pipeline,
                     {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
                     dev_queries,
                     dev_qrels,
-                    metric="ndcg_cut_10",
+                    metric="ndcg_cut_10", # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
                     verbose=True,
                     batch_size=128,
                 )
