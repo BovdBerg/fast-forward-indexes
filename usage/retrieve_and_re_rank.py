@@ -316,7 +316,7 @@ def main(args: argparse.Namespace) -> None:
 
         # Sample dev queries if dev_sample_size is set
         if args.dev_sample_size is not None:
-            dev_queries = dev_queries.sample(n=args.dev_sample_size)
+            dev_queries = dev_queries.sample(n=args.dev_sample_size, random_state=42) # Fixed seed for reproducibility.
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         print(f"Adding {len(dev_queries)} sampled queries to BM25 ranking...")
