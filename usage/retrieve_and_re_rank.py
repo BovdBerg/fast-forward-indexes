@@ -261,14 +261,12 @@ def main(args: argparse.Namespace) -> None:
             dataset, "terrier_stemmed", wmodel="BM25", verbose=True
         )
     except:
-        print("Failed via PyTerrier index. Trying via IterDictIndexer...")
         indexer = pt.IterDictIndexer(
             str(Path.cwd()),  # ignored but must be a valid path
             type=pt.index.IndexingType.MEMORY,
         )
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
         bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
-    print("Done creating BM25 retriever.")
     bm25_cut = ~bm25 % args.rerank_cutoff
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
@@ -303,8 +301,9 @@ def main(args: argparse.Namespace) -> None:
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
         # TODO [later]: Tune k_avg for WeightedAvgEncoder
-        print("Loading dev queries and qrels...")
-        dev_dataset = pt.get_dataset("irds:msmarco-passage/dev/judged")
+        dataset_str = "irds:msmarco-passage/dev/judged"
+        print(f"Loading dev queries and qrels from {dataset_str}...")
+        dev_dataset = pt.get_dataset(dataset_str)
         dev_queries = dev_dataset.get_topics()
         dev_qrels = dev_dataset.get_qrels()
 
@@ -314,11 +313,10 @@ def main(args: argparse.Namespace) -> None:
             dev_queries = dev_queries.sample(n=args.dev_sample_size)
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
-        print("Adding queries to BM25 ranking...")
+        print(f"Adding {len(dev_queries)} sampled queries to BM25 ranking...")
         bm25_df = bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
         print("Creating BM25 ranking for dev queries...")
         index_avg.query_encoder.sparse_ranking = Ranking(bm25_df)
-        print("Done creating BM25 ranking for dev queries.")
 
         # Validate pipelines in args.val_pipelines.
         pipelines_to_validate = [
