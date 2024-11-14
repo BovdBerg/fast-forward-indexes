@@ -115,6 +115,13 @@ def parse_args():
         default=[round(x, 2) for x in np.arange(0, 1.0001, 0.1)],
         help="List of interpolation parameters for evaluation.",
     )
+    parser.add_argument(
+        "--dev_eval_metric",
+        type=str,
+        # TODO: Use "recip_rank" or "map".
+        default="map", # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
+        help="Evaluation metric for pt.GridSearch on dev set.",
+    )
     # EVALUATION
     parser.add_argument(
         "--test_datasets",
@@ -160,6 +167,7 @@ def print_settings() -> None:
             [
                 f"\tdev_sample_size={args.dev_sample_size}",
                 f"\talphas={args.alphas}",
+                f"\tdev_eval_metric={args.dev_eval_metric}",
             ]
         )
     settings_description.append(f"test_datasets={args.test_datasets}")
@@ -308,7 +316,6 @@ def main(args: argparse.Namespace) -> None:
         dev_qrels = dev_dataset.get_qrels()
 
         # Sample dev queries if dev_sample_size is set
-        # TODO: see if nDCG is proper without sampling. Maybe on a smaller dataset.
         if args.dev_sample_size is not None:
             dev_queries = dev_queries.sample(n=args.dev_sample_size)
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
@@ -339,7 +346,7 @@ def main(args: argparse.Namespace) -> None:
                     {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
                     dev_queries,
                     dev_qrels,
-                    metric="ndcg_cut_10", # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
+                    metric=args.dev_eval_metric, # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
                     verbose=True,
                     batch_size=128,
                 )
