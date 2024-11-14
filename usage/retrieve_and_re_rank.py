@@ -308,17 +308,18 @@ def main(args: argparse.Namespace) -> None:
         dev_queries = dev_dataset.get_topics()
         dev_qrels = dev_dataset.get_qrels()
 
+        # Sample dev queries if dev_sample_size is set
+        # TODO: see if nDCG is proper without sampling. Maybe on a smaller dataset.
+        if args.dev_sample_size is not None:
+            # TODO: try dev_sample_size=1024 or 512
+            dev_queries = dev_queries.sample(n=args.dev_sample_size)
+            dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
+
         print("Adding queries to BM25 ranking...")
         bm25_df = bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
         print("Creating BM25 ranking for dev queries...")
         index_avg.query_encoder.sparse_ranking = Ranking(bm25_df)
         print("Done creating BM25 ranking for dev queries.")
-
-        # Sample dev queries if dev_sample_size is set
-        # TODO: see if nDCG is proper without sampling. Maybe on a smaller dataset.
-        if args.dev_sample_size is not None:
-            dev_queries = dev_queries.sample(n=args.dev_sample_size)
-            dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines.
         pipelines_to_validate = [
