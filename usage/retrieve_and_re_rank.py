@@ -118,8 +118,7 @@ def parse_args():
     parser.add_argument(
         "--dev_eval_metric",
         type=str,
-        # TODO: Use "recip_rank" or "map".
-        default="map", # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
+        default="recip_rank", # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
         help="Evaluation metric for pt.GridSearch on dev set.",
     )
     # EVALUATION
