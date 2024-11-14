@@ -105,7 +105,7 @@ def parse_args():
     parser.add_argument(
         "--dev_sample_size",
         type=int,
-        default=256,
+        default=1024,
         help="Number of queries to sample for validation.",
     )
     parser.add_argument(
@@ -311,7 +311,6 @@ def main(args: argparse.Namespace) -> None:
         # Sample dev queries if dev_sample_size is set
         # TODO: see if nDCG is proper without sampling. Maybe on a smaller dataset.
         if args.dev_sample_size is not None:
-            # TODO: try dev_sample_size=1024 or 512
             dev_queries = dev_queries.sample(n=args.dev_sample_size)
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
