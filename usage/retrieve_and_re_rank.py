@@ -34,7 +34,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
     )
-    # TODO [at hand-in]: Remove default paths (index_path) form the arguments
+    # TODO [final]: Remove default paths (index_path) form the arguments
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -212,7 +212,6 @@ def estimate_best_alpha(
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
-# TODO: Update main branch with Jurek's latest changes.
 def main(args: argparse.Namespace) -> None:
     """
     Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
@@ -303,9 +302,9 @@ def main(args: argparse.Namespace) -> None:
 
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
-        # TODO: Tune k_avg for WeightedAvgEncoder
+        # TODO [later]: Tune k_avg for WeightedAvgEncoder
         print("Loading dev queries and qrels...")
-        dev_dataset = pt.get_dataset("irds:msmarco-passage/dev/small")
+        dev_dataset = pt.get_dataset("irds:msmarco-passage/dev/judged")
         dev_queries = dev_dataset.get_topics()
         dev_qrels = dev_dataset.get_qrels()
 
@@ -336,7 +335,7 @@ def main(args: argparse.Namespace) -> None:
             if name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
                 # TODO [IMPORTANT!]: Find why this reaches ~0.5 performance (ndCG@10 ~= 0.35 instead of 0.7)
-                # TODO: metric should be RR@10 for dev/small.
+                # TODO: metric should be RR@10 or MRR@10 for dev/small.
                 pt.GridSearch(
                     pipeline,
                     {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
@@ -381,6 +380,7 @@ def main(args: argparse.Namespace) -> None:
             )
             print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
+            # TODO: Save experiment results to new row in Excel file.
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")

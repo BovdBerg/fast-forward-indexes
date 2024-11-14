@@ -277,7 +277,7 @@ class OnDiskIndex(Index):
                 id_to_idxs[id].append(id_idx)
 
             # reading all vectors at once slows h5py down significantly, so we read them in chunks and concatenate
-            total = len(vec_idxs) // self._ds_buffer_size + 1
+            total = len(vec_idxs) // self._max_indexing_size + 1
             vectors = np.concatenate(
                 [
                     fp["vectors"][vec_idxs[i : i + self._max_indexing_size]]

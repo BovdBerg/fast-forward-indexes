@@ -27,7 +27,7 @@ by J. Leonhardt, et al.
 
 Install the package via `pip`:
 
-<!-- TODO: improve installation instructions -->
+<!-- TODO [final]: improve installation instructions -->
 ```bash
 pip install fast-forward-indexes
 ```

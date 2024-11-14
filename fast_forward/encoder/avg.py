@@ -18,7 +18,7 @@ class W_METHOD(Enum):
         EXPONENTIAL: weights decrease exponentially with rank.
         HALF_NORMAL: weights decrease with the half-normal distribution.
         SOFTMAX_SCORES: weights are assigned based on the softmax of the scores.
-        LINEAR_DECAY_DOCS: weights decrease linearly with rank.
+        LINEAR_DECAY_RANKS: weights decrease linearly with rank.
         LINEAR_DECAY_SCORES: weights decrease linearly with rank, multiplied by the scores.
     """
 
@@ -26,13 +26,12 @@ class W_METHOD(Enum):
     EXPONENTIAL = "EXPONENTIAL"
     HALF_NORMAL = "HALF_NORMAL"
     SOFTMAX_SCORES = "SOFTMAX_SCORES"
-    LINEAR_DECAY_DOCS = "LINEAR_DECAY_DOCS"
+    LINEAR_DECAY_RANKS = "LINEAR_DECAY_RANKS"
     LINEAR_DECAY_SCORES = "LINEAR_DECAY_SCORES"
-    # TODO: Add LEARNED distribution, with learned model weights based on training/validation data
+    # TODO [IMPORTANT]: Add LEARNED distribution, with learned model weights based on training/validation data
 
 
-# TODO: consider which document embeddings to average over. The output ranking should probably be the (sparse_)ranking for consecutive reranking. Print top-ranked docs for multiple chained rerankings.
-# TODO: [Discuss w/ Jurek] should both scores be normalized before interpolating them? Did Jurek try this already?
+# TODO: top_ranking should probably be updated in each chain reranking. Check if only top_docs from original top_ranking are considered?
 class WeightedAvgEncoder(Encoder):
     """
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.
@@ -86,7 +85,7 @@ class WeightedAvgEncoder(Encoder):
                 max_score = np.max(scores)
                 exp_scores = np.exp(scores - max_score)
                 return exp_scores / np.sum(exp_scores)
-            case W_METHOD.LINEAR_DECAY_DOCS:
+            case W_METHOD.LINEAR_DECAY_RANKS:
                 return np.linspace(1, 0, n_docs)
             case W_METHOD.LINEAR_DECAY_SCORES:
                 return np.linspace(1, 0, n_docs) * scores
@@ -120,7 +119,6 @@ class WeightedAvgEncoder(Encoder):
             top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
             top_docs_ids: Sequence[int] = top_docs["id"].values
             top_docs_scores: Sequence[float] = top_docs["score"].values
-            # TODO: top_ranking should probably be updated in each chain reranking. Check if only top_docs from original top_ranking are considered?
 
             # Get the embeddings of the top-ranked documents
             d_reps: np.ndarray = self.index._get_vectors(top_docs_ids)[0]
