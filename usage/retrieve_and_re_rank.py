@@ -10,6 +10,7 @@ import numpy as np
 import pyterrier as pt
 import torch
 from ir_measures import calc_aggregate, measures
+from pyterrier_caching import Lazy, ScorerCache
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
@@ -289,7 +290,6 @@ def main(args: argparse.Namespace) -> None:
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index)
     index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.w_method)
-    ff_avg = FFScore(index_avg)
 
     # TODO: Check if PyTerrier supports caching now. Or try https://github.com/seanmacavaney/pyterrier-caching
     # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
@@ -297,10 +297,25 @@ def main(args: argparse.Namespace) -> None:
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
     avg_int_alphas = args.avg_int_alphas + [0.5] * (avg_chains - len(args.avg_int_alphas))
+    ff_avg = [FFScore(index_avg) for _ in range(avg_chains)]
     int_avg = [FFInterpolate(alpha=a) for a in avg_int_alphas[:avg_chains]]
+    ff_avg_cached = []
+    int_avg_cached = []
+    for i in range(avg_chains):
+        ff_avg_cache = ScorerCache(f"cache/ff_avg_{i+1}", ff_avg[i])
+        if not ff_avg_cache.built():
+            ff_avg_cache.build(docnos_file='cache/docnos.npids')
+        ff_avg_cached.append(ff_avg_cache)
+
+        int_cache = ScorerCache(f"cache/avg_{i+1}", int_avg[i])
+        if not int_cache.built():
+            int_cache.build(docnos_file='cache/docnos.npids')
+        int_avg_cached.append(int_cache)
+
     avg_pipelines = [bm25_cut]
     for i in range(len(int_avg)):
-        avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
+        # avg_pipelines.append(avg_pipelines[-1] >> ff_avg[0] >> int_avg[i])
+        avg_pipelines.append(avg_pipelines[-1] >> ff_avg[i] >> int_avg[i])
     avg_pipelines = avg_pipelines[1:] # Remove 1st pipeline (bm25) from avg_pipelines
 
     int_combo_tct = FFInterpolate(alpha=0.3)
