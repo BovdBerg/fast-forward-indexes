@@ -298,9 +298,10 @@ def main(args: argparse.Namespace) -> None:
     avg_chains = max([1, args.avg_chains])
     avg_int_alphas = args.avg_int_alphas + [0.5] * (avg_chains - len(args.avg_int_alphas))
     int_avg = [FFInterpolate(alpha=a) for a in avg_int_alphas[:avg_chains]]
-    avg_pipelines = [bm25_cut >> ff_avg >> int_avg[0]]
-    for i in range(1, len(int_avg)):
+    avg_pipelines = [bm25_cut]
+    for i in range(len(int_avg)):
         avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
+    avg_pipelines = avg_pipelines[1:] # Remove 1st pipeline (bm25) from avg_pipelines
 
     int_combo_tct = FFInterpolate(alpha=0.3)
     combo = avg_pipelines[0] >> ff_tct >> int_combo_tct
