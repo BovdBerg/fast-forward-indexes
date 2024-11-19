@@ -148,32 +148,23 @@ def print_settings() -> None:
 
     Args:
         pipeline (pt.Transformer): The pipeline used for re-ranking.
+
+    Returns:
+        str: A string representation of the settings.
     """
     # General settings
     settings_description: List[str] = [
-        f"verbose={args.verbose}",
-        f"in_memory={args.in_memory}",
-        f"rerank_cutoff={args.rerank_cutoff}",
-        f"device={args.device}",
-        "WeightedAvgEncoder:",
-        f"\tw_method={args.w_method.name}",
-        f"\tk_avg={args.k_avg}",
-        f"\tavg_chains={args.avg_chains}",
+        f"rerank_cutoff={args.rerank_cutoff}, in_memory={args.in_memory}, device={args.device}",
+        f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}, avg_chains={args.avg_chains}",
     ]
     # Validation settings
     settings_description.append(f"val_pipelines={args.val_pipelines}")
     if args.val_pipelines:
-        settings_description[-1] += ":"
-        settings_description.extend(
-            [
-                f"\tdev_sample_size={args.dev_sample_size}",
-                f"\talphas={args.alphas}",
-                f"\tdev_eval_metric={args.dev_eval_metric}",
-            ]
-        )
-    settings_description.append(f"test_datasets={args.test_datasets}")
+        settings_description[-1] += f": dev_sample_size={args.dev_sample_size}, alphas={args.alphas}"
 
-    print(f"Settings:\n\t{'\n\t'.join(settings_description)}")
+    settings_str = '\n\t'.join(settings_description)
+    print("Settings:\n\t"+ settings_str)
+    return settings_str
 
 
 def estimate_best_alpha(
