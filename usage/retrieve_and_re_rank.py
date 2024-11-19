@@ -113,17 +113,16 @@ def parse_args():
     )
     # VALIDATION
     parser.add_argument(
-        "--val_pipelines",
-        type=str,
-        nargs="+",
-        default=[],
-        help="List of pipelines to validate, based on exact pipeline names.",
-    )
-    parser.add_argument(
         "--dev_dataset",
         type=str,
         default="irds:msmarco-passage/dev/judged",
         help="Dataset to use for validation.",
+    )
+    parser.add_argument(
+        "--dev_eval_metric",
+        type=str,
+        default="recip_rank",  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
+        help="Evaluation metric for pt.GridSearch on dev set.",
     )
     parser.add_argument(
         "--dev_sample_size",
@@ -132,17 +131,18 @@ def parse_args():
         help="Number of queries to sample for validation.",
     )
     parser.add_argument(
+        "--val_pipelines",
+        type=str,
+        nargs="+",
+        default=[],
+        help="List of pipelines to validate, based on exact pipeline names.",
+    )
+    parser.add_argument(
         "--alphas",
         type=float,
         nargs="+",
         default=[round(x, 2) for x in np.arange(0, 1.0001, 0.1)],
         help="List of interpolation parameters for evaluation.",
-    )
-    parser.add_argument(
-        "--dev_eval_metric",
-        type=str,
-        default="recip_rank",  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
-        help="Evaluation metric for pt.GridSearch on dev set.",
     )
     # EVALUATION
     parser.add_argument(
