@@ -120,6 +120,12 @@ def parse_args():
         help="List of pipelines to validate, based on exact pipeline names.",
     )
     parser.add_argument(
+        "--dev_dataset",
+        type=str,
+        default="irds:msmarco-passage/dev/judged",
+        help="Dataset to use for validation.",
+    )
+    parser.add_argument(
         "--dev_sample_size",
         type=int,
         default=1024,
@@ -173,7 +179,7 @@ def print_settings() -> None:
     # General settings
     settings_description: List[str] = [
         f"rerank_cutoff={args.rerank_cutoff}, in_memory={args.in_memory}, device={args.device}",
-        f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}, avg_chains={args.avg_chains}",
+        f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}",
     ]
     # Validation settings
     settings_description.append(f"val_pipelines={args.val_pipelines}")
@@ -267,7 +273,7 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
 
     # Highlight the row with the highest nDCG@10 value in bold (excl. baselines)
     max_ndcg10_index = results.iloc[2:]["nDCG@10"].idxmax()
-    max_ndcg10_row = first_row + 2 + max_ndcg10_index
+    max_ndcg10_row = first_row + max_ndcg10_index
     format_cell_range(
         worksheet,
         f"A{max_ndcg10_row}:G{max_ndcg10_row}",
@@ -366,7 +372,7 @@ def main(args: argparse.Namespace) -> None:
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
         # TODO [later]: Tune k_avg for WeightedAvgEncoder
-        dataset_str = "irds:msmarco-passage/dev/judged"
+        dataset_str = args.dev_dataset
         print(f"Loading dev queries and qrels from {dataset_str}...")
         dev_dataset = pt.get_dataset(dataset_str)
         dev_queries = dev_dataset.get_topics()
@@ -445,7 +451,7 @@ def main(args: argparse.Namespace) -> None:
 
             results_json = results.to_dict()
             if not PREVIOUS_RESULTS_FILE.exists() or results_json != json.loads(PREVIOUS_RESULTS_FILE.read_text()):
-                settings_str += f"\nTest dataset: {test_dataset_name}"
+                settings_str += f"\nTest dataset: '{test_dataset_name}'"
                 append_to_gsheets(results, settings_str)
                 PREVIOUS_RESULTS_FILE.write_text(json.dumps(results_json, indent=4))
 
