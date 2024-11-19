@@ -433,22 +433,27 @@ def main(args: argparse.Namespace) -> None:
             )
 
             print(f"\nRunning final tests on {test_dataset_name}...")
+            decimals = 5
             results = pt.Experiment(
                 [pipeline for pipeline, _ in test_pipelines],
                 test_queries,
                 test_dataset.get_qrels(),
                 eval_metrics=eval_metrics,
                 names=[desc for _, desc in test_pipelines],
+                round=decimals,
                 verbose=True,
             )
             settings_str = print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
 
-            results_json = results.to_dict()
-            if not PREVIOUS_RESULTS_FILE.exists() or results_json != json.loads(PREVIOUS_RESULTS_FILE.read_text()):
+            results_str = results.round(decimals).astype(str)
+            prev_results_str = pd.read_json(PREVIOUS_RESULTS_FILE).round(decimals).astype(str)
+            if not PREVIOUS_RESULTS_FILE.exists() or not results_str.equals(prev_results_str):
+                results.to_json(PREVIOUS_RESULTS_FILE, indent=4)
                 settings_str += f"\nTest: '{test_dataset_name}'"
                 append_to_gsheets(results, settings_str)
-                PREVIOUS_RESULTS_FILE.write_text(json.dumps(results_json, indent=4))
+            else:
+                print("Results have not changed since the last run. Skipping Google Sheets update.")
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
