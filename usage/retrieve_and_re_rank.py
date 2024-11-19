@@ -265,8 +265,9 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
     for col in ["A", "B", "C"]:
         worksheet.merge_cells(f"{col}{first_row}:{col}{last_row}")
 
-    # Highlight the row with the highest nDCG@10 value in bold
-    max_ndcg10_row = first_row + results["nDCG@10"].idxmax()
+    # Highlight the row with the highest nDCG@10 value in bold (excl. baselines)
+    max_ndcg10_index = results.iloc[2:]["nDCG@10"].idxmax()
+    max_ndcg10_row = first_row + 2 + max_ndcg10_index
     format_cell_range(
         worksheet,
         f"A{max_ndcg10_row}:G{max_ndcg10_row}",
