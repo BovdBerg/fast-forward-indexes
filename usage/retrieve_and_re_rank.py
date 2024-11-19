@@ -117,7 +117,7 @@ def parse_args():
     parser.add_argument(
         "--dev_eval_metric",
         type=str,
-        default="recip_rank", # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
+        default="recip_rank",  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
         help="Evaluation metric for pt.GridSearch on dev set.",
     )
     # EVALUATION
@@ -246,11 +246,6 @@ def main(args: argparse.Namespace) -> None:
     print_settings()
     pt.init()
 
-    # Load index
-    index: Index = OnDiskIndex.load(args.index_path, verbose=args.verbose)
-    if args.in_memory:
-        index = index.to_memory(2**14)
-
     # Parse eval_metrics (e.g. "nDCG@10", "RR(rel=2)", "AP") to ir-measures' measure objects.
     eval_metrics = []
     for metric_str in args.eval_metrics:
@@ -284,18 +279,21 @@ def main(args: argparse.Namespace) -> None:
     bm25_cut = ~bm25 % args.rerank_cutoff
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
-    index_tct = copy(index)
-    index_tct.query_encoder = TCTColBERTQueryEncoder(
-        "castorini/tct_colbert-msmarco", device=args.device
+    index_tct = OnDiskIndex.load(
+        args.index_path,
+        TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
+        verbose=args.verbose,
     )
+    if args.in_memory:
+        index_tct = index_tct.to_memory(2**14)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.1)
     tct = bm25_cut >> ff_tct >> int_tct
 
     # TODO: Add profiling to re-ranking step
     # Create re-ranking pipeline based on WeightedAvgEncoder
-    index_avg = copy(index)
-    index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.w_method)
+    index_avg = copy(index_tct)
+    index_avg.query_encoder = WeightedAvgEncoder(index_tct, args.k_avg, args.w_method)
 
     # TODO: Check if PyTerrier supports caching now. Or try https://github.com/seanmacavaney/pyterrier-caching
 
@@ -366,13 +364,14 @@ def main(args: argparse.Namespace) -> None:
         test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
             (~bm25, "bm25"),
             (tct, f"tct, α={int_tct.alpha}"),
+            (int_avg[0], f"avg_1, α={int_avg[0].alpha}"),
             (combo, f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}"),
         ] + [
             (
                 avg_pipelines[i],
                 f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]",
             )
-            for i in range(len(int_avg))
+            for i in range(1, len(int_avg))
         ]
         test_pipelines = [(pipeline, desc) for pipeline, desc in test_pipelines]
 
