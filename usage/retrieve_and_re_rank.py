@@ -18,6 +18,7 @@ from gspread_formatting import (
     Borders,
     CellFormat,
     format_cell_range,
+    TextFormat,
 )
 from ir_measures import calc_aggregate, measures
 
@@ -264,6 +265,14 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
     # Merge cells which share the same values
     for col in ["A", "B", "C"]:
         worksheet.merge_cells(f"{col}{first_row}:{col}{last_row}")
+
+    # Highlight the row with the highest nDCG@10 value in bold
+    max_ndcg10_row = first_row + results["nDCG@10"].idxmax()
+    format_cell_range(
+        worksheet,
+        f"A{max_ndcg10_row}:G{max_ndcg10_row}",
+        CellFormat(textFormat=TextFormat(bold=True))
+    )
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
