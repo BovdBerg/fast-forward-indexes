@@ -101,7 +101,7 @@ def parse_args():
     parser.add_argument(
         "--avg_chains",
         type=int,
-        default=3,
+        default=1,
     )
     parser.add_argument(
         "--avg_int_alphas",
