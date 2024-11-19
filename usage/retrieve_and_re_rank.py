@@ -180,9 +180,8 @@ def print_settings() -> None:
     if args.val_pipelines:
         settings_description[-1] += f": dev_sample_size={args.dev_sample_size}, alphas={args.alphas}"
 
-    settings_str = '\n\t'.join(settings_description)
-    print("Settings:\n\t"+ settings_str)
-    return settings_str
+    print("Settings:\n\t"+ '\n\t'.join(settings_description))
+    return '\n'.join(settings_description)
 
 
 def estimate_best_alpha(
