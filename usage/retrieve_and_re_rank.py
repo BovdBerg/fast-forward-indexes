@@ -12,8 +12,10 @@ import torch
 from ir_measures import calc_aggregate, measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
-from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
-from fast_forward.index import Index
+from fast_forward.encoder.transformer import (
+    CoCondenserQueryEncoder,
+    TCTColBERTQueryEncoder,
+)
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from fast_forward.util import to_ir_measures
@@ -290,6 +292,16 @@ def main(args: argparse.Namespace) -> None:
     int_tct = FFInterpolate(alpha=0.1)
     tct = bm25_cut >> ff_tct >> int_tct
 
+    index_coco: Index = OnDiskIndex.load("/home/bvdb9/indices/msmarco_passage/ff_index_CoCondenser_opq.h5", verbose=args.verbose)
+    if args.in_memory:
+        index_coco = index_coco.to_memory(2**14)
+    index_coco.query_encoder = CoCondenserQueryEncoder(
+        "Luyu/co-condenser-marco-retriever", device=args.device
+    )
+    ff_coco = FFScore(index_coco)
+    int_coco = FFInterpolate(alpha=0.1)
+    coco = bm25_cut >> ff_coco >> int_coco
+
     # TODO: Add profiling to re-ranking step
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index_tct)
@@ -339,6 +351,7 @@ def main(args: argparse.Namespace) -> None:
             (tct, [int_tct], "tct"),
             (avg_pipelines[0], [int_avg[0]], "avg_1"),
             (combo, [int_combo_tct], "combo"),
+            (coco, [int_coco], "coco"),
         ] + [
             (pipeline, [int_avg[i]], f"avg_{i+1}")
             for i, pipeline in enumerate(avg_pipelines[1:], start=1)
@@ -366,6 +379,7 @@ def main(args: argparse.Namespace) -> None:
             (tct, f"tct, α={int_tct.alpha}"),
             (int_avg[0], f"avg_1, α={int_avg[0].alpha}"),
             (combo, f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}"),
+            (coco, f"coco, α={int_coco.alpha}"),
         ] + [
             (
                 avg_pipelines[i],
