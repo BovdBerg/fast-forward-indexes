@@ -1,11 +1,11 @@
 import argparse
+import time
 import warnings
 from copy import copy
 from pathlib import Path
 from typing import List, Tuple
 
 import ir_datasets
-from ir_measures import measures
 import numpy as np
 import pyterrier as pt
 import torch
@@ -18,7 +18,6 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from fast_forward.util import to_ir_measures
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
-import time
 
 
 def parse_args():
@@ -133,7 +132,11 @@ def parse_args():
         "--eval_metrics",
         type=str,
         nargs="+",
-        default=["nDCG@10", "RR(rel=2)@10", "AP(rel=2)@10"], # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
+        default=[
+            "nDCG@10",
+            "RR(rel=2)@10",
+            "AP(rel=2)@10",
+        ],  # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
         help="Metrics used for evaluation.",
     )
     return parser.parse_args()
@@ -254,8 +257,12 @@ def main(args: argparse.Namespace) -> None:
         if "(" in metric_str:
             metric_name, rest = metric_str.split("(")
             params, at_value = rest.split(")@")
-            param_dict = {k: int(v) for k, v in (param.split("=") for param in params.split(","))}
-            eval_metrics.append(getattr(measures, metric_name)(**param_dict) @ int(at_value))
+            param_dict = {
+                k: int(v) for k, v in (param.split("=") for param in params.split(","))
+            }
+            eval_metrics.append(
+                getattr(measures, metric_name)(**param_dict) @ int(at_value)
+            )
         else:
             metric_name, at_value = metric_str.split("@")
             eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
@@ -294,13 +301,15 @@ def main(args: argparse.Namespace) -> None:
 
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
-    avg_int_alphas = args.avg_int_alphas + [0.5] * (avg_chains - len(args.avg_int_alphas))
+    avg_int_alphas = args.avg_int_alphas + [0.5] * (
+        avg_chains - len(args.avg_int_alphas)
+    )
     int_avg = [FFInterpolate(alpha=a) for a in avg_int_alphas[:avg_chains]]
     ff_avg = FFScore(index_avg)
     avg_pipelines = [bm25_cut]
     for i in range(len(int_avg)):
         avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
-    avg_pipelines = avg_pipelines[1:] # Remove 1st pipeline (bm25) from avg_pipelines
+    avg_pipelines = avg_pipelines[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
     int_combo_tct = FFInterpolate(alpha=0.3)
     combo = avg_pipelines[0] >> ff_tct >> int_combo_tct
@@ -316,7 +325,9 @@ def main(args: argparse.Namespace) -> None:
 
         # Sample dev queries if dev_sample_size is set
         if args.dev_sample_size is not None:
-            dev_queries = dev_queries.sample(n=args.dev_sample_size, random_state=42) # Fixed seed for reproducibility.
+            dev_queries = dev_queries.sample(
+                n=args.dev_sample_size, random_state=42
+            )  # Fixed seed for reproducibility.
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         print(f"Adding {len(dev_queries)} sampled queries to BM25 ranking...")
@@ -345,7 +356,7 @@ def main(args: argparse.Namespace) -> None:
                     {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
                     dev_queries,
                     dev_qrels,
-                    metric=args.dev_eval_metric, # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
+                    metric=args.dev_eval_metric,  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
                     verbose=True,
                     batch_size=128,
                 )
