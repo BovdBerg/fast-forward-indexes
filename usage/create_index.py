@@ -1,13 +1,13 @@
 from pathlib import Path
 import torch
-from fast_forward.encoder.transformer import TCTColBERTQueryEncoder, TCTColBERTDocumentEncoder
+from fast_forward.encoder.transformer import CoCondenserDocumentEncoder, CoCondenserQueryEncoder
 from fast_forward import Indexer
 from fast_forward.index.disk import OnDiskIndex
 import pyterrier as pt
 
 
 ### PARAMETERS
-dataset_name = "vaswani"
+dataset_name = "msmarco_passage"
 
 
 if not pt.started():
@@ -21,17 +21,17 @@ print("dataset info:", dataset.info_url())
 print("out_dir:", out_dir)
 print("device_name:", device_name)
 
-q_encoder = TCTColBERTQueryEncoder(
-    "castorini/tct_colbert-msmarco",
+q_encoder = CoCondenserQueryEncoder(
+    "Luyu/co-condenser-marco-retriever",
     device=device_name
 )
-d_encoder = TCTColBERTDocumentEncoder(
-    "castorini/tct_colbert-msmarco",
+d_encoder = CoCondenserDocumentEncoder(
+    "Luyu/co-condenser-marco-retriever",
     device=device_name,
 )
 
 ff_index = OnDiskIndex(
-    Path(f"{out_dir}/ff_index_TCTColBERT.h5"),
+    Path(f"{out_dir}/ff_index_CoCondenser.h5"),
     query_encoder=q_encoder,
     overwrite=True
 )
@@ -42,6 +42,6 @@ def docs_iter():
         yield {"doc_id": d["docno"], "text": d["text"]}
 
 ff_indexer = Indexer(ff_index, d_encoder, batch_size=4)
-ff_indexer.index_dicts(docs_iter())
+ff_indexer.from_dicts(docs_iter())
 
 print("Done.")
