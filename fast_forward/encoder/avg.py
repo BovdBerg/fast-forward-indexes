@@ -44,23 +44,23 @@ class WeightedAvgEncoder(Encoder):
     def __init__(
         self,
         index: Index,
-        k_avg: int,
-        w_method: W_METHOD,
         sparse_ranking: Ranking = None,
+        w_method: W_METHOD = W_METHOD.SOFTMAX_SCORES,
+        k_avg: int = 30,
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
 
         Args:
             index (Index): The index containing document embeddings.
-            k_avg (int): Number of top-ranked documents to use for averaging.
-            w_method (ProbDist): The probability distribution type used to assign weights to top-ranked documents.
             sparse_ranking (Ranking): The initial sparse ranking of documents.
+            w_method (W_METHOD): The probability distribution type used to assign weights to top-ranked documents.
+            k_avg (int): The number of top-ranked documents to average.
         """
         self.index = index
-        self.w_method: W_METHOD = w_method
-        self.k_avg: int = k_avg
         self.sparse_ranking = sparse_ranking if sparse_ranking is not None else None
+        self.w_method = w_method
+        self.k_avg = k_avg
         super().__init__()
 
     def _get_weights(self, n_docs: int, scores: Sequence[float]) -> Sequence[float]:
@@ -107,10 +107,7 @@ class WeightedAvgEncoder(Encoder):
         assert (
             self.sparse_ranking is not None
         ), "Please set the top_sparse_ranking attribute before calling the encoder."
-        top_ranking = self.sparse_ranking
-
-        if self.k_avg is not None:
-            top_ranking = top_ranking.cut(self.k_avg)
+        top_ranking = self.sparse_ranking.cut(self.k_avg)
 
         q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
 
