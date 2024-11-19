@@ -309,9 +309,6 @@ def main(args: argparse.Namespace) -> None:
         avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
     avg_pipelines = avg_pipelines[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
-    int_combo_tct = FFInterpolate(alpha=0.3)
-    combo = avg_pipelines[0] >> ff_tct >> int_combo_tct
-
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
         # TODO [later]: Tune k_avg for WeightedAvgEncoder
@@ -338,7 +335,6 @@ def main(args: argparse.Namespace) -> None:
             # bm25 has no tunable parameters, so it is not included here
             (tct, [int_tct], "tct"),
             (avg_pipelines[0], [int_avg[0]], "avg_1"),
-            (combo, [int_combo_tct], "combo"),
         ] + [
             (pipeline, [int_avg[i]], f"avg_{i+1}")
             for i, pipeline in enumerate(avg_pipelines[1:], start=1)
@@ -364,14 +360,12 @@ def main(args: argparse.Namespace) -> None:
         test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
             (~bm25, "bm25"),
             (tct, f"tct, α={int_tct.alpha}"),
-            (int_avg[0], f"avg_1, α={int_avg[0].alpha}"),
-            (combo, f"combo, α_AVG={int_avg[0].alpha}, α_TCT={int_combo_tct.alpha}"),
         ] + [
             (
                 avg_pipelines[i],
                 f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]",
             )
-            for i in range(1, len(int_avg))
+            for i in range(len(int_avg))
         ]
         test_pipelines = [(pipeline, desc) for pipeline, desc in test_pipelines]
 
