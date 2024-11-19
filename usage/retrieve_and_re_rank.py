@@ -31,6 +31,7 @@ from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
 PREVIOUS_RESULTS_FILE = Path("results.json")
 
+
 def parse_args():
     """
     Parse command-line arguments for the re-ranking script.
@@ -66,7 +67,7 @@ def parse_args():
         "--in_memory", action="store_true", help="Whether to load the index in memory."
     )
     parser.add_argument(
-        "--rerank_cutoff",
+        "--retrieval_depth",
         type=int,
         default=1000,
         help="Number of documents to re-rank per query.",
@@ -177,15 +178,15 @@ def print_settings() -> None:
     """
     # General settings
     settings_description: List[str] = [
-        f"rerank_cutoff={args.rerank_cutoff}, in_memory={args.in_memory}, device={args.device}",
+        f"retrieval_depth={args.retrieval_depth}, in_memory={args.in_memory}, device={args.device}",
         f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}",
     ]
     # Validation settings
     if args.val_pipelines:
         settings_description.append(f"Val: {args.val_pipelines}, α={args.alphas}")
 
-    print("Settings:\n\t"+ '\n\t'.join(settings_description))
-    return '\n'.join(settings_description)
+    print("Settings:\n\t" + "\n\t".join(settings_description))
+    return "\n".join(settings_description)
 
 
 def estimate_best_alpha(
@@ -240,7 +241,9 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         results (pd.DataFrame): Results of the experiment to append.
         settings_str (str): Settings used for the experiment
     """
-    service_acc = gspread.service_account(filename="/home/bvdb9/thesis-gsheets-credentials.json")
+    service_acc = gspread.service_account(
+        filename="/home/bvdb9/thesis-gsheets-credentials.json"
+    )
     spreadsheet = service_acc.open("Thesis Results")
     worksheet = spreadsheet.sheet1
     print(f"Saving results to Google Sheets file...")
@@ -250,16 +253,18 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
     results["Date"] = time.strftime("%Y-%m-%d %H:%M")
     results["Settings"] = settings_str
     prepend_cols = ["Remarks", "Date", "Settings"]
-    results = results[prepend_cols + [col for col in results.columns if col not in prepend_cols]]
+    results = results[
+        prepend_cols + [col for col in results.columns if col not in prepend_cols]
+    ]
 
     first_row = len(worksheet.get_all_values()) + 1
     last_row = first_row + len(results) - 1
 
     # Add horizontal line above the data
     format_cell_range(
-        worksheet, 
-        f"A{first_row}:G{first_row}", 
-        CellFormat(borders=Borders(top=Border("SOLID")))
+        worksheet,
+        f"A{first_row}:G{first_row}",
+        CellFormat(borders=Borders(top=Border("SOLID"))),
     )
 
     # Append the results
@@ -277,7 +282,7 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         format_cell_range(
             worksheet,
             f"A{max_ndcg10_row}:G{max_ndcg10_row}",
-            CellFormat(textFormat=TextFormat(bold=True))
+            CellFormat(textFormat=TextFormat(bold=True)),
         )
 
 
@@ -336,7 +341,7 @@ def main(args: argparse.Namespace) -> None:
         )
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
         bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
-    bm25_cut = ~bm25 % args.rerank_cutoff
+    bm25_cut = ~bm25 % args.retrieval_depth
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
     index_tct = OnDiskIndex.load(
@@ -447,13 +452,19 @@ def main(args: argparse.Namespace) -> None:
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
 
             results_str = results.round(decimals).astype(str)
-            prev_results_str = pd.read_json(PREVIOUS_RESULTS_FILE).round(decimals).astype(str)
-            if not PREVIOUS_RESULTS_FILE.exists() or not results_str.equals(prev_results_str):
+            prev_results_str = (
+                pd.read_json(PREVIOUS_RESULTS_FILE).round(decimals).astype(str)
+            )
+            if not PREVIOUS_RESULTS_FILE.exists() or not results_str.equals(
+                prev_results_str
+            ):
                 results.to_json(PREVIOUS_RESULTS_FILE, indent=4)
                 settings_str += f"\nTest: '{test_dataset_name}'"
                 append_to_gsheets(results, settings_str)
             else:
-                print("Results have not changed since the last run. Skipping Google Sheets update.")
+                print(
+                    "Results have not changed since the last run. Skipping Google Sheets update."
+                )
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
