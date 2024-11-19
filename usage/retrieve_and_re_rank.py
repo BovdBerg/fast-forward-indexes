@@ -355,8 +355,6 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(index_tct, args.k_avg, args.w_method)
 
-    # TODO: Check if PyTerrier supports caching now. Or try https://github.com/seanmacavaney/pyterrier-caching
-
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
     avg_int_alphas = args.avg_int_alphas + [0.5] * (
@@ -371,7 +369,6 @@ def main(args: argparse.Namespace) -> None:
 
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
-        # TODO [later]: Tune k_avg for WeightedAvgEncoder
         dataset_str = args.dev_dataset
         print(f"Loading dev queries and qrels from {dataset_str}...")
         dev_dataset = pt.get_dataset(dataset_str)
@@ -403,8 +400,6 @@ def main(args: argparse.Namespace) -> None:
         for pipeline, tunable_alphas, name in pipelines_to_validate:
             if name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
-                # TODO [IMPORTANT!]: Find why this reaches ~0.5 performance (ndCG@10 ~= 0.35 instead of 0.7)
-                # TODO: metric should be RR@10 or MRR@10 for dev/small.
                 pt.GridSearch(
                     pipeline,
                     {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
