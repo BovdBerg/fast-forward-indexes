@@ -182,9 +182,8 @@ def print_settings() -> None:
         f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}",
     ]
     # Validation settings
-    settings_description.append(f"val_pipelines={args.val_pipelines}")
     if args.val_pipelines:
-        settings_description[-1] += f": dev_sample_size={args.dev_sample_size}, alphas={args.alphas}"
+        settings_description.append(f"Val: {args.val_pipelines}, α={args.alphas}")
 
     print("Settings:\n\t"+ '\n\t'.join(settings_description))
     return '\n'.join(settings_description)
@@ -446,7 +445,7 @@ def main(args: argparse.Namespace) -> None:
 
             results_json = results.to_dict()
             if not PREVIOUS_RESULTS_FILE.exists() or results_json != json.loads(PREVIOUS_RESULTS_FILE.read_text()):
-                settings_str += f"\nTest dataset: '{test_dataset_name}'"
+                settings_str += f"\nTest: '{test_dataset_name}'"
                 append_to_gsheets(results, settings_str)
                 PREVIOUS_RESULTS_FILE.write_text(json.dumps(results_json, indent=4))
 
