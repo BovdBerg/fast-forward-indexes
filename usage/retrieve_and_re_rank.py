@@ -289,15 +289,14 @@ def main(args: argparse.Namespace) -> None:
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index)
     index_avg.query_encoder = WeightedAvgEncoder(index, args.k_avg, args.w_method)
-    ff_avg = FFScore(index_avg)
 
     # TODO: Check if PyTerrier supports caching now. Or try https://github.com/seanmacavaney/pyterrier-caching
-    # TODO: Try bm25 >> rm3 >> bm25 from lecture notebook 5.
 
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
     avg_int_alphas = args.avg_int_alphas + [0.5] * (avg_chains - len(args.avg_int_alphas))
     int_avg = [FFInterpolate(alpha=a) for a in avg_int_alphas[:avg_chains]]
+    ff_avg = FFScore(index_avg)
     avg_pipelines = [bm25_cut]
     for i in range(len(int_avg)):
         avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
