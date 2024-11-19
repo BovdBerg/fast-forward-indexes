@@ -17,8 +17,8 @@ from gspread_formatting import (
     Border,
     Borders,
     CellFormat,
-    format_cell_range,
     TextFormat,
+    format_cell_range,
 )
 from ir_measures import calc_aggregate, measures
 
@@ -28,7 +28,6 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from fast_forward.util import to_ir_measures
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
-
 
 PREVIOUS_RESULTS_FILE = Path("results.json")
 
@@ -244,7 +243,7 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
     service_acc = gspread.service_account(filename="/home/bvdb9/thesis-gsheets-credentials.json")
     spreadsheet = service_acc.open("Thesis Results")
     worksheet = spreadsheet.sheet1
-    print(f"Saving results to Google Sheets file \"{spreadsheet.title}\", on sheet \"{worksheet.title}\"...")
+    print(f"Saving results to Google Sheets file...")
 
     # Prepend date and time fields to the results
     results["Remarks"] = args.remarks
