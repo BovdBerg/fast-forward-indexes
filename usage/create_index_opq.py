@@ -16,7 +16,7 @@ ff_index_source = OnDiskIndex.load(
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 ff_index_target = OnDiskIndex(
-    Path("/home/bvdb9/indices/msmarco_passage/ff_index_CoCondenser.h5"),
+    Path("/home/bvdb9/indices/msmarco_passage/ff_index_CoCondenser_opq.h5"),
     CoCondenserQueryEncoder("Luyu/co-condenser-marco-retriever", device=device),
     overwrite=True,
     init_size=len(ff_index_source),
