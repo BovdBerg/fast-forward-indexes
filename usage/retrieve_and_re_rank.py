@@ -1,24 +1,35 @@
 import argparse
+import json
 import time
 import warnings
 from copy import copy
 from pathlib import Path
 from typing import List, Tuple
 
+import gspread
 import ir_datasets
 import numpy as np
+import pandas as pd
 import pyterrier as pt
 import torch
+from gspread_dataframe import set_with_dataframe
+from gspread_formatting import (
+    Border,
+    Borders,
+    CellFormat,
+    format_cell_range,
+)
 from ir_measures import calc_aggregate, measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
-from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from fast_forward.util import to_ir_measures
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
+
+PREVIOUS_RESULTS_FILE = Path("results.json")
 
 def parse_args():
     """
@@ -66,6 +77,12 @@ def parse_args():
         choices=["cuda", "cpu"],
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to use for encoding queries.",
+    )
+    parser.add_argument(
+        "--remarks",
+        type=str,
+        default="",
+        help="Additional remarks about the experiment. Will be added to the Google Sheets file.",
     )
     # WeightedAvgEncoder
     parser.add_argument(
@@ -148,32 +165,23 @@ def print_settings() -> None:
 
     Args:
         pipeline (pt.Transformer): The pipeline used for re-ranking.
+
+    Returns:
+        str: A string representation of the settings.
     """
     # General settings
     settings_description: List[str] = [
-        f"verbose={args.verbose}",
-        f"in_memory={args.in_memory}",
-        f"rerank_cutoff={args.rerank_cutoff}",
-        f"device={args.device}",
-        "WeightedAvgEncoder:",
-        f"\tw_method={args.w_method.name}",
-        f"\tk_avg={args.k_avg}",
-        f"\tavg_chains={args.avg_chains}",
+        f"rerank_cutoff={args.rerank_cutoff}, in_memory={args.in_memory}, device={args.device}",
+        f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}, avg_chains={args.avg_chains}",
     ]
     # Validation settings
     settings_description.append(f"val_pipelines={args.val_pipelines}")
     if args.val_pipelines:
-        settings_description[-1] += ":"
-        settings_description.extend(
-            [
-                f"\tdev_sample_size={args.dev_sample_size}",
-                f"\talphas={args.alphas}",
-                f"\tdev_eval_metric={args.dev_eval_metric}",
-            ]
-        )
-    settings_description.append(f"test_datasets={args.test_datasets}")
+        settings_description[-1] += f": dev_sample_size={args.dev_sample_size}, alphas={args.alphas}"
 
-    print(f"Settings:\n\t{'\n\t'.join(settings_description)}")
+    settings_str = '\n\t'.join(settings_description)
+    print("Settings:\n\t"+ settings_str)
+    return settings_str
 
 
 def estimate_best_alpha(
@@ -218,6 +226,44 @@ def estimate_best_alpha(
     print(
         f"\tEstimated best-nDCG@10 interpolated ranking (α~={best_alpha}): {best_score}"
     )
+
+
+def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
+    """
+    Append the results of an experiment to a Google Sheets document.
+
+    Args:
+        results (pd.DataFrame): Results of the experiment to append.
+        settings_str (str): Settings used for the experiment
+    """
+    service_acc = gspread.service_account(filename="/home/bvdb9/thesis-gsheets-credentials.json")
+    spreadsheet = service_acc.open("Thesis Results")
+    worksheet = spreadsheet.sheet1
+    print(f"Saving results to Google Sheets file \"{spreadsheet.title}\", on sheet \"{worksheet.title}\"...")
+
+    # Prepend date and time fields to the results
+    results["Remarks"] = args.remarks
+    results["Date"] = time.strftime("%Y-%m-%d %H:%M")
+    results["Settings"] = settings_str
+    prepend_cols = ["Remarks", "Date", "Settings"]
+    results = results[prepend_cols + [col for col in results.columns if col not in prepend_cols]]
+
+    first_row = len(worksheet.get_all_values()) + 1
+    last_row = first_row + len(results) - 1
+
+    # Add horizontal line above the data
+    format_cell_range(
+        worksheet, 
+        f"A{first_row}:G{first_row}", 
+        CellFormat(borders=Borders(top=Border("SOLID")))
+    )
+
+    # Append the results
+    set_with_dataframe(worksheet, results, row=first_row, include_column_header=False)
+
+    # Merge cells which share the same values
+    for col in ["A", "B", "C"]:
+        worksheet.merge_cells(f"{col}{first_row}:{col}{last_row}")
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
@@ -385,9 +431,14 @@ def main(args: argparse.Namespace) -> None:
                 names=[desc for _, desc in test_pipelines],
                 verbose=True,
             )
-            print_settings()
+            settings_str = print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
-            # TODO: Save experiment results to new row in Excel file.
+
+            results_json = results.to_dict()
+            if not PREVIOUS_RESULTS_FILE.exists() or results_json != json.loads(PREVIOUS_RESULTS_FILE.read_text()):
+                settings_str += f"\nTest dataset: {test_dataset_name}"
+                append_to_gsheets(results, settings_str)
+                PREVIOUS_RESULTS_FILE.write_text(json.dumps(results_json, indent=4))
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
