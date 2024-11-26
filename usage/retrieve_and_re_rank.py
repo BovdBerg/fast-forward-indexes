@@ -358,7 +358,7 @@ def main(args: argparse.Namespace) -> None:
     # TODO: Add profiling to re-ranking step
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index_tct)
-    index_avg.query_encoder = WeightedAvgEncoder(index_avg, args.k_avg, args.w_method)
+    index_avg.query_encoder = WeightedAvgEncoder(index_avg, args.w_method, args.k_avg)
 
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
