@@ -29,6 +29,7 @@ class W_METHOD(Enum):
     LINEAR_DECAY_RANKS = "LINEAR_DECAY_RANKS"
     LINEAR_DECAY_SCORES = "LINEAR_DECAY_SCORES"
     # TODO [IMPORTANT]: Add LEARNED distribution, with learned model weights based on training/validation data
+    # TODO [later]: After adding LEARNED distribution, should I train different transformers when chaining (per FFScore_i)?
 
 
 # TODO: top_ranking should probably be updated in each chain reranking. Check if only top_docs from original top_ranking are considered?
