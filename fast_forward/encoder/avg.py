@@ -44,23 +44,23 @@ class WeightedAvgEncoder(Encoder):
     def __init__(
         self,
         index: Index,
-        sparse_ranking: Ranking = None,
         w_method: W_METHOD = W_METHOD.SOFTMAX_SCORES,
         k_avg: int = 30,
+        sparse_ranking: Ranking = None,
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
 
         Args:
             index (Index): The index containing document embeddings.
-            sparse_ranking (Ranking): The initial sparse ranking of documents.
             w_method (W_METHOD): The probability distribution type used to assign weights to top-ranked documents.
             k_avg (int): The number of top-ranked documents to average.
+            sparse_ranking (Ranking): The initial sparse ranking of documents.
         """
         self.index = index
-        self.sparse_ranking = sparse_ranking
         self.w_method = w_method
         self.k_avg = k_avg
+        self.sparse_ranking = sparse_ranking
         super().__init__()
 
     def _get_weights(self, n_docs: int, scores: Sequence[float]) -> Sequence[float]:
