@@ -372,6 +372,11 @@ def main(args: argparse.Namespace) -> None:
         avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
     avg_pipelines = avg_pipelines[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
+    int_avg_tct = FFInterpolate(alpha=0.5)
+    avg_tct = bm25_cut >> ff_avg >> int_avg[0] >> ff_tct >> int_avg_tct
+    int_tct_avg = FFInterpolate(alpha=0.5)
+    tct_avg = bm25_cut >> ff_tct >> int_tct >> ff_avg >> int_tct_avg
+
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
         dataset_str = args.dev_dataset
@@ -392,6 +397,8 @@ def main(args: argparse.Namespace) -> None:
             # bm25 has no tunable parameters, so it is not included here
             (tct, [int_tct], "tct"),
             (avg_pipelines[0], [int_avg[0]], "avg_1"),
+            (avg_tct, [int_avg_tct], f"avg_tct"),
+            (tct_avg, [int_tct_avg], f"tct_avg"),
         ] + [
             (pipeline, [int_avg[i]], f"avg_{i+1}")
             for i, pipeline in enumerate(avg_pipelines[1:], start=1)
@@ -415,6 +422,8 @@ def main(args: argparse.Namespace) -> None:
         test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
             (~bm25, "bm25"),
             (tct, f"tct, α={int_tct.alpha}"),
+            (avg_tct, f"avg_tct, α={int_tct.alpha}"),
+            (tct_avg, f"tct_avg, α={int_avg[0].alpha}"),
         ] + [
             (
                 avg_pipelines[i],
