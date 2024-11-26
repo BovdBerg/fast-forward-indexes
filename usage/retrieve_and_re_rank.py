@@ -387,11 +387,6 @@ def main(args: argparse.Namespace) -> None:
             )  # Fixed seed for reproducibility.
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
-        print(f"Adding {len(dev_queries)} sampled queries to BM25 ranking...")
-        bm25_df = bm25_cut(dev_queries).rename(columns={"qid": "q_id", "docid": "id"})
-        print("Creating BM25 ranking for dev queries...")
-        index_avg.query_encoder.sparse_ranking = Ranking(bm25_df)
-
         # Validate pipelines in args.val_pipelines.
         pipelines_to_validate = [
             # bm25 has no tunable parameters, so it is not included here
@@ -433,9 +428,6 @@ def main(args: argparse.Namespace) -> None:
         for test_dataset_name in args.test_datasets:
             test_dataset = pt.get_dataset(test_dataset_name)
             test_queries = test_dataset.get_topics()
-            index_avg.query_encoder.sparse_ranking = Ranking(
-                df=bm25_cut(test_queries).rename(columns={"qid": "q_id", "docid": "id"})
-            )
 
             print(f"\nRunning final tests on {test_dataset_name}...")
             decimals = 5

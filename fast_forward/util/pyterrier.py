@@ -1,6 +1,7 @@
 import pandas as pd
 import pyterrier as pt
 
+from fast_forward.encoder.avg import WeightedAvgEncoder
 from fast_forward.index import Index
 from fast_forward.ranking import Ranking
 
@@ -27,9 +28,16 @@ class FFScore(pt.Transformer):
         Returns:
             pd.DataFrame: A new data frame with the computed scores.
         """
+        ranking_df = df.rename(columns={"qid": "q_id", "docno": "id"})  # Ranking needs renamed columns
+
+        # update sparse_ranking in WeightedAvgEncoder
+        query_encoder = self._index._query_encoder
+        if isinstance(query_encoder, WeightedAvgEncoder):
+            query_encoder.sparse_ranking = Ranking(ranking_df)
+
         ff_scores = self._index(
             Ranking(
-                df.rename(columns={"qid": "q_id", "docno": "id"}),
+                ranking_df,
                 copy=False,
                 is_sorted=True,
             )
