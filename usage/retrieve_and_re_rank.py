@@ -423,8 +423,8 @@ def main(args: argparse.Namespace) -> None:
         test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
             (~sys_bm25, "bm25"),
             (sys_tct, f"tct, α={int_tct.alpha}"),
-            (sys_avg_tct, f"avg_tct, α={int_tct.alpha}"),
-            (sys_tct_avg, f"tct_avg, α={int_avg[0].alpha}"),
+            (sys_avg_tct, f"avg_tct, α={int_avg_tct.alpha}"),
+            (sys_tct_avg, f"tct_avg, α={int_tct_avg.alpha}"),
         ] + [
             (
                 sys_avg[i],
