@@ -373,9 +373,9 @@ def main(args: argparse.Namespace) -> None:
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
     # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
-    int_avg_tct = FFInterpolate(alpha=0.5)
+    int_avg_tct = FFInterpolate(alpha=0.2)
     sys_avg_tct = sys_bm25_cut >> ff_avg >> int_avg[0] >> ff_tct >> int_avg_tct
-    int_tct_avg = FFInterpolate(alpha=0.5)
+    int_tct_avg = FFInterpolate(alpha=0.8)
     sys_tct_avg = sys_bm25_cut >> ff_tct >> int_tct >> ff_avg >> int_tct_avg
 
     # Validation and parameter tuning on dev set
