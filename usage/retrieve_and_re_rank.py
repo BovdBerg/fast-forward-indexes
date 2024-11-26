@@ -331,7 +331,7 @@ def main(args: argparse.Namespace) -> None:
     dataset = pt.get_dataset(args.dataset)
     print("Creating BM25 retriever via PyTerrier index...")
     try:
-        bm25 = pt.BatchRetrieve.from_dataset(
+        sys_bm25 = pt.BatchRetrieve.from_dataset(
             dataset, "terrier_stemmed", wmodel="BM25", verbose=True
         )
     except:
@@ -340,8 +340,8 @@ def main(args: argparse.Namespace) -> None:
             type=pt.index.IndexingType.MEMORY,
         )
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
-        bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
-    bm25_cut = ~bm25 % args.retrieval_depth
+        sys_bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
+    sys_bm25_cut = ~sys_bm25 % args.retrieval_depth
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
     index_tct = OnDiskIndex.load(
@@ -353,7 +353,7 @@ def main(args: argparse.Namespace) -> None:
         index_tct = index_tct.to_memory(2**14)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.1)
-    tct = bm25_cut >> ff_tct >> int_tct
+    sys_tct = sys_bm25_cut >> ff_tct >> int_tct
 
     # TODO: Add profiling to re-ranking step
     # Create re-ranking pipeline based on WeightedAvgEncoder
@@ -367,15 +367,16 @@ def main(args: argparse.Namespace) -> None:
     )
     int_avg = [FFInterpolate(alpha=a) for a in avg_int_alphas[:avg_chains]]
     ff_avg = FFScore(index_avg)
-    avg_pipelines = [bm25_cut]
+    sys_avg = [sys_bm25_cut]
     for i in range(len(int_avg)):
-        avg_pipelines.append(avg_pipelines[-1] >> ff_avg >> int_avg[i])
-    avg_pipelines = avg_pipelines[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
+        sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
+    sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
+    # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
     int_avg_tct = FFInterpolate(alpha=0.5)
-    avg_tct = bm25_cut >> ff_avg >> int_avg[0] >> ff_tct >> int_avg_tct
+    sys_avg_tct = sys_bm25_cut >> ff_avg >> int_avg[0] >> ff_tct >> int_avg_tct
     int_tct_avg = FFInterpolate(alpha=0.5)
-    tct_avg = bm25_cut >> ff_tct >> int_tct >> ff_avg >> int_tct_avg
+    sys_tct_avg = sys_bm25_cut >> ff_tct >> int_tct >> ff_avg >> int_tct_avg
 
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
@@ -395,13 +396,13 @@ def main(args: argparse.Namespace) -> None:
         # Validate pipelines in args.val_pipelines.
         pipelines_to_validate = [
             # bm25 has no tunable parameters, so it is not included here
-            (tct, [int_tct], "tct"),
-            (avg_pipelines[0], [int_avg[0]], "avg_1"),
-            (avg_tct, [int_avg_tct], f"avg_tct"),
-            (tct_avg, [int_tct_avg], f"tct_avg"),
+            (sys_tct, [int_tct], "tct"),
+            (sys_avg[0], [int_avg[0]], "avg_1"),
+            (sys_avg_tct, [int_avg_tct], f"avg_tct"),
+            (sys_tct_avg, [int_tct_avg], f"tct_avg"),
         ] + [
             (pipeline, [int_avg[i]], f"avg_{i+1}")
-            for i, pipeline in enumerate(avg_pipelines[1:], start=1)
+            for i, pipeline in enumerate(sys_avg[1:], start=1)
         ]
 
         for pipeline, tunable_alphas, name in pipelines_to_validate:
@@ -420,13 +421,13 @@ def main(args: argparse.Namespace) -> None:
     if args.test_datasets:
         # Define which pipelines to evaluate on test sets
         test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
-            (~bm25, "bm25"),
-            (tct, f"tct, α={int_tct.alpha}"),
-            (avg_tct, f"avg_tct, α={int_tct.alpha}"),
-            (tct_avg, f"tct_avg, α={int_avg[0].alpha}"),
+            (~sys_bm25, "bm25"),
+            (sys_tct, f"tct, α={int_tct.alpha}"),
+            (sys_avg_tct, f"avg_tct, α={int_tct.alpha}"),
+            (sys_tct_avg, f"tct_avg, α={int_avg[0].alpha}"),
         ] + [
             (
-                avg_pipelines[i],
+                sys_avg[i],
                 f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]",
             )
             for i in range(len(int_avg))
