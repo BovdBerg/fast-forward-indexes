@@ -58,7 +58,7 @@ class WeightedAvgEncoder(Encoder):
             k_avg (int): The number of top-ranked documents to average.
         """
         self.index = index
-        self.sparse_ranking = sparse_ranking if sparse_ranking is not None else None
+        self.sparse_ranking = sparse_ranking
         self.w_method = w_method
         self.k_avg = k_avg
         super().__init__()
