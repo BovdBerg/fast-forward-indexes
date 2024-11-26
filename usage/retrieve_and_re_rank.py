@@ -398,7 +398,7 @@ def main(args: argparse.Namespace) -> None:
         ]
 
         for pipeline, tunable_alphas, name in pipelines_to_validate:
-            if name in args.val_pipelines:
+            if args.val_pipelines == ["all"] or name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
                 pt.GridSearch(
                     pipeline,
