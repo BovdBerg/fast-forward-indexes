@@ -32,6 +32,7 @@ class W_METHOD(Enum):
 
 
 # TODO: top_ranking should probably be updated in each chain reranking. Check if only top_docs from original top_ranking are considered?
+# TODO: rename sparse_ranking to ranking_in
 class WeightedAvgEncoder(Encoder):
     """
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.
