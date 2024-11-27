@@ -30,6 +30,7 @@ class FFScore(pt.Transformer):
         """
         ranking_df = df.rename(columns={"qid": "q_id", "docno": "id"})  # Ranking needs renamed columns
 
+        # TODO: Can this WeightedAvgEncoder logic be moved to its own transformer?
         # update sparse_ranking in WeightedAvgEncoder
         query_encoder = self._index._query_encoder
         if isinstance(query_encoder, WeightedAvgEncoder):
