@@ -1,4 +1,6 @@
 import argparse
+import cProfile
+import pstats
 import time
 from copy import copy
 from pathlib import Path
@@ -22,7 +24,9 @@ from ir_measures import measures
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index.disk import OnDiskIndex
+from fast_forward.ranking import Ranking
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
+from tqdm import tqdm
 
 PREVIOUS_RESULTS_FILE = Path("results.json")
 
@@ -158,6 +162,12 @@ def parse_args():
         ],  # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
         help="Metrics used for evaluation.",
     )
+    # PROFILING
+    parser.add_argument(
+        "--create_profile",
+        action="store_true",
+        help="Profile the re-ranking step.",
+    )
     return parser.parse_args()
 
 
@@ -238,6 +248,7 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
+# TODO: Split the main function into smaller functions for better readability.
 def main(args: argparse.Namespace) -> None:
     """
     Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
@@ -407,6 +418,28 @@ def main(args: argparse.Namespace) -> None:
             settings_str = print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
 
+            # PROFILING
+            if args.create_profile:
+                profile_dir = Path(__file__).parent.parent / "profiles"
+                profile_dir.mkdir(parents=True, exist_ok=True)
+                print(f"Creating re-ranking profiles in {profile_dir}...")
+
+                sparse_df = sys_bm25_cut.transform(test_queries)
+                sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
+
+                profiles = [
+                    ("tct", index_tct, int_tct.alpha),
+                    ("avg", index_avg, int_avg[0].alpha),
+                ]
+                for name, index, alpha in tqdm(profiles, desc="Profiling pipelines", total=len(profiles)):
+                    with cProfile.Profile() as profile:
+                        # TODO: Can I use the pipelines directly here?
+                        sparse_ranking.interpolate(index(sparse_ranking), alpha)
+                    pstats.Stats(profile) \
+                        .sort_stats(pstats.SortKey.TIME) \
+                        .dump_stats(profile_dir / f"{name}.prof")
+
+            # SAVING TO GOOGLE SHEETS
             results_str = results.round(decimals).astype(str)
             prev_results_str = (
                 pd.read_json(PREVIOUS_RESULTS_FILE).round(decimals).astype(str)

@@ -109,6 +109,6 @@ venv.bak/
 .DS_Store
 
 # Profiling
-profiling/profiles/
 cache/*/*
 results.json
+profiles/
