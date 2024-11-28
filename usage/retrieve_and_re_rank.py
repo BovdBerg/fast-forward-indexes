@@ -419,6 +419,7 @@ def main(args: argparse.Namespace) -> None:
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
 
             # PROFILING
+            # View a profile in your webbrowser by running `tuna path/to/profile.prof --port=8000` and opening http://localhost:8000
             if args.create_profile:
                 profile_dir = Path(__file__).parent.parent / "profiles"
                 profile_dir.mkdir(parents=True, exist_ok=True)
@@ -427,14 +428,18 @@ def main(args: argparse.Namespace) -> None:
                 sparse_df = sys_bm25_cut.transform(test_queries)
                 sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
 
-                profiles = [
+                prof_pipelines = [
                     ("tct", index_tct, int_tct.alpha),
-                    ("avg", index_avg, int_avg[0].alpha),
+                    ("avg_1", index_avg, int_avg[0].alpha),
                 ]
-                for name, index, alpha in tqdm(profiles, desc="Profiling pipelines", total=len(profiles)):
+
+                for name, index, alpha in tqdm(prof_pipelines, desc="Creating profiles", total=len(prof_pipelines)):
                     with cProfile.Profile() as profile:
                         # TODO: Can I use the pipelines directly here?
-                        sparse_ranking.interpolate(index(sparse_ranking), alpha)
+                        ff_ranking = index(sparse_ranking)
+                        sparse_ranking.interpolate(ff_ranking, alpha)
+
+                    # Sort and save the profile
                     pstats.Stats(profile) \
                         .sort_stats(pstats.SortKey.TIME) \
                         .dump_stats(profile_dir / f"{name}.prof")
