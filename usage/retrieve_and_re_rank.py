@@ -317,7 +317,6 @@ def main(args: argparse.Namespace) -> None:
     int_tct = FFInterpolate(alpha=0.1)
     sys_tct = sys_bm25_cut >> ff_tct >> int_tct
 
-    # TODO: Add profiling to re-ranking step
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(index_avg, args.w_method, args.k_avg)
@@ -338,6 +337,29 @@ def main(args: argparse.Namespace) -> None:
     # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
     int_avg_tct = FFInterpolate(alpha=0.2)
     sys_avg_tct = sys_avg[0] >> ff_tct >> int_avg_tct
+
+    # View a profile in your webbrowser by running `tuna path/to/profile.prof --port=8000` and opening http://localhost:8000
+    if args.profiling:
+        profile_dir = Path(__file__).parent.parent / "profiles"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Creating re-ranking profiles in {profile_dir}...")
+
+        prof_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
+        prof_queries = prof_dataset.get_topics()
+
+        prof_pipelines = [
+            ("tct", sys_bm25_cut >> ff_tct >> int_tct),
+            ("avg_1", sys_bm25_cut >> ff_avg >> int_avg[0]),
+        ]
+
+        for name, system in tqdm(prof_pipelines, desc="Creating profiles", total=len(prof_pipelines)):
+            with cProfile.Profile() as profile:
+                system(prof_queries)
+
+            # Sort and save the profile
+            pstats.Stats(profile) \
+                .sort_stats(pstats.SortKey.TIME) \
+                .dump_stats(profile_dir / f"{name}.prof")
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
@@ -414,32 +436,6 @@ def main(args: argparse.Namespace) -> None:
             )
             settings_str = print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
-
-            # PROFILING
-            # View a profile in your webbrowser by running `tuna path/to/profile.prof --port=8000` and opening http://localhost:8000
-            if args.profiling:
-                profile_dir = Path(__file__).parent.parent / "profiles"
-                profile_dir.mkdir(parents=True, exist_ok=True)
-                print(f"Creating re-ranking profiles in {profile_dir}...")
-
-                sparse_df = sys_bm25_cut.transform(test_queries)
-                sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
-
-                prof_pipelines = [
-                    ("tct", index_tct, int_tct.alpha),
-                    ("avg_1", index_avg, int_avg[0].alpha),
-                ]
-
-                for name, index, alpha in tqdm(prof_pipelines, desc="Creating profiles", total=len(prof_pipelines)):
-                    with cProfile.Profile() as profile:
-                        # TODO: Can I use the pipelines directly here?
-                        ff_ranking = index(sparse_ranking)
-                        sparse_ranking.interpolate(ff_ranking, alpha)
-
-                    # Sort and save the profile
-                    pstats.Stats(profile) \
-                        .sort_stats(pstats.SortKey.TIME) \
-                        .dump_stats(profile_dir / f"{name}.prof")
 
             # SAVING TO GOOGLE SHEETS
             results_str = results.round(decimals).astype(str)
