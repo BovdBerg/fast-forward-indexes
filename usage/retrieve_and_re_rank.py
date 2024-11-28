@@ -334,12 +334,10 @@ def main(args: argparse.Namespace) -> None:
         sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
+    # TODO [later]: Try using best performing sys_avg in sys_avg_tct rather than the first
     # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
     int_avg_tct = FFInterpolate(alpha=0.2)
-    # TODO [later]: Try using best performing sys_avg in sys_avg_tct rather than the first
     sys_avg_tct = sys_avg[0] >> ff_tct >> int_avg_tct
-    int_tct_avg = FFInterpolate(alpha=0.8)
-    sys_tct_avg = sys_tct >> ff_avg >> int_tct_avg
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
@@ -358,12 +356,12 @@ def main(args: argparse.Namespace) -> None:
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines.
+        # TODO: merge val_pipelines with test_pipelines and prof_pipelines logic
         val_pipelines = [
             # bm25 has no tunable parameters, so it is not included here
             (sys_tct, [int_tct], "tct"),
             (sys_avg[0], [int_avg[0]], "avg_1"),
             (sys_avg_tct, [int_avg_tct], f"avg_tct"),
-            (sys_tct_avg, [int_tct_avg], f"tct_avg"),
         ] + [
             (pipeline, [int_avg[i]], f"avg_{i+1}")
             for i, pipeline in enumerate(sys_avg[1:], start=1)
@@ -389,7 +387,6 @@ def main(args: argparse.Namespace) -> None:
             (sys_tct, f"tct, α={int_tct.alpha}"),
             (sys_avg[0], f"avg_1, α={int_avg[0].alpha}"),
             (sys_avg_tct, f"avg_tct, α={int_avg_tct.alpha}"),
-            (sys_tct_avg, f"tct_avg, α={int_tct_avg.alpha}"),
         ] + [
             (
                 sys_avg[i],
