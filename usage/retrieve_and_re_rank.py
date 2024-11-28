@@ -358,7 +358,7 @@ def main(args: argparse.Namespace) -> None:
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines.
-        pipelines_to_validate = [
+        val_pipelines = [
             # bm25 has no tunable parameters, so it is not included here
             (sys_tct, [int_tct], "tct"),
             (sys_avg[0], [int_avg[0]], "avg_1"),
@@ -369,11 +369,11 @@ def main(args: argparse.Namespace) -> None:
             for i, pipeline in enumerate(sys_avg[1:], start=1)
         ]
 
-        for pipeline, tunable_alphas, name in pipelines_to_validate:
+        for transformer, tunable_alphas, name in val_pipelines:
             if args.val_pipelines == ["all"] or name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
                 pt.GridSearch(
-                    pipeline,
+                    transformer,
                     {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
                     dev_queries,
                     dev_qrels,
@@ -384,7 +384,7 @@ def main(args: argparse.Namespace) -> None:
 
     if args.test_datasets:
         # Define which pipelines to evaluate on test sets
-        test_pipelines: List[Tuple[str, pt.Transformer, str]] = [
+        test_pipelines = [
             (~sys_bm25, "bm25"),
             (sys_tct, f"tct, α={int_tct.alpha}"),
             (sys_avg[0], f"avg_1, α={int_avg[0].alpha}"),
