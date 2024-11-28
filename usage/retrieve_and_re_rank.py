@@ -164,7 +164,7 @@ def parse_args():
     )
     # PROFILING
     parser.add_argument(
-        "--create_profile",
+        "--profiling",
         action="store_true",
         help="Profile the re-ranking step.",
     )
@@ -417,7 +417,7 @@ def main(args: argparse.Namespace) -> None:
 
             # PROFILING
             # View a profile in your webbrowser by running `tuna path/to/profile.prof --port=8000` and opening http://localhost:8000
-            if args.create_profile:
+            if args.profiling:
                 profile_dir = Path(__file__).parent.parent / "profiles"
                 profile_dir.mkdir(parents=True, exist_ok=True)
                 print(f"Creating re-ranking profiles in {profile_dir}...")
