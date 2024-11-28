@@ -367,11 +367,11 @@ def main(args: argparse.Namespace) -> None:
             for i, pipeline in enumerate(sys_avg[1:], start=1)
         ]
 
-        for transformer, tunable_alphas, name in val_pipelines:
+        for system, tunable_alphas, name in val_pipelines:
             if args.val_pipelines == ["all"] or name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
                 pt.GridSearch(
-                    transformer,
+                    system,
                     {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
                     dev_queries,
                     dev_qrels,
