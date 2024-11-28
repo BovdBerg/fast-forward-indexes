@@ -1,13 +1,10 @@
 import argparse
-import json
 import time
-import warnings
 from copy import copy
 from pathlib import Path
 from typing import List, Tuple
 
 import gspread
-import ir_datasets
 import numpy as np
 import pandas as pd
 import pyterrier as pt
@@ -20,13 +17,11 @@ from gspread_formatting import (
     TextFormat,
     format_cell_range,
 )
-from ir_measures import calc_aggregate, measures
+from ir_measures import measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index.disk import OnDiskIndex
-from fast_forward.ranking import Ranking
-from fast_forward.util import to_ir_measures
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
 PREVIOUS_RESULTS_FILE = Path("results.json")
