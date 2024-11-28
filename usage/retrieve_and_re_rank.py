@@ -189,50 +189,6 @@ def print_settings() -> None:
     return "\n".join(settings_description)
 
 
-def estimate_best_alpha(
-    sparse_ranking: Ranking,
-    dense_ranking: Ranking,
-    dataset: ir_datasets.Dataset,
-    eval_metrics: List[measures.Measure],
-) -> None:
-    """
-    Calculate and print the evaluation results for different interpolation parameters.
-
-    Args:
-        sparse_ranking (Ranking): The initial sparse ranking of documents.
-        dense_ranking (Ranking): The re-ranked dense ranking of documents.
-        dataset (ir_datasets.Dataset): Dataset to evaluate the rankings.
-        eval_metrics (List[measures.Measure]): Evaluation metrics.
-    """
-    warnings.warn("This method is still experimental and may not work as expected.")
-
-    # Estimate best interpolation alpha as weighted average of sparse- and dense-nDCG scores
-    dense_score = calc_aggregate(
-        eval_metrics, dataset.qrels_iter(), to_ir_measures(dense_ranking)
-    )
-    sparse_score = calc_aggregate(
-        eval_metrics, dataset.qrels_iter(), to_ir_measures(sparse_ranking)
-    )
-    dense_nDCG10 = dense_score[measures.nDCG @ 10]
-    sparse_nDCG10 = sparse_score[measures.nDCG @ 10]
-    weights = [dense_nDCG10, sparse_nDCG10]
-    if sparse_nDCG10 == dense_nDCG10:
-        best_alpha = 0.5
-    elif dense_nDCG10 > sparse_nDCG10:
-        best_alpha = np.average([0, 0.5], weights=weights)
-    else:
-        best_alpha = np.average([0.5, 1], weights=weights)
-    assert 0 <= best_alpha <= 1, f"Invalid best_alpha: {best_alpha}"
-    best_score = calc_aggregate(
-        eval_metrics,
-        dataset.qrels_iter(),
-        to_ir_measures(sparse_ranking.interpolate(dense_ranking, best_alpha)),
-    )
-    print(
-        f"\tEstimated best-nDCG@10 interpolated ranking (α~={best_alpha}): {best_score}"
-    )
-
-
 def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
     """
     Append the results of an experiment to a Google Sheets document.
@@ -379,6 +335,7 @@ def main(args: argparse.Namespace) -> None:
     int_tct_avg = FFInterpolate(alpha=0.8)
     sys_tct_avg = sys_tct >> ff_avg >> int_tct_avg
 
+    # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
         dataset_str = args.dev_dataset
