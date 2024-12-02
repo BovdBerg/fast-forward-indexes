@@ -66,7 +66,7 @@ def parse_args():
         "--in_memory", action="store_true", help="Whether to load the index in memory."
     )
     parser.add_argument(
-        "--retrieval_depth",
+        "--sparse_cutoff",
         type=int,
         default=1000,
         help="Number of documents to re-rank per query.",
@@ -183,7 +183,7 @@ def print_settings() -> None:
     """
     # General settings
     settings_description: List[str] = [
-        f"retrieval_depth={args.retrieval_depth}, in_memory={args.in_memory}, device={args.device}",
+        f"sparse_cutoff={args.sparse_cutoff}, in_memory={args.in_memory}, device={args.device}",
         f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}",
     ]
     # Validation settings
@@ -362,7 +362,7 @@ def main(args: argparse.Namespace) -> None:
         )
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
         sys_bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
-    sys_bm25_cut = ~sys_bm25 % args.retrieval_depth
+    sys_bm25_cut = ~sys_bm25 % args.sparse_cutoff
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
     index_tct = OnDiskIndex.load(
