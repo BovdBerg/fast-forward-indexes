@@ -34,16 +34,30 @@ pip install fast-forward-indexes
 
 
 ## Instructions
+### Re-ranking
 <!-- TODO [final]: update run script in readme -->
 Re-ranking can be done by running this code:
 ```bash
-python usage/rerank.py \
+python usage/retrieve_and_re_rank.py \
     --index_path path/to/index_path.h5 \
     --in_memory \
-    --test_dataset irds:msmarco-passage/trec-dl-2019/judged \
-    --test_sparse_ranking_path path/to/sparse_ranking.tsv \
+    --sparse_cutoff 1000 \
+    --remarks "From README.md" \
+    --avg_chains 3 \
+    --dev_sample_size 512 \
+    --val_pipelines all \
+    --test_datasets irds:msmarco-passage/trec-dl-2019/judged irds:msmarco-passage/trec-dl-2020/judged \
+    --eval_metrics nDCG@10 RR(rel=2)@10 AP(rel=2)@10
 ```
 
 For a detailed description of the program arguments:
 - Look in the `usage/rerank.py::parse_args` method.
 - Or run: ```python usage/rerank.py -h```
+
+### Profiling
+```bash
+python usage/retrieve_and_re_rank.py \
+    --in_memory \
+    --profiling \
+    --device=cpu \
+```
