@@ -348,19 +348,35 @@ def main(args: argparse.Namespace) -> None:
         prof_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
         prof_queries = prof_dataset.get_topics()
 
-        prof_pipelines = [
-            ("tct", sys_bm25_cut >> ff_tct >> int_tct),
-            ("avg_1", sys_bm25_cut >> ff_avg >> int_avg[0]),
-        ]
+        sparse_df = sys_bm25_cut.transform(prof_queries)
+        sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
+        index_avg.query_encoder.sparse_ranking = sparse_ranking
 
-        for name, system in tqdm(prof_pipelines, desc="Creating profiles", total=len(prof_pipelines)):
-            with cProfile.Profile() as profile:
-                system(prof_queries)
+        print("Creating avg_1 profile...")
+        with cProfile.Profile() as profile:
+            avg_ranking = index_avg(sparse_ranking)
+            int_ranking = sparse_ranking.interpolate(avg_ranking, int_avg[0].alpha)
+        pstats.Stats(profile) \
+            .sort_stats(pstats.SortKey.TIME) \
+            .dump_stats(profile_dir / "avg_1.prof")
 
-            # Sort and save the profile
-            pstats.Stats(profile) \
-                .sort_stats(pstats.SortKey.TIME) \
-                .dump_stats(profile_dir / f"{name}.prof")
+        print("Creating tct profile...")
+        with cProfile.Profile() as profile:
+            tct_ranking = index_tct(int_ranking)
+            sparse_ranking.interpolate(tct_ranking, int_tct.alpha)
+        pstats.Stats(profile) \
+            .sort_stats(pstats.SortKey.TIME) \
+            .dump_stats(profile_dir / "tct.prof")
+
+        print("Creating avg_tct profile...")
+        with cProfile.Profile() as profile:
+            avg_ranking = index_avg(sparse_ranking)
+            int_ranking = sparse_ranking.interpolate(avg_ranking, int_avg[0].alpha)
+            avg_tct_ranking = index_tct(int_ranking)
+            sparse_ranking.interpolate(avg_tct_ranking, int_avg_tct.alpha)
+        pstats.Stats(profile) \
+            .sort_stats(pstats.SortKey.TIME) \
+            .dump_stats(profile_dir / "avg_tct.prof")
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
