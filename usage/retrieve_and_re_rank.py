@@ -247,6 +247,7 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         )
 
 
+# TODO: Find why tct profile exists for >50% of built-in methods
 def profile(
     sys_bm25_cut: pt.Transformer,
     index_avg: Index,
@@ -277,7 +278,6 @@ def profile(
 
     sparse_df = sys_bm25_cut.transform(prof_queries)
     sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
-    index_avg.query_encoder.sparse_ranking = sparse_ranking
 
     def _profile(name, f):
         print(f"\t{name}...")
@@ -288,13 +288,18 @@ def profile(
             .dump_stats(profile_dir / f"{name}.prof")
 
     _profile(
-        "avg_1",
-        lambda: sparse_ranking.interpolate(index_avg(sparse_ranking), avg_alpha),
+        "bm25",
+        lambda: sys_bm25_cut.transform(prof_queries),
     )
 
     _profile(
         "tct",
         lambda: sparse_ranking.interpolate(index_tct(sparse_ranking), tct_alpha),
+    )
+
+    _profile(
+        "avg_1",
+        lambda: sparse_ranking.interpolate(index_avg(sparse_ranking), avg_alpha),
     )
 
     _profile(
