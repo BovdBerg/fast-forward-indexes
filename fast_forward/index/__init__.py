@@ -479,6 +479,10 @@ class Index(abc.ABC):
         # early stopping splits the data frame, hence we need to keep track of the original index
         df_with_q_no["orig_index"] = df_with_q_no.index
 
+        query_encoder = self._query_encoder
+        if hasattr(query_encoder, 'sparse_ranking'):
+            query_encoder.sparse_ranking = Ranking(ranking._df)
+
         # batch encode queries
         query_vectors = self.encode_queries(list(query_df["query"]))
 

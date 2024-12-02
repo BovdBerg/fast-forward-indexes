@@ -28,15 +28,9 @@ class FFScore(pt.Transformer):
         Returns:
             pd.DataFrame: A new data frame with the computed scores.
         """
-        ranking_df = df.rename(columns={"qid": "q_id", "docno": "id"})  # Ranking needs renamed columns
-
-        query_encoder = self._index._query_encoder
-        if isinstance(query_encoder, WeightedAvgEncoder):
-            query_encoder.sparse_ranking = Ranking(ranking_df)
-
         ff_scores = self._index(
             Ranking(
-                ranking_df,
+                df.rename(columns={"qid": "q_id", "docno": "id"}),
                 copy=False,
                 is_sorted=True,
             )
