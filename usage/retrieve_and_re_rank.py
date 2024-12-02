@@ -4,7 +4,7 @@ import pstats
 import time
 from copy import copy
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 import gspread
 import numpy as np
@@ -23,10 +23,10 @@ from ir_measures import measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
+from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
-from tqdm import tqdm
 
 PREVIOUS_RESULTS_FILE = Path("results.json")
 
@@ -247,6 +247,65 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         )
 
 
+def profile(
+    sys_bm25_cut: pt.Transformer,
+    index_avg: Index,
+    index_tct: Index,
+    avg_alpha: float,
+    tct_alpha: float,
+    avg_tct_alpha: float,
+):
+    """
+    Profile the re-ranking step to identify bottlenecks.
+    View a profile by running `tuna path/to/profile.prof --port=8000` and opening http://localhost:8000 in your webbrowser.
+
+    Args:
+        sys_bm25_cut (pt.Transformer): BM25 retriever.
+        index_avg (Index): Index for the WeightedAvgEncoder.
+        index_tct (Index): Index for the TCTColBERTQueryEncoder.
+        avg_alpha (float): Alpha value for the WeightedAvgEncoder.
+        tct_alpha (float): Alpha value for the TCTColBERTQueryEncoder.
+        avg_tct_alpha (float): Alpha value for the combined pipeline.
+    """
+
+    profile_dir = Path(__file__).parent.parent / "profiles"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Creating re-ranking profiles in {profile_dir}...")
+
+    prof_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
+    prof_queries = prof_dataset.get_topics()
+
+    sparse_df = sys_bm25_cut.transform(prof_queries)
+    sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
+    index_avg.query_encoder.sparse_ranking = sparse_ranking
+
+    print("\tavg_1 profile...")
+    with cProfile.Profile() as profile:
+        avg_ranking = index_avg(sparse_ranking)
+        int_ranking = sparse_ranking.interpolate(avg_ranking, avg_alpha)
+    pstats.Stats(profile) \
+        .sort_stats(pstats.SortKey.TIME) \
+        .dump_stats(profile_dir / "avg_1.prof")
+
+    print("\ttct profile...")
+    with cProfile.Profile() as profile:
+        tct_ranking = index_tct(int_ranking)
+        sparse_ranking.interpolate(tct_ranking, tct_alpha)
+    pstats.Stats(profile) \
+        .sort_stats(pstats.SortKey.TIME) \
+        .dump_stats(profile_dir / "tct.prof")
+
+    print("\tavg_tct profile...")
+    with cProfile.Profile() as profile:
+        avg_ranking = index_avg(sparse_ranking)
+        int_ranking = sparse_ranking.interpolate(avg_ranking, avg_alpha)
+        avg_tct_ranking = index_tct(int_ranking)
+        sparse_ranking.interpolate(avg_tct_ranking, avg_tct_alpha)
+    pstats.Stats(profile) \
+        .sort_stats(pstats.SortKey.TIME) \
+        .dump_stats(profile_dir / "avg_tct.prof")
+
+
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 # TODO: Split the main function into smaller functions for better readability.
 def main(args: argparse.Namespace) -> None:
@@ -339,44 +398,8 @@ def main(args: argparse.Namespace) -> None:
     int_avg_tct = FFInterpolate(alpha=0.2)
     sys_avg_tct = sys_avg[0] >> ff_tct >> int_avg_tct
 
-    # View a profile in your webbrowser by running `tuna path/to/profile.prof --port=8000` and opening http://localhost:8000
     if args.profiling:
-        profile_dir = Path(__file__).parent.parent / "profiles"
-        profile_dir.mkdir(parents=True, exist_ok=True)
-        print(f"Creating re-ranking profiles in {profile_dir}...")
-
-        prof_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
-        prof_queries = prof_dataset.get_topics()
-
-        sparse_df = sys_bm25_cut.transform(prof_queries)
-        sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
-        index_avg.query_encoder.sparse_ranking = sparse_ranking
-
-        print("Creating avg_1 profile...")
-        with cProfile.Profile() as profile:
-            avg_ranking = index_avg(sparse_ranking)
-            int_ranking = sparse_ranking.interpolate(avg_ranking, int_avg[0].alpha)
-        pstats.Stats(profile) \
-            .sort_stats(pstats.SortKey.TIME) \
-            .dump_stats(profile_dir / "avg_1.prof")
-
-        print("Creating tct profile...")
-        with cProfile.Profile() as profile:
-            tct_ranking = index_tct(int_ranking)
-            sparse_ranking.interpolate(tct_ranking, int_tct.alpha)
-        pstats.Stats(profile) \
-            .sort_stats(pstats.SortKey.TIME) \
-            .dump_stats(profile_dir / "tct.prof")
-
-        print("Creating avg_tct profile...")
-        with cProfile.Profile() as profile:
-            avg_ranking = index_avg(sparse_ranking)
-            int_ranking = sparse_ranking.interpolate(avg_ranking, int_avg[0].alpha)
-            avg_tct_ranking = index_tct(int_ranking)
-            sparse_ranking.interpolate(avg_tct_ranking, int_avg_tct.alpha)
-        pstats.Stats(profile) \
-            .sort_stats(pstats.SortKey.TIME) \
-            .dump_stats(profile_dir / "avg_tct.prof")
+        profile(sys_bm25_cut, index_avg, index_tct, int_avg[0].alpha, int_tct.alpha, int_avg_tct.alpha)
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
