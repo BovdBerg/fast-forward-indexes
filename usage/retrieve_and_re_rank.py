@@ -279,31 +279,31 @@ def profile(
     sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
     index_avg.query_encoder.sparse_ranking = sparse_ranking
 
-    print("\tavg_1 profile...")
-    with cProfile.Profile() as profile:
-        avg_ranking = index_avg(sparse_ranking)
-        int_ranking = sparse_ranking.interpolate(avg_ranking, avg_alpha)
-    pstats.Stats(profile) \
-        .sort_stats(pstats.SortKey.TIME) \
-        .dump_stats(profile_dir / "avg_1.prof")
+    def _profile(name, f):
+        print(f"\t{name}...")
+        with cProfile.Profile() as profile:
+            f()
+        pstats.Stats(profile) \
+            .sort_stats(pstats.SortKey.TIME) \
+            .dump_stats(profile_dir / f"{name}.prof")
 
-    print("\ttct profile...")
-    with cProfile.Profile() as profile:
-        tct_ranking = index_tct(int_ranking)
-        sparse_ranking.interpolate(tct_ranking, tct_alpha)
-    pstats.Stats(profile) \
-        .sort_stats(pstats.SortKey.TIME) \
-        .dump_stats(profile_dir / "tct.prof")
+    _profile(
+        "avg_1",
+        lambda: sparse_ranking.interpolate(index_avg(sparse_ranking), avg_alpha),
+    )
 
-    print("\tavg_tct profile...")
-    with cProfile.Profile() as profile:
-        avg_ranking = index_avg(sparse_ranking)
-        int_ranking = sparse_ranking.interpolate(avg_ranking, avg_alpha)
-        avg_tct_ranking = index_tct(int_ranking)
-        sparse_ranking.interpolate(avg_tct_ranking, avg_tct_alpha)
-    pstats.Stats(profile) \
-        .sort_stats(pstats.SortKey.TIME) \
-        .dump_stats(profile_dir / "avg_tct.prof")
+    _profile(
+        "tct",
+        lambda: sparse_ranking.interpolate(index_tct(sparse_ranking), tct_alpha),
+    )
+
+    _profile(
+        "avg_tct",
+        lambda: sparse_ranking.interpolate(
+            index_tct(sparse_ranking.interpolate(index_avg(sparse_ranking), avg_alpha)),
+            avg_tct_alpha,
+        ),
+    )
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
