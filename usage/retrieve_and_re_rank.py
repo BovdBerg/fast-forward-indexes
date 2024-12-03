@@ -266,16 +266,13 @@ def profile(
     prof_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
     prof_queries = prof_dataset.get_topics()
 
-    # sparse_df = sys_bm25_cut.transform(prof_queries)
-    # sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"})).cut(args.sparse_cutoff)
-
     for name, system, _ in pipelines:
-        with cProfile.Profile() as profile:
+        with cProfile.Profile() as prof:
             system(prof_queries)
 
         prof_file = profile_dir / f"{name}.prof"
-        profile.dump_stats(prof_file)
-        ps = pstats.Stats(profile).sort_stats(pstats.SortKey.TIME)
+        prof.dump_stats(prof_file)
+        ps = pstats.Stats(prof).sort_stats(pstats.SortKey.TIME)
         print(f"\t...{name} in {ps.total_tt:.2f}s, saved to {prof_file}")
 
 
