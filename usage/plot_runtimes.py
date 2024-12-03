@@ -16,6 +16,25 @@ def parse_args():
         Run the script with --help or -h to see the full list of arguments.
     """
     parser = argparse.ArgumentParser(description="Plot the re-ranking profiles.")
+    parser.add_argument(
+        "--profiles",
+        type=str,
+        nargs="+",
+        default=["avg1"],
+        help="The names of the profiles to plot.",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="msmarco-passage",
+        help="The name of the dataset.",
+    )
+    parser.add_argument(
+        "--dense_approach",
+        type=str,
+        default="TCT-ColBERT",
+        help="The name of the lexical retrieval method.",
+    )
     return parser.parse_args()
 
 
@@ -28,16 +47,10 @@ def main(args: argparse.Namespace) -> None:
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
     """
-    # TODO: move to config
-    h5_filename = "ffindex_fiqa_tct.h5"
-    dataset_description = "FiQA"
-    lexical_retrieval_description = "TCT-ColBERT"
-    profile_names = ["avg1"]
-
     project_dir = Path(__file__).parent.parent
     profile_dir = project_dir / "profiles"
     profiles = [
-        prof for prof in Path(profile_dir).rglob("*.prof") if prof.stem in profile_names
+        prof for prof in Path(profile_dir).rglob("*.prof") if prof.stem in args.profiles
     ]
 
     profile_data = {}
@@ -48,8 +61,9 @@ def main(args: argparse.Namespace) -> None:
         ps = pstats.Stats(str(profile)).sort_stats("cumtime")
 
         # Get the total runtime of the profile
-        total_time = round(ps.total_tt, 1)
-        print(f"\tReranking runtime: {total_time}s")
+        total_time = round(ps.total_tt, 2)
+        print(f"\t{total_time}s (100%) re-ranking runtime")
+        print("\t" + "-" * 40) # Separator
 
         def runtime(path):
             """
@@ -68,15 +82,15 @@ def main(args: argparse.Namespace) -> None:
                 ),
                 0,
             )
-            rounded = round(time, 1)
+            rounded = round(time, 2)
             pct = round(time / total_time * 100, 1)
+            print(f"\t{rounded}s ({pct}%) {method}")
             return rounded, pct
 
         # Get the runtime (and re-ranking %) of the 'encode_queries' method
         q_encoder_time, q_encoder_p = runtime(
             "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py::70::encode_queries"
         )
-        print(f"\t{q_encoder_p}% encode_queries")
 
         # Get the runtime (and re-ranking %) of the 'lookup_documents' method
         # Note that the class differs between memory and disk
@@ -87,20 +101,18 @@ def main(args: argparse.Namespace) -> None:
             d_lookup_time, d_lookup_p = runtime(
                 "/home/bvdb9/fast-forward-indexes/fast_forward/index/disk.py::254::_get_vectors"
             )
-        print(f"\t{d_lookup_p}% lookup_documents")
 
         # Get the runtime (and re-ranking %) of the 'compute_scores' method
         # Note that this only considers the recursive call
         compute_scores_time, compute_scores_p = runtime(
             "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py::304::_compute_scores::self"
         )
-        print(f"\t{compute_scores_p}% compute_scores")
 
         other_time = round(
-            total_time - q_encoder_time - d_lookup_time - compute_scores_time, 1
+            total_time - q_encoder_time - d_lookup_time - compute_scores_time, 2
         )
         other_p = round(other_time / total_time * 100, 1)
-        print(f"\t{other_p}% other")
+        print(f"\t{other_time}s ({other_p}%) other")
 
         sum_p = round(q_encoder_p + d_lookup_p + compute_scores_p + other_p, 0)
         assert sum_p == 100, f"Percentages should sum to 100, but was {sum_p}."
@@ -121,10 +133,11 @@ def main(args: argparse.Namespace) -> None:
     for profile, data in profile_data.items():
         print(f"{profile}:\n{data}")
 
+    return
     # Create a figure and axis
     fig, ax = plt.subplots()
     ax.set_title(
-        f"{dataset_description} with {lexical_retrieval_description}: Re-ranking runtime spent on 'encode_queries' (in %)"
+        f"{args.dataset} with {args.dense_approach}: Re-ranking runtime spent on 'encode_queries' (in %)"
     )
 
     # Create a bar chart
@@ -158,7 +171,7 @@ def main(args: argparse.Namespace) -> None:
     # Create a figure and axis
     fig, ax = plt.subplots()
     ax.set_title(
-        f"{dataset_description} with {lexical_retrieval_description}: Re-ranking runtime breakdown"
+        f"{args.dataset} with {args.dense_approach}: Re-ranking runtime breakdown"
     )
 
     # Create a bar chart
