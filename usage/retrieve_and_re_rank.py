@@ -28,7 +28,7 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
-PREVIOUS_RESULTS_FILE = Path("results.json")
+PREV_RESULTS = Path("results.json")
 
 
 def parse_args():
@@ -426,9 +426,7 @@ def main(args: argparse.Namespace) -> None:
     # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
-        dataset_str = args.dev_dataset
-        print(f"Loading dev queries and qrels from {dataset_str}...")
-        dev_dataset = pt.get_dataset(dataset_str)
+        dev_dataset = pt.get_dataset(args.dev_dataset)
         dev_queries = dev_dataset.get_topics()
         dev_qrels = dev_dataset.get_qrels()
 
@@ -459,13 +457,12 @@ def main(args: argparse.Namespace) -> None:
     if args.test_datasets:
         for test_dataset_name in args.test_datasets:
             test_dataset = pt.get_dataset(test_dataset_name)
-            test_queries = test_dataset.get_topics()
 
             print(f"\nRunning final tests on {test_dataset_name}...")
             decimals = 5
             results = pt.Experiment(
                 [pipeline for _, pipeline, _ in pipelines],
-                test_queries,
+                test_dataset.get_topics(),
                 test_dataset.get_qrels(),
                 eval_metrics=eval_metrics,
                 names=[
@@ -478,15 +475,11 @@ def main(args: argparse.Namespace) -> None:
             settings_str = print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
 
-            # SAVING TO GOOGLE SHEETS
-            results_str = results.round(decimals).astype(str)
-            prev_results_str = (
-                pd.read_json(PREVIOUS_RESULTS_FILE).round(decimals).astype(str)
-            )
-            if not PREVIOUS_RESULTS_FILE.exists() or not results_str.equals(
-                prev_results_str
+            # Save new results to Google Sheets
+            if not PREV_RESULTS.exists() or str(results) != str(
+                pd.read_json(PREV_RESULTS)
             ):
-                results.to_json(PREVIOUS_RESULTS_FILE, indent=4)
+                results.to_json(PREV_RESULTS, indent=4)
                 settings_str += f"\nTest: '{test_dataset_name}'"
                 append_to_gsheets(results, settings_str)
             else:
