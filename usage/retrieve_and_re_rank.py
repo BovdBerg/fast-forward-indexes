@@ -277,7 +277,7 @@ def profile(
     prof_queries = prof_dataset.get_topics()
 
     sparse_df = sys_bm25_cut.transform(prof_queries)
-    sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
+    sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"})).cut(args.sparse_cutoff)
 
     def _profile(name, f):
         print(f"\t{name}...")
