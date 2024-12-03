@@ -4,7 +4,7 @@ import pstats
 import time
 from copy import copy
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import gspread
 import numpy as np
@@ -247,10 +247,9 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         )
 
 
-# TODO: Find why tct profile exists for >50% of built-in methods
 def profile(
-    pipelines,
-):
+    pipelines: List[Tuple[str, pt.Transformer, pt.Transformer]]
+) -> None:
     """
     Profile the re-ranking step to identify bottlenecks.
     View a profile by running `tuna path/to/profile.prof --port=8000` and opening http://localhost:8000 in your webbrowser.
@@ -258,17 +257,15 @@ def profile(
     Args:
         pipelines (List[Tuple[str, pt.Transformer, pt.Transformer]): List of re-ranking pipelines to profile.
     """
-
     profile_dir = Path(__file__).parent.parent / "profiles"
     profile_dir.mkdir(parents=True, exist_ok=True)
     print(f"Creating re-ranking profiles in {profile_dir}...")
 
     prof_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
-    prof_queries = prof_dataset.get_topics()
 
     for name, system, _ in pipelines:
         with cProfile.Profile() as prof:
-            system(prof_queries)
+            system(prof_dataset.get_topics())
 
         prof_file = profile_dir / f"{name}.prof"
         prof.dump_stats(prof_file)
