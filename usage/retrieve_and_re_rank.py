@@ -397,12 +397,12 @@ def main(args: argparse.Namespace) -> None:
     sys_avg_tct = sys_avg[0] >> ff_tct >> int_avg_tct
 
     pipelines = [
-        ("bm25", ~sys_bm25, []),
-        ("tct", sys_tct, [int_tct]),
-        ("avg1", sys_avg[0], [int_avg[0]]),
-        ("avg_tct", sys_avg_tct, [int_avg_tct]),
+        ("bm25", ~sys_bm25, None),
+        ("tct", sys_tct, int_tct),
+        ("avg1", sys_avg[0], int_avg[0]),
+        ("avg_tct", sys_avg_tct, int_avg_tct),
     ] + [
-        (f"avg{i+1}", system, [int_avg[i]])
+        (f"avg{i+1}", system, int_avg[i])
         for i, system in enumerate(sys_avg[1:], start=1)
     ]
 
@@ -431,14 +431,14 @@ def main(args: argparse.Namespace) -> None:
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines
-        for name, system, tunable_alphas in pipelines[
+        for name, system, tunable in pipelines[
             1:
         ]:  # Skip bm25, as it has no tunable params
             if args.val_pipelines == ["all"] or name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
                 pt.GridSearch(
                     system,
-                    {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
+                    {tunable: {"alpha": args.alphas}},
                     dev_queries,
                     dev_qrels,
                     metric=args.dev_eval_metric,
@@ -459,8 +459,8 @@ def main(args: argparse.Namespace) -> None:
                 test_dataset.get_qrels(),
                 eval_metrics=eval_metrics,
                 names=[
-                    f"{name}, α=[{','.join(str(tunable.alpha) for tunable in tunable_alphas)}]"
-                    for name, _, tunable_alphas in pipelines
+                    name if not tunable else f"{name}, α=[{tunable.alpha}]"
+                    for name, _, tunable in pipelines
                 ],
                 round=decimals,
                 verbose=True,
