@@ -324,14 +324,6 @@ def main(args: argparse.Namespace) -> None:
 
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
-
-    Input:
-        ranking (List[Tuple]): A ranking of documents for each given query.
-            - Format: (q_id, q0, d_id, rank, score, name)
-        ff_index (Index): Used to retrieve document embeddings.
-
-    Output:
-        ranking (List[Tuple]): A re-ranked ranking of documents for each given query.
     """
     start_time = time.time()
     print_settings()
@@ -398,6 +390,7 @@ def main(args: argparse.Namespace) -> None:
         sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
+    # TODO [important!]: Replace sys_avg_tct with sys_avg_lwtct (WeightedAvgEncoder + Lightweight TCTColBERT)
     # TODO [later]: Try using best performing sys_avg in sys_avg_tct rather than the first
     # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
     int_avg_tct = FFInterpolate(alpha=0.2)
