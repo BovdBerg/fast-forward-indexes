@@ -403,6 +403,16 @@ def main(args: argparse.Namespace) -> None:
     int_avg_tct = FFInterpolate(alpha=0.2)
     sys_avg_tct = sys_avg[0] >> ff_tct >> int_avg_tct
 
+    pipelines = [
+        ("bm25", ~sys_bm25, []),
+        ("tct", sys_tct, [int_tct]),
+        ("avg_1", sys_avg[0], [int_avg[0]]),
+        ("avg_tct", sys_avg_tct, [int_avg_tct]),
+    ] + [
+        (f"avg_{i+1}", system, [int_avg[i]])
+        for i, system in enumerate(sys_avg[1:], start=1)
+    ]
+
     if args.profiling:
         profile(sys_bm25_cut, index_avg, index_tct, int_avg[0].alpha, int_tct.alpha, int_avg_tct.alpha)
 
@@ -422,19 +432,8 @@ def main(args: argparse.Namespace) -> None:
             )  # Fixed seed for reproducibility.
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
-        # Validate pipelines in args.val_pipelines.
-        # TODO: merge val_pipelines with test_pipelines and prof_pipelines logic
-        val_pipelines = [
-            # bm25 has no tunable parameters, so it is not included here
-            (sys_tct, [int_tct], "tct"),
-            (sys_avg[0], [int_avg[0]], "avg_1"),
-            (sys_avg_tct, [int_avg_tct], f"avg_tct"),
-        ] + [
-            (pipeline, [int_avg[i]], f"avg_{i+1}")
-            for i, pipeline in enumerate(sys_avg[1:], start=1)
-        ]
-
-        for system, tunable_alphas, name in val_pipelines:
+        # Validate pipelines in args.val_pipelines
+        for name, system, tunable_alphas in pipelines[1:]: # Skip bm25, as it has no tunable params
             if args.val_pipelines == ["all"] or name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
                 pt.GridSearch(
@@ -442,28 +441,13 @@ def main(args: argparse.Namespace) -> None:
                     {tunable: {"alpha": args.alphas} for tunable in tunable_alphas},
                     dev_queries,
                     dev_qrels,
-                    metric=args.dev_eval_metric,  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
+                    metric=args.dev_eval_metric,
                     verbose=True,
                     batch_size=128,
                 )
 
+    # Evaluate pipelines on args.test_datasets
     if args.test_datasets:
-        # Define which pipelines to evaluate on test sets
-        test_pipelines = [
-            (~sys_bm25, "bm25"),
-            (sys_tct, f"tct, α={int_tct.alpha}"),
-            (sys_avg[0], f"avg_1, α={int_avg[0].alpha}"),
-            (sys_avg_tct, f"avg_tct, α={int_avg_tct.alpha}"),
-        ] + [
-            (
-                sys_avg[i],
-                f"avg_{i+1}, α=[{','.join(str(int_avg[j].alpha) for j in range(i+1))}]",
-            )
-            for i in range(1, len(int_avg))
-        ]
-        test_pipelines = [(pipeline, desc) for pipeline, desc in test_pipelines]
-
-        # Final evaluation on test sets
         for test_dataset_name in args.test_datasets:
             test_dataset = pt.get_dataset(test_dataset_name)
             test_queries = test_dataset.get_topics()
@@ -471,11 +455,11 @@ def main(args: argparse.Namespace) -> None:
             print(f"\nRunning final tests on {test_dataset_name}...")
             decimals = 5
             results = pt.Experiment(
-                [pipeline for pipeline, _ in test_pipelines],
+                [pipeline for _, pipeline, _ in pipelines],
                 test_queries,
                 test_dataset.get_qrels(),
                 eval_metrics=eval_metrics,
-                names=[desc for _, desc in test_pipelines],
+                names=[f"{name}, α=[{','.join(str(tunable.alpha) for tunable in tunable_alphas)}]" for name, _, tunable_alphas in pipelines],
                 round=decimals,
                 verbose=True,
             )
