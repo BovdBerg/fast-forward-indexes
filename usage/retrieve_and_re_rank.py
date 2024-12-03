@@ -249,24 +249,14 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
 
 # TODO: Find why tct profile exists for >50% of built-in methods
 def profile(
-    sys_bm25_cut: pt.Transformer,
-    index_avg: Index,
-    index_tct: Index,
-    avg_alpha: float,
-    tct_alpha: float,
-    avg_tct_alpha: float,
+    pipelines,
 ):
     """
     Profile the re-ranking step to identify bottlenecks.
     View a profile by running `tuna path/to/profile.prof --port=8000` and opening http://localhost:8000 in your webbrowser.
 
     Args:
-        sys_bm25_cut (pt.Transformer): BM25 retriever.
-        index_avg (Index): Index for the WeightedAvgEncoder.
-        index_tct (Index): Index for the TCTColBERTQueryEncoder.
-        avg_alpha (float): Alpha value for the WeightedAvgEncoder.
-        tct_alpha (float): Alpha value for the TCTColBERTQueryEncoder.
-        avg_tct_alpha (float): Alpha value for the combined pipeline.
+        pipelines (List[Tuple[str, pt.Transformer, pt.Transformer]): List of re-ranking pipelines to profile.
     """
 
     profile_dir = Path(__file__).parent.parent / "profiles"
@@ -276,39 +266,17 @@ def profile(
     prof_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
     prof_queries = prof_dataset.get_topics()
 
-    sparse_df = sys_bm25_cut.transform(prof_queries)
-    sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"})).cut(args.sparse_cutoff)
+    # sparse_df = sys_bm25_cut.transform(prof_queries)
+    # sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"})).cut(args.sparse_cutoff)
 
-    def _profile(name, f):
-        print(f"\t{name}...")
+    for name, system, _ in pipelines:
         with cProfile.Profile() as profile:
-            f()
-        pstats.Stats(profile).sort_stats(pstats.SortKey.TIME).dump_stats(
-            profile_dir / f"{name}.prof"
-        )
+            system(prof_queries)
 
-    _profile(
-        "bm25",
-        lambda: sys_bm25_cut.transform(prof_queries),
-    )
-
-    _profile(
-        "tct",
-        lambda: sparse_ranking.interpolate(index_tct(sparse_ranking), tct_alpha),
-    )
-
-    _profile(
-        "avg1",
-        lambda: sparse_ranking.interpolate(index_avg(sparse_ranking), avg_alpha),
-    )
-
-    _profile(
-        "avg_tct",
-        lambda: sparse_ranking.interpolate(
-            index_tct(sparse_ranking.interpolate(index_avg(sparse_ranking), avg_alpha)),
-            avg_tct_alpha,
-        ),
-    )
+        prof_file = profile_dir / f"{name}.prof"
+        profile.dump_stats(prof_file)
+        ps = pstats.Stats(profile).sort_stats(pstats.SortKey.TIME)
+        print(f"\t...{name} in {ps.total_tt:.2f}s, saved to {prof_file}")
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
@@ -407,14 +375,7 @@ def main(args: argparse.Namespace) -> None:
     ]
 
     if args.profiling:
-        profile(
-            sys_bm25_cut,
-            index_avg,
-            index_tct,
-            int_avg[0].alpha,
-            int_tct.alpha,
-            int_avg_tct.alpha,
-        )
+        profile(pipelines)
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
