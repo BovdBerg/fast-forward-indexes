@@ -298,7 +298,7 @@ def profile(
     )
 
     _profile(
-        "avg_1",
+        "avg1",
         lambda: sparse_ranking.interpolate(index_avg(sparse_ranking), avg_alpha),
     )
 
@@ -368,7 +368,7 @@ def main(args: argparse.Namespace) -> None:
         verbose=args.verbose,
     )
     if args.in_memory:
-        # TODO: somehow --in_memory avg_1 scores higher than OnDiskIndex
+        # TODO: somehow --in_memory avg1 scores higher than OnDiskIndex
         index_tct = index_tct.to_memory(2**14)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.1)
@@ -399,10 +399,10 @@ def main(args: argparse.Namespace) -> None:
     pipelines = [
         ("bm25", ~sys_bm25, []),
         ("tct", sys_tct, [int_tct]),
-        ("avg_1", sys_avg[0], [int_avg[0]]),
+        ("avg1", sys_avg[0], [int_avg[0]]),
         ("avg_tct", sys_avg_tct, [int_avg_tct]),
     ] + [
-        (f"avg_{i+1}", system, [int_avg[i]])
+        (f"avg{i+1}", system, [int_avg[i]])
         for i, system in enumerate(sys_avg[1:], start=1)
     ]
 
