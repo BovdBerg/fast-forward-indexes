@@ -32,11 +32,12 @@ def main(args: argparse.Namespace) -> None:
     h5_filename = "ffindex_fiqa_tct.h5"
     dataset_description = "FiQA"
     lexical_retrieval_description = "TCT-ColBERT"
+    profile_names = ["avg1"]
 
     project_dir = Path(__file__).parent.parent
     profile_dir = project_dir / "profiles"
     profiles = [
-        prof for prof in Path(profile_dir).rglob("*.prof") if prof.stem in ["avg_1"]
+        prof for prof in Path(profile_dir).rglob("*.prof") if prof.stem in profile_names
     ]
 
     profile_data = {}
@@ -48,7 +49,7 @@ def main(args: argparse.Namespace) -> None:
 
         # Get the total runtime of the profile
         total_time = round(ps.total_tt, 1)
-        print("\tReranking runtime total:", total_time)
+        print(f"\tReranking runtime: {total_time}s")
 
         def runtime(path):
             """
@@ -75,34 +76,33 @@ def main(args: argparse.Namespace) -> None:
         q_encoder_time, q_encoder_p = runtime(
             "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py::70::encode_queries"
         )
-        print(f"\t% encode_queries: {q_encoder_p}")
+        print(f"\t{q_encoder_p}% encode_queries")
 
         # Get the runtime (and re-ranking %) of the 'lookup_documents' method
         # Note that the class differs between memory and disk
-        try:
+        d_lookup_time, d_lookup_p = runtime(
+            "/home/bvdb9/fast-forward-indexes/fast_forward/index/memory.py::156::_get_vectors"
+        )
+        if d_lookup_time == 0:
             d_lookup_time, d_lookup_p = runtime(
-                "/home/bvdb9/fast-forward-indexes/fast_forward/index/memory.py::156::_get_vectors"
+                "/home/bvdb9/fast-forward-indexes/fast_forward/index/disk.py::254::_get_vectors"
             )
-        except KeyError:
-            d_lookup_time, d_lookup_p = runtime(
-                "/home/bvdb9/fast-forward-indexes/fast_forward/index/disk.py::222::_get_vectors"
-            )
-        print(f"\t% lookup_documents: {d_lookup_p}")
+        print(f"\t{d_lookup_p}% lookup_documents")
 
         # Get the runtime (and re-ranking %) of the 'compute_scores' method
         # Note that this only considers the recursive call
         compute_scores_time, compute_scores_p = runtime(
             "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py::304::_compute_scores::self"
         )
-        print(f"\t% compute_scores: {compute_scores_p}")
+        print(f"\t{compute_scores_p}% compute_scores")
 
         other_time = round(
             total_time - q_encoder_time - d_lookup_time - compute_scores_time, 1
         )
         other_p = round(other_time / total_time * 100, 1)
-        print(f"\t% other:", other_p)
+        print(f"\t{other_p}% other")
 
-        sum_p = round(q_encoder_p + d_lookup_p + compute_scores_p + other_p, 1)
+        sum_p = round(q_encoder_p + d_lookup_p + compute_scores_p + other_p, 0)
         assert sum_p == 100, f"Percentages should sum to 100, but was {sum_p}."
 
         # Save a dict of total_time, q_encoder_time and q_encoder_percentage
@@ -117,7 +117,9 @@ def main(args: argparse.Namespace) -> None:
             "other_time": other_time,
             "other_p": other_p,
         }
-    print(f"profile_data:\n{profile_data}")
+
+    for profile, data in profile_data.items():
+        print(f"{profile}:\n{data}")
 
     # Create a figure and axis
     fig, ax = plt.subplots()
