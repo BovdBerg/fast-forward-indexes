@@ -283,9 +283,9 @@ def profile(
         print(f"\t{name}...")
         with cProfile.Profile() as profile:
             f()
-        pstats.Stats(profile) \
-            .sort_stats(pstats.SortKey.TIME) \
-            .dump_stats(profile_dir / f"{name}.prof")
+        pstats.Stats(profile).sort_stats(pstats.SortKey.TIME).dump_stats(
+            profile_dir / f"{name}.prof"
+        )
 
     _profile(
         "bm25",
@@ -414,7 +414,14 @@ def main(args: argparse.Namespace) -> None:
     ]
 
     if args.profiling:
-        profile(sys_bm25_cut, index_avg, index_tct, int_avg[0].alpha, int_tct.alpha, int_avg_tct.alpha)
+        profile(
+            sys_bm25_cut,
+            index_avg,
+            index_tct,
+            int_avg[0].alpha,
+            int_tct.alpha,
+            int_avg_tct.alpha,
+        )
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
@@ -433,7 +440,9 @@ def main(args: argparse.Namespace) -> None:
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines
-        for name, system, tunable_alphas in pipelines[1:]: # Skip bm25, as it has no tunable params
+        for name, system, tunable_alphas in pipelines[
+            1:
+        ]:  # Skip bm25, as it has no tunable params
             if args.val_pipelines == ["all"] or name in args.val_pipelines:
                 print(f"\nValidating pipeline: {name}...")
                 pt.GridSearch(
@@ -459,7 +468,10 @@ def main(args: argparse.Namespace) -> None:
                 test_queries,
                 test_dataset.get_qrels(),
                 eval_metrics=eval_metrics,
-                names=[f"{name}, α=[{','.join(str(tunable.alpha) for tunable in tunable_alphas)}]" for name, _, tunable_alphas in pipelines],
+                names=[
+                    f"{name}, α=[{','.join(str(tunable.alpha) for tunable in tunable_alphas)}]"
+                    for name, _, tunable_alphas in pipelines
+                ],
                 round=decimals,
                 verbose=True,
             )
