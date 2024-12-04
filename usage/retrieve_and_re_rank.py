@@ -106,7 +106,7 @@ def parse_args():
     parser.add_argument(
         "--avg_int_alphas",
         type=float,
-        nargs="+",
+        nargs="*",
         default=[0.1, 0.8, 0.9],
         help='List of interpolation "alpha" parameters we initialize the WeightedAvgEncoder chains with. If --avg_chains is larger than its length, the remaining values are initialized as 0.5.',
     )
@@ -132,7 +132,7 @@ def parse_args():
     parser.add_argument(
         "--val_pipelines",
         type=str,
-        nargs="+",
+        nargs="*",
         default=[],
         help="List of pipelines to validate, based on exact pipeline names.",
     )
@@ -147,7 +147,7 @@ def parse_args():
     parser.add_argument(
         "--test_datasets",
         type=str,
-        nargs="+",
+        nargs="*",
         default=["irds:msmarco-passage/trec-dl-2019/judged"],
         help="Datasets to evaluate the rankings. May never be equal to dev_dataset (=msmarco_passage/dev or msmarco_passage/dev.small).",
     )

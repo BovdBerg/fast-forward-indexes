@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument(
         "--profiles",
         type=str,
-        nargs="+",
+        nargs="*",
         default=["avg1"],
         help="The names of the profiles to plot.",
     )
