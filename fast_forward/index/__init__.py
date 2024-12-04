@@ -82,6 +82,10 @@ class Index(abc.ABC):
         if self.query_encoder is None:
             raise RuntimeError("Index does not have a query encoder.")
 
+        query_encoder = self._query_encoder
+        if hasattr(query_encoder, 'sparse_ranking'):
+            query_encoder.sparse_ranking = ranking
+
         result = []
         total_batches = (len(queries) + self._encoder_batch_size - 1) // self._encoder_batch_size
         for i in tqdm(
@@ -478,10 +482,6 @@ class Index(abc.ABC):
 
         # early stopping splits the data frame, hence we need to keep track of the original index
         df_with_q_no["orig_index"] = df_with_q_no.index
-
-        query_encoder = self._query_encoder
-        if hasattr(query_encoder, 'sparse_ranking'):
-            query_encoder.sparse_ranking = Ranking(ranking._df)
 
         # batch encode queries
         query_vectors = self.encode_queries(list(query_df["query"]))
