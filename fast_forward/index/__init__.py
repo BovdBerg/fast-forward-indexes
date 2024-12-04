@@ -4,7 +4,6 @@
 
 import abc
 import logging
-import time
 import warnings
 from enum import Enum
 from time import perf_counter
@@ -84,8 +83,6 @@ class Index(abc.ABC):
         Returns:
             np.ndarray: The query representations.
         """
-        qe_t0 = time.time()
-
         if self.query_encoder is None:
             raise RuntimeError("Index does not have a query encoder.")
 
@@ -103,12 +100,8 @@ class Index(abc.ABC):
         ):
             batch = queries[i : i + self._encoder_batch_size]
             result.append(self.query_encoder(batch))
-        conc_result = np.concatenate(result)
 
-        qe_t1 = time.time()
-        LOGGER.info("encoded queries in %s seconds", qe_t1 - qe_t0)
-
-        return conc_result
+        return np.concatenate(result)
 
     @property
     def query_encoder(self) -> Optional[Encoder]:
