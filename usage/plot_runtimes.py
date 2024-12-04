@@ -59,53 +59,46 @@ def main(args: argparse.Namespace) -> None:
         print(f"{title}:")
 
         ps = pstats.Stats(str(profile)).sort_stats("cumtime")
+        ps.print_stats(30)
 
         # Get the total runtime of the profile
         total_time = round(ps.total_tt, 2)
         print(f"\t{total_time}s (100%) re-ranking runtime")
         print("\t" + "-" * 40) # Separator
 
-        def runtime(path):
+        def runtime(s: str) -> tuple[float, float]:
             """
             Returns rounded runtime of first class + method match.
             """
-            parts = path.split("::")
-            if parts[-1] == "self":
-                cls, _, method = parts[:-1]
-            else:
-                cls, _, method = parts
-            time = next(
-                (
-                    ps.stats[key][2] if len(parts) == 4 else ps.stats[key][3]
-                    for key in ps.stats
-                    if key[0] == cls and key[2] == method
-                ),
-                0,
-            )
-            rounded = round(time, 2)
-            pct = round(time / total_time * 100, 1)
-            print(f"\t{rounded}s ({pct}%) {method}")
+            cumtime = next((stat[3] for key, stat in ps.stats.items() if f"{key[0]}:{key[1]}({key[2]})" == s), 0)
+            rounded = round(cumtime, 2)
+            pct = round(cumtime / total_time * 100, 1)
+            print(f"\t{rounded}s ({pct}%) {s}")
             return rounded, pct
 
         # Get the runtime (and re-ranking %) of the 'encode_queries' method
         q_encoder_time, q_encoder_p = runtime(
-            "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py::70::encode_queries"
+            "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py:70(encode_queries)"
         )
+        if q_encoder_time == 0:
+            q_encoder_time, q_encoder_p = runtime(
+                "/home/bvdb9/miniconda3/envs/ff/lib/python3.12/site-packages/transformers/models/bert/modeling_bert.py:646(forward)"
+            )
 
         # Get the runtime (and re-ranking %) of the 'lookup_documents' method
         # Note that the class differs between memory and disk
         d_lookup_time, d_lookup_p = runtime(
-            "/home/bvdb9/fast-forward-indexes/fast_forward/index/memory.py::156::_get_vectors"
+            "/home/bvdb9/fast-forward-indexes/fast_forward/index/memory.py:156(_get_vectors)"
         )
         if d_lookup_time == 0:
             d_lookup_time, d_lookup_p = runtime(
-                "/home/bvdb9/fast-forward-indexes/fast_forward/index/disk.py::254::_get_vectors"
+                "/home/bvdb9/fast-forward-indexes/fast_forward/index/disk.py:254(_get_vectors)"
             )
 
         # Get the runtime (and re-ranking %) of the 'compute_scores' method
         # Note that this only considers the recursive call
         compute_scores_time, compute_scores_p = runtime(
-            "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py::304::_compute_scores::self"
+            "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py:304(_compute_scores)"
         )
 
         other_time = round(

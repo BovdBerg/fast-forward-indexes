@@ -252,7 +252,7 @@ def profile(
 ) -> None:
     """
     Profile the re-ranking step to identify bottlenecks.
-    View a profile by running `tuna path/to/profile.prof --port=8000` and opening http://localhost:8000 in your webbrowser.
+    View a profile by running `snakeviz path/to/profile.prof` and ctrl-clicking the link in your console.
 
     Args:
         pipelines (List[Tuple[str, pt.Transformer, pt.Transformer]): List of re-ranking pipelines to profile.
