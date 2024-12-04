@@ -61,3 +61,11 @@ python usage/retrieve_and_re_rank.py \
     --profiling \
     --device=cpu \
 ```
+
+### Plotting a profile
+```bash
+python usage/plot_runtimes.py \
+    --profiles avg1 tct \
+    --storage="mem" \
+    --device="cpu" \
+```
