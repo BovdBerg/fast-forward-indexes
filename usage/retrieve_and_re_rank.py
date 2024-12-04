@@ -257,7 +257,8 @@ def profile(
     Args:
         pipelines (List[Tuple[str, pt.Transformer, pt.Transformer]): List of re-ranking pipelines to profile.
     """
-    profile_dir = Path(__file__).parent.parent / "profiles"
+    mem_s = "mem" if args.in_memory else "disk"
+    profile_dir = Path(__file__).parent.parent / "profiles" / f"{mem_s}_{args.device}"
     profile_dir.mkdir(parents=True, exist_ok=True)
     print(f"Creating re-ranking profiles in {profile_dir}...")
 

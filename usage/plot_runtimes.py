@@ -24,6 +24,20 @@ def parse_args():
         help="The names of the profiles to plot.",
     )
     parser.add_argument(
+        "--storage",
+        type=str,
+        default="mem",
+        choices=["disk", "mem"],
+        help="The storage type of the index.",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        choices=["cpu", "cuda"],
+        help="The device used for re-ranking.",
+    )
+    parser.add_argument(
         "--dataset",
         type=str,
         default="msmarco-passage",
@@ -47,8 +61,7 @@ def main(args: argparse.Namespace) -> None:
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
     """
-    project_dir = Path(__file__).parent.parent
-    profile_dir = project_dir / "profiles"
+    profile_dir = Path(__file__).parent.parent / "profiles" / f"{args.storage}_{args.device}"
     profiles = [
         prof for prof in Path(profile_dir).rglob("*.prof") if prof.stem in args.profiles
     ]
