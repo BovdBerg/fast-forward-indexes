@@ -38,6 +38,12 @@ def parse_args():
         help="The device used for re-ranking.",
     )
     parser.add_argument(
+        "--print_stats",
+        type=int,
+        default=0,
+        help="The number of stats to print.",
+    )
+    parser.add_argument(
         "--dataset",
         type=str,
         default="msmarco-passage",
@@ -65,16 +71,13 @@ def main(args: argparse.Namespace) -> None:
     profile_data = {}
 
     for title in args.profiles:
-        print(f"{title}:")
-        profile = profile_dir / f"{title}.prof" 
-
-        ps = pstats.Stats(str(profile)).sort_stats("cumtime")
-        # ps.print_stats(20)
+        ps = pstats.Stats(str(profile_dir / f"{title}.prof")).sort_stats("cumtime")
+        ps.print_stats(args.print_stats)
 
         # Get the total runtime of the profile
         total_time = round(ps.total_tt, 2)
         print(f"\t{total_time}s (100%) re-ranking runtime")
-        print("\t" + "-" * 40) # Separator
+        print("\t" + "-" * 50) # Separator
 
         def runtime(s: str) -> tuple[float, float]:
             """
@@ -95,38 +98,23 @@ def main(args: argparse.Namespace) -> None:
             q_encoder_time, q_encoder_p = runtime(q_encoder_s)
         print(f"\t{q_encoder_time}s ({q_encoder_p}%) {q_encoder_s}")
         
-
-        # Get the runtime (and re-ranking %) of the 'lookup_documents' method
-        # Note that the class differs between memory and disk
-        d_lookup_s = "/home/bvdb9/fast-forward-indexes/fast_forward/index/memory.py:156(_get_vectors)"
-        d_lookup_time, d_lookup_p = runtime(d_lookup_s)
-        if d_lookup_time == 0:
-            d_lookup_s = "/home/bvdb9/fast-forward-indexes/fast_forward/index/disk.py:254(_get_vectors)"
-            d_lookup_time, d_lookup_p = runtime(d_lookup_s)
-        print(f"\t{d_lookup_time}s ({d_lookup_p}%) {d_lookup_s}")
-
         # Get the runtime (and re-ranking %) of the 'compute_scores' method
-        # Note that this only considers the recursive call
         compute_scores_s = "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py:304(_compute_scores)"
         compute_scores_time, compute_scores_p = runtime(compute_scores_s)
         print(f"\t{compute_scores_time}s ({compute_scores_p}%) {compute_scores_s}")
 
         other_time = round(
-            total_time - q_encoder_time - d_lookup_time - compute_scores_time, 2
+            total_time - q_encoder_time - compute_scores_time, 2
         )
         other_p = round(other_time / total_time * 100, 1)
         print(f"\t{other_time}s ({other_p}%) other")
-
-        sum_p = round(q_encoder_p + d_lookup_p + compute_scores_p + other_p, 0)
-        assert sum_p == 100, f"Percentages should sum to 100, but was {sum_p}."
+        print("=" * 150) # Separator
 
         # Save a dict of total_time, q_encoder_time and q_encoder_percentage
         profile_data[title] = {
             "total_time": total_time,
             "q_encoder_time": q_encoder_time,
             "q_encoder_p": q_encoder_p,
-            "d_lookup_time": d_lookup_time,
-            "d_lookup_p": d_lookup_p,
             "compute_scores_time": compute_scores_time,
             "compute_scores_p": compute_scores_p,
             "other_time": other_time,
@@ -164,7 +152,7 @@ def main(args: argparse.Namespace) -> None:
 
     plt.show()
 
-    # Categorize the data into 4 bins: q_encoder, d_lookup, compute_scores, other
+    # Categorize the data into 4 bins: q_encoder, compute_scores, other
     # Create a bar plot of the 4 bins, with the reranking time as the height
     # Show the percentage of the total reranking time in the middle of each bar
 
@@ -187,20 +175,12 @@ def main(args: argparse.Namespace) -> None:
     )
     ax.bar(
         x,
-        [data["d_lookup_time"] for data in profile_data.values()],
-        bar_width,
-        label="lookup_documents",
-        color="cornflowerblue",
-        bottom=[data["q_encoder_time"] for data in profile_data.values()],
-    )
-    ax.bar(
-        x,
         [data["compute_scores_time"] for data in profile_data.values()],
         bar_width,
         label="compute_scores",
         color="seagreen",
         bottom=[
-            data["q_encoder_time"] + data["d_lookup_time"]
+            data["q_encoder_time"]
             for data in profile_data.values()
         ],
     )
@@ -211,7 +191,7 @@ def main(args: argparse.Namespace) -> None:
         label="other",
         color="lightgrey",
         bottom=[
-            data["q_encoder_time"] + data["d_lookup_time"] + data["compute_scores_time"]
+            data["q_encoder_time"] + data["compute_scores_time"]
             for data in profile_data.values()
         ],
     )
@@ -227,20 +207,10 @@ def main(args: argparse.Namespace) -> None:
                 va="center",
                 color="white",
             )
-        if data["d_lookup_time"] > 3:
-            ax.text(
-                i,
-                data["q_encoder_time"] + data["d_lookup_time"] / 2,
-                f"{data['d_lookup_time']}",
-                ha="center",
-                va="center",
-                color="white",
-            )
         if data["compute_scores_time"] > 3:
             ax.text(
                 i,
                 data["q_encoder_time"]
-                + data["d_lookup_time"]
                 + data["compute_scores_time"] / 2,
                 f"{data['compute_scores_time']}",
                 ha="center",
@@ -251,7 +221,6 @@ def main(args: argparse.Namespace) -> None:
             ax.text(
                 i,
                 data["q_encoder_time"]
-                + data["d_lookup_time"]
                 + data["compute_scores_time"]
                 + data["other_time"] / 2,
                 f"{data['other_time']}",
