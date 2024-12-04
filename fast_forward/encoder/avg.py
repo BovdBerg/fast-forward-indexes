@@ -48,7 +48,6 @@ class WeightedAvgEncoder(Encoder):
         index: Index,
         w_method: W_METHOD = W_METHOD.SOFTMAX_SCORES,
         k_avg: int = 30,
-        sparse_ranking: Ranking = None,
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
@@ -62,7 +61,7 @@ class WeightedAvgEncoder(Encoder):
         self.index = index
         self.w_method = w_method
         self.k_avg = k_avg
-        self.sparse_ranking = sparse_ranking
+        self.sparse_ranking = None
         super().__init__()
 
     def _get_weights(self, n_docs: int, scores: Sequence[float]) -> Sequence[float]:
