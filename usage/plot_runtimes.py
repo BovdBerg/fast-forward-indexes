@@ -62,17 +62,14 @@ def main(args: argparse.Namespace) -> None:
         args (argparse.Namespace): Parsed command-line arguments.
     """
     profile_dir = Path(__file__).parent.parent / "profiles" / f"{args.storage}_{args.device}"
-    profiles = [
-        prof for prof in Path(profile_dir).rglob("*.prof") if prof.stem in args.profiles
-    ]
-
     profile_data = {}
-    for profile in profiles:
-        title = profile.stem
+
+    for title in args.profiles:
         print(f"{title}:")
+        profile = profile_dir / f"{title}.prof" 
 
         ps = pstats.Stats(str(profile)).sort_stats("cumtime")
-        ps.print_stats(30)
+        # ps.print_stats(20)
 
         # Get the total runtime of the profile
         total_time = round(ps.total_tt, 2)
@@ -86,33 +83,33 @@ def main(args: argparse.Namespace) -> None:
             cumtime = next((stat[3] for key, stat in ps.stats.items() if f"{key[0]}:{key[1]}({key[2]})" == s), 0)
             rounded = round(cumtime, 2)
             pct = round(cumtime / total_time * 100, 1)
-            print(f"\t{rounded}s ({pct}%) {s}")
             return rounded, pct
 
         # Get the runtime (and re-ranking %) of the 'encode_queries' method
+        q_encoder_s = "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py:70(encode_queries)"
         q_encoder_time, q_encoder_p = runtime(
-            "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py:70(encode_queries)"
+            q_encoder_s
         )
         if q_encoder_time == 0:
-            q_encoder_time, q_encoder_p = runtime(
-                "/home/bvdb9/miniconda3/envs/ff/lib/python3.12/site-packages/transformers/models/bert/modeling_bert.py:646(forward)"
-            )
+            q_encoder_s = "/home/bvdb9/miniconda3/envs/ff/lib/python3.12/site-packages/transformers/models/bert/modeling_bert.py:996(forward)"
+            q_encoder_time, q_encoder_p = runtime(q_encoder_s)
+        print(f"\t{q_encoder_time}s ({q_encoder_p}%) {q_encoder_s}")
+        
 
         # Get the runtime (and re-ranking %) of the 'lookup_documents' method
         # Note that the class differs between memory and disk
-        d_lookup_time, d_lookup_p = runtime(
-            "/home/bvdb9/fast-forward-indexes/fast_forward/index/memory.py:156(_get_vectors)"
-        )
+        d_lookup_s = "/home/bvdb9/fast-forward-indexes/fast_forward/index/memory.py:156(_get_vectors)"
+        d_lookup_time, d_lookup_p = runtime(d_lookup_s)
         if d_lookup_time == 0:
-            d_lookup_time, d_lookup_p = runtime(
-                "/home/bvdb9/fast-forward-indexes/fast_forward/index/disk.py:254(_get_vectors)"
-            )
+            d_lookup_s = "/home/bvdb9/fast-forward-indexes/fast_forward/index/disk.py:254(_get_vectors)"
+            d_lookup_time, d_lookup_p = runtime(d_lookup_s)
+        print(f"\t{d_lookup_time}s ({d_lookup_p}%) {d_lookup_s}")
 
         # Get the runtime (and re-ranking %) of the 'compute_scores' method
         # Note that this only considers the recursive call
-        compute_scores_time, compute_scores_p = runtime(
-            "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py:304(_compute_scores)"
-        )
+        compute_scores_s = "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py:304(_compute_scores)"
+        compute_scores_time, compute_scores_p = runtime(compute_scores_s)
+        print(f"\t{compute_scores_time}s ({compute_scores_p}%) {compute_scores_s}")
 
         other_time = round(
             total_time - q_encoder_time - d_lookup_time - compute_scores_time, 2
@@ -135,9 +132,6 @@ def main(args: argparse.Namespace) -> None:
             "other_time": other_time,
             "other_p": other_p,
         }
-
-    for profile, data in profile_data.items():
-        print(f"{profile}:\n{data}")
 
     return
     # Create a figure and axis
