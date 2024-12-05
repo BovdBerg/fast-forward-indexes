@@ -92,6 +92,7 @@ def main(args: argparse.Namespace) -> None:
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
     """
+    start_time = time.time()
     assert args.samples is None or args.samples % args.batch_size == 0, f"--samples must be a multiple of {args.batch_size} (batch_size), but were {args.samples}."
 
     date = time.strftime("%Y-%m-%d_%H-%M")
@@ -178,6 +179,9 @@ def main(args: argparse.Namespace) -> None:
     profiles = pd.DataFrame(profiles)
     print(f"profiles:\n{profiles}")
     profiles.to_json(prof_file, indent=4)
+
+    end_time = time.time()
+    print(f"Total time: {end_time - start_time:.2f} seconds.")
 
 
 if __name__ == "__main__":
