@@ -9,7 +9,7 @@ import pyterrier as pt
 from tqdm import tqdm
 
 from fast_forward.encoder.avg import WeightedAvgEncoder
-from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
+from fast_forward.encoder.transformer import TCTColBERTQueryEncoder, TransformerEmbeddingEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 import pandas as pd
@@ -106,7 +106,7 @@ def main(args: argparse.Namespace) -> None:
     topics = dataset.get_topics()
     if args.samples:
         topics = topics.sample(n=args.samples, random_state=42)
-    queries = topics["query"]
+    queries = list(topics["query"])
 
     print("Creating BM25 retriever via PyTerrier index...")
     sys_bm25 = pt.BatchRetrieve.from_dataset(
@@ -128,9 +128,15 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(index_avg)
 
+    index_emb = copy(index_tct)
+    index_emb.query_encoder = TransformerEmbeddingEncoder(
+        "google/bert_uncased_L-12_H-768_A-12", device=args.device
+    )
+
     pipelines = [
         ("tct", index_tct),
         ("avg1", index_avg),
+        ("emb", index_emb),
     ]
 
     profiles = []
