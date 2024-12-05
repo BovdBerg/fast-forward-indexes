@@ -54,6 +54,12 @@ def parse_args():
         help="The number of runs. The minimum runtime of all runs is taken.",
     )
     parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=256,
+        help="The batch size for encoding queries.",
+    )
+    parser.add_argument(
         "--samples",
         type=int,
         help="The batch size for encoding queries.",
@@ -120,7 +126,7 @@ def main(args: argparse.Namespace) -> None:
         args.index_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
         verbose=args.verbose,
-        batch_size=args.batch_size,
+        encoder_batch_size=args.batch_size,
     )
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**14)
