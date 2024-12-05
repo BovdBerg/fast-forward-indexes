@@ -362,18 +362,17 @@ def main(args: argparse.Namespace) -> None:
     int_emb = FFInterpolate(alpha=0.9)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
-    # TODO [important!]: Replace sys_avg_tct with sys_avg_emb (WeightedAvgEncoder + Lightweight TCTColBERT)
     # TODO [later]: Try using best performing sys_avg in sys_avg_tct rather than the first
     # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
-    int_avg_tct = FFInterpolate(alpha=0.2)
-    sys_avg_tct = sys_avg[0] >> ff_tct >> int_avg_tct
+    int_avg_emb = FFInterpolate(alpha=0.8)
+    sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
     pipelines = [
         ("bm25", ~sys_bm25, None),
         ("tct", sys_tct, int_tct),
         ("avg1", sys_avg[0], int_avg[0]),
         ("emb", sys_emb, int_emb),
-        ("avg_tct", sys_avg_tct, int_avg_tct),
+        ("avg_emb", sys_avg_emb, int_avg_emb),
     ] + [
         (f"avg{i+1}", system, int_avg[i])
         for i, system in enumerate(sys_avg[1:], start=1)
