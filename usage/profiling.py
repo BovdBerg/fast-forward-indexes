@@ -92,11 +92,10 @@ def main(args: argparse.Namespace) -> None:
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
     """
-    encoder_batch_size = 256
-    assert args.samples is None or args.samples % encoder_batch_size == 0, f"--samples must be a multiple of {encoder_batch_size} (encoder_batch_size), but were {args.samples}."
+    assert args.samples is None or args.samples % args.batch_size == 0, f"--samples must be a multiple of {args.batch_size} (batch_size), but were {args.samples}."
 
     date = time.strftime("%Y-%m-%d_%H-%M")
-    prof_dir = Path("profiles") / f"{args.storage}_{args.device}" / f"{args.runs}x{args.samples}q" / date
+    prof_dir = Path("profiles") / f"{args.storage}_{args.device}_batch={args.batch_size}" / f"{args.runs}x{args.samples}q" / date
     prof_dir.mkdir(parents=True, exist_ok=True)
     prof_file = prof_dir / "_profiles.json"
     print_settings(prof_dir)
@@ -120,7 +119,7 @@ def main(args: argparse.Namespace) -> None:
         args.index_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
         verbose=args.verbose,
-        encoder_batch_size=encoder_batch_size,
+        batch_size=args.batch_size,
     )
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**14)
@@ -160,7 +159,7 @@ def main(args: argparse.Namespace) -> None:
             "name": name,
             "runtime": runtime,
             "speedup": round(runtime_baseline / runtime, 2),
-            "runtime_batch": round(runtime / (len(queries) / encoder_batch_size), 2),
+            "runtime_batch": round(runtime / (len(queries) / args.batch_size), 2),
             "runtime_query": round(runtime / len(queries), 2),
         }
         print(f"Profile:{profile}")
@@ -174,7 +173,7 @@ def main(args: argparse.Namespace) -> None:
         "name": "avg_emb",
         "runtime": runtime_avg_emb,
         "speedup": round(runtime_baseline / runtime_avg_emb, 2),
-        "runtime_batch": round(runtime_avg_emb / (len(queries) / encoder_batch_size), 2),
+        "runtime_batch": round(runtime_avg_emb / (len(queries) / args.batch_size), 2),
         "runtime_query": round(runtime_avg_emb / len(queries), 2),
     })
 
