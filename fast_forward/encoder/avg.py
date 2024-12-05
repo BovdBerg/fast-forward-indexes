@@ -32,15 +32,9 @@ class W_METHOD(Enum):
     # TODO [later]: After adding LEARNED distribution, should I train different transformers when chaining (per FFScore_i)?
 
 
-# TODO: top_ranking should probably be updated in each chain reranking. Check if only top_docs from original top_ranking are considered?
-# TODO: rename sparse_ranking to ranking_in
 class WeightedAvgEncoder(Encoder):
     """
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.
-
-    Attributes:
-        sparse_ranking (Ranking): The top-ranked documents used for averaging.
-        index (Index): The index containing document embeddings.
     """
 
     def __init__(
@@ -56,12 +50,12 @@ class WeightedAvgEncoder(Encoder):
             index (Index): The index containing document embeddings.
             w_method (W_METHOD): The probability distribution type used to assign weights to top-ranked documents.
             k_avg (int): The number of top-ranked documents to average.
-            sparse_ranking (Ranking): The initial sparse ranking of documents.
+            ranking_in (Ranking): The initial sparse ranking of documents.
         """
         self.index = index
         self.w_method = w_method
         self.k_avg = k_avg
-        self.sparse_ranking = None
+        self.ranking_in = None
         super().__init__()
 
     def _get_weights(self, n_docs: int, scores: Sequence[float]) -> Sequence[float]:
@@ -106,9 +100,9 @@ class WeightedAvgEncoder(Encoder):
             np.ndarray: An array of query embeddings.
         """
         assert (
-            self.sparse_ranking is not None
-        ), "Please set the top_sparse_ranking attribute before calling the encoder."
-        top_ranking = self.sparse_ranking.cut(self.k_avg)
+            self.ranking_in is not None
+        ), "Please set the ranking_in attribute before calling the encoder."
+        top_ranking = self.ranking_in.cut(self.k_avg)
 
         q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
 

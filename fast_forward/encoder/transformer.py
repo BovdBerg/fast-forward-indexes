@@ -125,7 +125,7 @@ class CoCondenserDocumentEncoder(TransformerEncoder):
             return embeddings.detach().cpu().numpy()
 
 
-class CoCondenserQueryEncoder(CoCondenserDocumentEncoder):
+class CoCondenserQueryEncoder(TransformerEncoder):
     """
     Query encoder for pre-trained CoCondenser models.
     """

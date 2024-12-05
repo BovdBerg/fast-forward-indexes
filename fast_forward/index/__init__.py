@@ -87,8 +87,8 @@ class Index(abc.ABC):
             raise RuntimeError("Index does not have a query encoder.")
 
         query_encoder = self._query_encoder
-        if hasattr(query_encoder, 'sparse_ranking'):
-            query_encoder.sparse_ranking = ranking
+        if hasattr(query_encoder, 'ranking_in'):
+            query_encoder.ranking_in = ranking
 
         result = []
         total_batches = (len(queries) + self._encoder_batch_size - 1) // self._encoder_batch_size
