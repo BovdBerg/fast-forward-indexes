@@ -27,13 +27,6 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Plot the re-ranking profiles.")
     parser.add_argument(
-        "--profiles",
-        type=str,
-        nargs="*",
-        default=["avg1"],
-        help="The names of the profiles to plot.",
-    )
-    parser.add_argument(
         "--storage",
         type=str,
         default="mem",
@@ -89,6 +82,7 @@ def print_settings(prof_dir: Path) -> None:
     print("Settings:\n\t" + "\n\t".join(settings_description))
 
 
+# TODO [important]: avg1 sometimes gives an error (easier to detect with many queries). e.g. `python usage/profiling.py --runs=3 --batch_size=256 --batches=2 --storage=disk --verbose`
 def main(args: argparse.Namespace) -> None:
     """
     Create plots for CPU re-ranking runtime profiles.
