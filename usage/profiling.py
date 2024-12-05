@@ -167,6 +167,17 @@ def main(args: argparse.Namespace) -> None:
         profiles.append(profile)
 
     profiles = pd.DataFrame(profiles)
+
+    # Add a profile "avg_emb" that combines the avg1 and emb profiles by summing their runtime.
+    runtime_avg_emb = profiles.loc[profiles["name"].isin(["avg1", "emb"]), "runtime"].sum()
+    profiles.add({
+        "name": "avg_emb",
+        "runtime": runtime_avg_emb,
+        "speedup": round(runtime_baseline / runtime_avg_emb, 2),
+        "runtime_batch": round(runtime_avg_emb / (len(queries) / encoder_batch_size), 2),
+        "runtime_query": round(runtime_avg_emb / len(queries), 2),
+    })
+
     print(f"profiles:\n{profiles}")
     profiles.to_json(prof_file, indent=4)
 
