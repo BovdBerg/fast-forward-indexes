@@ -1,4 +1,6 @@
 import argparse
+import cProfile
+import pstats
 import time
 from copy import copy
 from pathlib import Path
@@ -46,18 +48,6 @@ def parse_args():
         help="The device used for re-ranking.",
     )
     parser.add_argument(
-        "--q_dataset",
-        type=str,
-        default="irds:msmarco-passage/dev",
-        help="The name of the dataset.",
-    )
-    parser.add_argument(
-        "--index_path",
-        type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
-        help="Path to the index file.",
-    )
-    parser.add_argument(
         "--runs",
         type=int,
         default=5,
@@ -68,7 +58,29 @@ def parse_args():
         type=int,
         help="The batch size for encoding queries.",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print additional information.",
+    )
+    parser.add_argument(
+        "--index_path",
+        type=Path,
+        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
+        help="Path to the index file.",
+    )
     return parser.parse_args()
+
+
+def print_settings(prof_dir: Path) -> None:
+    """
+    Print general settings used for re-ranking.
+    """
+    settings_description = [
+        f"prof_dir={prof_dir}",
+        f"verbose={args.verbose}",
+    ]
+    print("Settings:\n\t" + "\n\t".join(settings_description))
 
 
 def main(args: argparse.Namespace) -> None:
@@ -80,8 +92,17 @@ def main(args: argparse.Namespace) -> None:
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
     """
+    encoder_batch_size = 256
+    assert args.samples is None or args.samples % encoder_batch_size == 0, f"--samples must be a multiple of {encoder_batch_size} (encoder_batch_size), but were {args.samples}."
+
+    date = time.strftime("%Y-%m-%d_%H-%M")
+    prof_dir = Path("profiles") / f"{args.storage}_{args.device}" / f"{args.runs}x{args.samples}q" / date
+    prof_dir.mkdir(parents=True, exist_ok=True)
+    prof_file = prof_dir / "_profiles.json"
+    print_settings(prof_dir)
+
     pt.init()
-    dataset = pt.get_dataset(args.q_dataset)
+    dataset = pt.get_dataset("irds:msmarco-passage/dev")
     topics = dataset.get_topics()
     if args.samples:
         topics = topics.sample(n=args.samples, random_state=42)
@@ -95,12 +116,11 @@ def main(args: argparse.Namespace) -> None:
     sparse_df = sys_bm25_cut(topics)
     sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
 
-    batch_size = 256
     index_tct = OnDiskIndex.load(
         args.index_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
-        verbose=True,
-        encoder_batch_size=256,
+        verbose=args.verbose,
+        encoder_batch_size=encoder_batch_size,
     )
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**14)
@@ -108,34 +128,41 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(index_avg)
 
-    pipelines = {
+    pipelines = [
         ("tct", index_tct),
         ("avg1", index_avg),
-    }
+    ]
 
     profiles = []
+    runtime_baseline = None
     for name, index in pipelines:
-        # TODO: Take average runtime over all batches per run.
         runtimes = []
-        for _ in tqdm(range(args.runs), desc=f"Profiling {name}", total=args.runs):
-            t0 = time.time()
-            index.encode_queries(queries, sparse_ranking)
-            runtime = round(time.time() - t0, 2)
-            runtimes.append(runtime)
+        pipeline_dir = prof_dir / name
+        pipeline_dir.mkdir(parents=True, exist_ok=True)
+
+        for run in tqdm(range(args.runs), desc=f"Profiling {name}", total=args.runs):
+            with cProfile.Profile() as pr:
+                index.encode_queries(queries, sparse_ranking)
+            pr = pstats.Stats(pr)
+            pr.dump_stats(pipeline_dir / f"{name}_{run}.prof")
+            runtimes.append(round(pr.total_tt, 2))
+
+        runtime = min(runtimes)
+        if runtime_baseline is None:
+            runtime_baseline = runtime
         profile = {
             "name": name,
-            "runtime": min(runtimes),
-            "runtime_batch": round(min(runtimes) / batch_size, 2),
-            "runtime_query": round(min(runtimes) / len(queries), 2),
+            "runtime": runtime,
+            "speedup": round(runtime_baseline / runtime, 2),
+            "runtime_batch": round(runtime / (len(queries) / encoder_batch_size), 2),
+            "runtime_query": round(runtime / len(queries), 2),
         }
         print(f"Profile:{profile}")
         profiles.append(profile)
 
-    profiles_df = pd.DataFrame(profiles)
-    print(f"profiles_df: {profiles_df}")
-    profile_dir = Path(f"profiles/{args.storage}_{args.device}")
-    profile_dir.mkdir(parents=True, exist_ok=True)
-    profiles_df.to_json(profile_dir / "profiles.json", indent=4)
+    profiles = pd.DataFrame(profiles)
+    print(f"profiles:\n{profiles}")
+    profiles.to_json(prof_file, indent=4)
 
 
 if __name__ == "__main__":
