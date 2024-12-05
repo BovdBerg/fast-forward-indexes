@@ -247,9 +247,7 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         )
 
 
-def profile(
-    pipelines: List[Tuple[str, pt.Transformer, pt.Transformer]]
-) -> None:
+def profile(pipelines: List[Tuple[str, pt.Transformer, pt.Transformer]]) -> None:
     """
     Profile the re-ranking step to identify bottlenecks.
     View a profile by running `snakeviz path/to/profile.prof` and ctrl-clicking the link in your console.
@@ -353,7 +351,15 @@ def main(args: argparse.Namespace) -> None:
         sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
-    # TODO [important!]: Replace sys_avg_tct with sys_avg_lwtct (WeightedAvgEncoder + Lightweight TCTColBERT)
+    index_emb = copy(index_tct)
+    index_emb.query_encoder = TransformerEmbeddingEncoder(
+        "google/bert_uncased_L-12_H-768_A-12", device=args.device
+    )
+    ff_emb = FFScore(index_emb)
+    int_emb = FFInterpolate(alpha=0.5)
+    sys_emb = sys_bm25_cut >> ff_emb >> int_emb
+
+    # TODO [important!]: Replace sys_avg_tct with sys_avg_emb (WeightedAvgEncoder + Lightweight TCTColBERT)
     # TODO [later]: Try using best performing sys_avg in sys_avg_tct rather than the first
     # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
     int_avg_tct = FFInterpolate(alpha=0.2)
@@ -387,20 +393,22 @@ def main(args: argparse.Namespace) -> None:
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines
-        for name, system, tunable in pipelines[
-            1:
-        ]:  # Skip bm25, as it has no tunable params
-            if args.val_pipelines == ["all"] or name in args.val_pipelines:
-                print(f"\nValidating pipeline: {name}...")
-                pt.GridSearch(
-                    system,
-                    {tunable: {"alpha": args.alphas}},
-                    dev_queries,
-                    dev_qrels,
-                    metric=args.dev_eval_metric,
-                    verbose=True,
-                    batch_size=128,
-                )
+        for name, system, tunable in pipelines:
+            if tunable is None or (
+                args.val_pipelines != ["all"] and name not in args.val_pipelines
+            ):
+                continue
+
+            print(f"\nValidating pipeline: {name}...")
+            pt.GridSearch(
+                system,
+                {tunable: {"alpha": args.alphas}},
+                dev_queries,
+                dev_qrels,
+                metric=args.dev_eval_metric,
+                verbose=True,
+                batch_size=128,
+            )
 
     # Evaluate pipelines on args.test_datasets
     if args.test_datasets:
