@@ -22,7 +22,10 @@ from gspread_formatting import (
 from ir_measures import measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
-from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
+from fast_forward.encoder.transformer import (
+    TCTColBERTQueryEncoder,
+    TransformerEmbeddingEncoder,
+)
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -356,7 +359,7 @@ def main(args: argparse.Namespace) -> None:
         "google/bert_uncased_L-12_H-768_A-12", device=args.device
     )
     ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.5)
+    int_emb = FFInterpolate(alpha=0.9)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
     # TODO [important!]: Replace sys_avg_tct with sys_avg_emb (WeightedAvgEncoder + Lightweight TCTColBERT)
@@ -369,6 +372,7 @@ def main(args: argparse.Namespace) -> None:
         ("bm25", ~sys_bm25, None),
         ("tct", sys_tct, int_tct),
         ("avg1", sys_avg[0], int_avg[0]),
+        ("emb", sys_emb, int_emb),
         ("avg_tct", sys_avg_tct, int_avg_tct),
     ] + [
         (f"avg{i+1}", system, int_avg[i])

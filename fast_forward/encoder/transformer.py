@@ -92,4 +92,30 @@ class TCTColBERTDocumentEncoder(TransformerEncoder):
             embeddings = sum_embeddings / sum_mask
             return embeddings.detach().cpu().numpy()
 
+
+class TransformerEmbeddingEncoder(TransformerEncoder):
+    """Encodes a string using the average of the embedded tokens.
+    Static token embeddings are obtained from a pre-trained Transformer model.
+    """
+    def __init__(self, model: Union[str, Path], device: str = "cpu", **tokenizer_args) -> None:
+        super().__init__(model, device, **tokenizer_args)
+        self.model.encoder.layer = torch.nn.ModuleList([])
+
+    def __call__(self, texts: Sequence[str]) -> np.ndarray:
+        inputs = self.tokenizer(
+            texts,
+            padding=True,
+            return_tensors="pt",
+            **self.tokenizer_args
+        )
+        inputs.to(self.device)
+
+        with torch.no_grad():
+            # Mean pooling: average the embeddings of all non-padding tokens.
+            outputs = self.model(**inputs)
+            embeddings = outputs.last_hidden_state
+            attention_mask = inputs.attention_mask.unsqueeze(-1)
+            avg_embeddings = embeddings.sum(dim=1) / attention_mask.sum(dim=1)
+            return avg_embeddings.cpu().numpy()
+
 # TODO [with Martijn]: Find the best perfoming up-to-date encoders and add them; also create new OPQ indixes.
