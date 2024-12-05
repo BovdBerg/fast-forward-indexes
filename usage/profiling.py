@@ -60,9 +60,9 @@ def parse_args():
         help="The batch size for encoding queries.",
     )
     parser.add_argument(
-        "--samples",
+        "--batches",
         type=int,
-        help="The batch size for encoding queries.",
+        help="The number of batches to process.",
     )
     parser.add_argument(
         "--verbose",
@@ -99,20 +99,20 @@ def main(args: argparse.Namespace) -> None:
         args (argparse.Namespace): Parsed command-line arguments.
     """
     start_time = time.time()
-    assert args.samples is None or args.samples % args.batch_size == 0, f"--samples must be a multiple of {args.batch_size} (batch_size), but were {args.samples}."
-
-    date = time.strftime("%Y-%m-%d_%H-%M")
-    prof_dir = Path("profiles") / f"{args.storage}_{args.device}_batch={args.batch_size}" / f"{args.runs}x{args.samples}q" / date
-    prof_dir.mkdir(parents=True, exist_ok=True)
-    prof_file = prof_dir / "_profiles.json"
-    print_settings(prof_dir)
 
     pt.init()
     dataset = pt.get_dataset("irds:msmarco-passage/dev")
     topics = dataset.get_topics()
-    if args.samples:
-        topics = topics.sample(n=args.samples, random_state=42)
+    if args.batches:
+        samples = args.batches * args.batch_size
+        topics = topics.sample(n=samples)
     queries = list(topics["query"])
+
+    date = time.strftime("%Y-%m-%d_%H-%M")
+    prof_dir = Path("profiles") / f"{args.storage}_{args.device}_batch={args.batch_size}" / f"{args.runs}x{len(queries)}q" / date
+    prof_dir.mkdir(parents=True, exist_ok=True)
+    prof_file = prof_dir / "_profiles.json"
+    print_settings(prof_dir)
 
     print("Creating BM25 retriever via PyTerrier index...")
     sys_bm25 = pt.BatchRetrieve.from_dataset(
@@ -183,8 +183,9 @@ def main(args: argparse.Namespace) -> None:
     })
 
     profiles = pd.DataFrame(profiles)
-    print(f"profiles:\n{profiles}")
     profiles.to_json(prof_file, indent=4)
+    print_settings(prof_dir)
+    print(f"profiles:\n{profiles}")
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
