@@ -47,7 +47,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
     )
-    # TODO [final]: Remove default paths (index_path) form the arguments
+    # TODO [final]: Remove default paths (index_path, ckpt_path) form the arguments
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -64,6 +64,12 @@ def parse_args():
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the index file.",
+    )
+    parser.add_argument(
+        "--ckpt_path",
+        type=Path,
+        default="/home/bvdb9/models/emb_768.ckpt",
+        help="Path to the checkpoint file.",
     )
     parser.add_argument(
         "--in_memory", action="store_true", help="Whether to load the index in memory."
@@ -356,8 +362,11 @@ def main(args: argparse.Namespace) -> None:
 
     index_emb = copy(index_tct)
     index_emb.query_encoder = TransformerEmbeddingEncoder(
-        "google/bert_uncased_L-12_H-768_A-12", device=args.device
+        model="google/bert_uncased_L-12_H-768_A-12",
+        ckpt_path=args.ckpt_path,
+        device=args.device,
     )
+
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.9)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
