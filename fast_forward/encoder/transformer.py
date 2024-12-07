@@ -103,55 +103,20 @@ class TransformerEmbeddingEncoder(TransformerEncoder):
         model: Union[str, Path],
         ckpt_path: Path,
         device: str = "cpu",
-        **tokenizer_args,
     ) -> None:
-        super().__init__(model, device, **tokenizer_args)
+        super().__init__(model, device)
         self.dense = None
         self.embeddings = self.model.get_input_embeddings()
 
-        sd_enc, sd_proj = {}, {}
+        sd_enc = {}
         ckpt = torch.load(ckpt_path, map_location=device)
         for k, v in ckpt["state_dict"].items():
-            if k.endswith("embeddings.position_ids"):
-                continue
-
             # remove prefix and dot
-            # if k.startswith("query_encoder"):
-            #     sd_enc[k[len("query_encoder") + 1 :]] = v
-            if k.startswith("doc_encoder.model"):
-                sd_enc[k[len("doc_encoder.model") + 1 :]] = v
+            if k.startswith("query_encoder."):
+                sd_enc[k[14:]] = v
 
-        self.model.load_state_dict(sd_enc)
-        if ckpt["hyper_parameters"].get("projection_size") is not None:
-            self.projection = torch.nn.Linear(
-                self.model.embedding_dimension,
-                ckpt["hyper_parameters"]["projection_size"],
-            )
-            self.projection.load_state_dict(sd_proj)
-            self.projection.eval()
-        else:
-            self.projection = None
+        self.model.load_state_dict(sd_enc, strict=False)
         self.model.eval()
-
-    def forward(self, batch: Dict[str, torch.LongTensor]) -> torch.Tensor:
-        inputs = batch.input_ids
-        lengths = (inputs != 0).sum(dim=1)
-        sequences_emb = self.embeddings(inputs)
-
-        # create a mask corresponding to sequence lengths
-        _, max_len, emb_dim = sequences_emb.shape
-        mask = torch.arange(max_len, device=lengths.device).unsqueeze(
-            0
-        ) < lengths.unsqueeze(-1)
-        mask = mask.unsqueeze(-1).expand(-1, -1, emb_dim)
-
-        # compute the mean for each sequence
-        rep = torch.sum(mask * sequences_emb, dim=1) / lengths.unsqueeze(-1)
-        return rep
-
-    @property
-    def embedding_dimension(self) -> int:
-        return self.embeddings.embedding_dim
 
     def __call__(self, texts: Sequence[str]) -> np.ndarray:
         inputs = self.tokenizer(
@@ -178,14 +143,8 @@ class TransformerEmbeddingEncoder(TransformerEncoder):
 
             # compute the mean for each sequence
             rep = torch.sum(mask * sequences_emb, dim=1) / lengths.unsqueeze(-1)
-            return rep.detach().cpu().numpy()
+            norm_rep = torch.nn.functional.normalize(rep)
 
-        # with torch.no_grad():
-        #     # Mean pooling: average the embeddings of all non-padding tokens.
-        #     outputs = self.model(**inputs)
-        #     embeddings = outputs.last_hidden_state
-        #     attention_mask = inputs.attention_mask.unsqueeze(-1)
-        #     avg_embeddings = embeddings.sum(dim=1) / attention_mask.sum(dim=1)
-        #     return avg_embeddings.cpu().numpy()
+            return norm_rep.detach().cpu().numpy()
 
 # TODO [with Martijn]: Find the best perfoming up-to-date encoders and add them; also create new OPQ indixes.
