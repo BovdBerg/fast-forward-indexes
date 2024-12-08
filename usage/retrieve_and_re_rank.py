@@ -22,10 +22,8 @@ from gspread_formatting import (
 from ir_measures import measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
-from fast_forward.encoder.transformer import (
-    TCTColBERTQueryEncoder,
-    TransformerEmbeddingEncoder,
-)
+from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
+from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -47,7 +45,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
     )
-    # TODO [final]: Remove default paths (index_path, ckpt_path) form the arguments
+    # TODO [final]: Remove default paths (index_tct_path, index_emb_path, ckpt_path) form the arguments
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -60,9 +58,15 @@ def parse_args():
         help="Dataset (using package ir-datasets).",
     )
     parser.add_argument(
-        "--index_path",
+        "--index_tct_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
+        help="Path to the index file.",
+    )
+    parser.add_argument(
+        "--index_emb_path",
+        type=Path,
+        default="/home/bvdb9/indices/msm-psg/ff_index_L-0.h5",
         help="Path to the index file.",
     )
     parser.add_argument(
@@ -333,7 +337,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
     index_tct = OnDiskIndex.load(
-        args.index_path,
+        args.index_tct_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
         verbose=args.verbose,
     )
@@ -360,13 +364,18 @@ def main(args: argparse.Namespace) -> None:
         sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
-    index_emb = copy(index_tct)
-    index_emb.query_encoder = TransformerEmbeddingEncoder(
-        model="google/bert_uncased_L-12_H-768_A-12",
+    query_encoder_emb = StandaloneEncoder(
+        "google/bert_uncased_L-12_H-768_A-12",
         ckpt_path=args.ckpt_path,
         device=args.device,
     )
-
+    index_emb = OnDiskIndex.load(
+        args.index_emb_path,
+        query_encoder_emb,
+        verbose=args.verbose,
+    )
+    if args.in_memory:
+        index_emb = index_emb.to_memory(2**14)
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.5)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb

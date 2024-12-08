@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Sequence, Union
+from typing import Sequence, Union
 
 import numpy as np
 import torch
@@ -91,60 +91,5 @@ class TCTColBERTDocumentEncoder(TransformerEncoder):
             sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
             embeddings = sum_embeddings / sum_mask
             return embeddings.detach().cpu().numpy()
-
-
-class TransformerEmbeddingEncoder(TransformerEncoder):
-    """Encodes a string using the average of the embedded tokens.
-    Static token embeddings are obtained from a pre-trained Transformer model.
-    """
-
-    def __init__(
-        self,
-        model: Union[str, Path],
-        ckpt_path: Path,
-        device: str = "cpu",
-    ) -> None:
-        super().__init__(model, device)
-        self.dense = None
-        self.embeddings = self.model.get_input_embeddings()
-
-        sd_enc = {}
-        ckpt = torch.load(ckpt_path, map_location=device)
-        for k, v in ckpt["state_dict"].items():
-            # remove prefix and dot
-            if k.startswith("query_encoder."):
-                sd_enc[k[14:]] = v
-
-        self.model.load_state_dict(sd_enc, strict=False)
-        self.model.eval()
-
-    def __call__(self, texts: Sequence[str]) -> np.ndarray:
-        inputs = self.tokenizer(
-            texts,
-            max_length=512,
-            padding=True,
-            truncation=True,
-            return_tensors="pt",
-            **self.tokenizer_args,
-        )
-        inputs.to(self.device)
-
-        with torch.no_grad():
-            input_ids = inputs["input_ids"]
-            lengths = (input_ids != 0).sum(dim=1)
-            sequences_emb = self.embeddings(input_ids)
-
-            # create a mask corresponding to sequence lengths
-            _, max_len, emb_dim = sequences_emb.shape
-            mask = torch.arange(max_len, device=lengths.device).unsqueeze(
-                0
-            ) < lengths.unsqueeze(-1)
-            mask = mask.unsqueeze(-1).expand(-1, -1, emb_dim)
-
-            # compute the mean for each sequence
-            rep = torch.sum(mask * sequences_emb, dim=1) / lengths.unsqueeze(-1)
-            norm_rep = torch.nn.functional.normalize(rep)
-
-            return norm_rep.detach().cpu().numpy()
 
 # TODO [with Martijn]: Find the best perfoming up-to-date encoders and add them; also create new OPQ indixes.
