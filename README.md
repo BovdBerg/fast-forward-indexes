@@ -29,7 +29,14 @@ Install the package via `pip`:
 
 <!-- TODO [final]: improve installation instructions -->
 ```bash
+conda create -y -n ff python=3.12.3
+conda activate ff
+conda install -y -c conda-forge openjdk=21.0.5
 pip install fast-forward-indexes
+
+cd fast-forward-indexes
+pip install -r requirements.txt
+pip install -e .
 ```
 
 
