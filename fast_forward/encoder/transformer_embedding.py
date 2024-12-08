@@ -4,60 +4,12 @@ from typing import Any, Dict, Sequence, Union
 
 import numpy as np
 import torch
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoModel, AutoTokenizer
 
-from fast_forward.encoder import Encoder as FFEncoder
-
-
-class Tokenizer(abc.ABC):
-    """Base class for tokenizers."""
-
-    @abc.abstractmethod
-    def __call__(self, batch: Sequence[str]) -> Any:
-        """Tokenize a batch of strings.
-
-        Args:
-            batch (Sequence[str]): The tokenizer inputs.
-
-        Returns:
-            EncodingModelBatch: The tokenized inputs.
-        """
-        pass
+from fast_forward.encoder import Encoder
 
 
-class TransformerTokenizer(Tokenizer):
-    """Tokenizer for Transformer models."""
-
-    def __init__(self, pretrained_model: str, max_length: int = None) -> None:
-        """Constuctor.
-
-        Args:
-            pretrained_model (str): Pre-trained model on the HuggingFace Hub.
-            max_length (int, optional): Maximum number of tokens. Defaults to None.
-        """
-        super().__init__()
-        self.tok = AutoTokenizer.from_pretrained(pretrained_model)
-        self.max_length = max_length
-
-    def __call__(self, batch: Sequence[str]) -> Any:
-        """Tokenize a batch of strings.
-
-        Args:
-            batch (Sequence[str]): The tokenizer inputs.
-
-        Returns:
-            EncodingModelBatch: The tokenized inputs.
-        """
-        return self.tok(
-            batch,
-            padding=True,
-            truncation=True,
-            return_tensors="pt",
-            max_length=self.max_length,
-        )
-
-
-class Encoder(abc.ABC, torch.nn.Module):
+class EncoderModel(abc.ABC, torch.nn.Module):
     """Base class for encoders."""
 
     @abc.abstractmethod
@@ -83,7 +35,7 @@ class Encoder(abc.ABC, torch.nn.Module):
         pass
 
 
-class TransformerEmbeddingEncoder(Encoder):
+class TransformerEmbeddingEncoder(EncoderModel):
     """Encodes a string using the average of the embedded tokens.
     Static token embeddings are obtained from a pre-trained Transformer model.
     """
@@ -91,13 +43,11 @@ class TransformerEmbeddingEncoder(Encoder):
     def __init__(
         self,
         pretrained_model: Union[str, Path],
-        device: str = "cpu",
     ) -> None:
         super().__init__()
         model = AutoModel.from_pretrained(pretrained_model, return_dict=True)
-        model.to(device)
         self.embeddings = model.get_input_embeddings()
-        self.dense = None
+        self.dense = None # Not sure if needed
 
     def forward(self, batch: Dict[str, torch.LongTensor]) -> torch.Tensor:
         inputs = batch["input_ids"]
@@ -119,51 +69,54 @@ class TransformerEmbeddingEncoder(Encoder):
         return self.embeddings.embedding_dim
 
 
-class StandaloneEncoder(FFEncoder):
+class StandaloneEncoder(Encoder):
     """Adapter class to use encoders for indexing, retrieval, or re-ranking.
     Can be used as an encoder for Fast-Forward indexes. Outputs normalized representations.
     """
 
     def __init__(
         self,
-        model: Union[str, Path],
+        pretrained_model: Union[str, Path],
         ckpt_path: Path,
         device: str = "cpu",
     ) -> None:
         """Instantiate a standalone encoder.
 
         Args:
-            encoder_config (DictConfig): Encoder config.
-            ckpt_file (Path): Checkpoint to load.
-            weights_prefix (str, optional): Prefix of the keys to be loaded in the state dict of the checkpoint. Defaults to "query_encoder".
+            pretrained_model (Union[str, Path]): Pre-trained transformer model.
+            ckpt_path (Path): Checkpoint to load.
             device (str, optional): Device to use. Defaults to "cpu".
         """
         super().__init__()
-        self.tokenizer = TransformerTokenizer(model, max_length=512)
-        self.encoder = TransformerEmbeddingEncoder(model, device)
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
+        self.encoder = TransformerEmbeddingEncoder(pretrained_model)
         self.device = device
         self.encoder.to(device)
 
+        # Load checkpoint and extract encoder weights
         sd_enc = {}
         ckpt = torch.load(ckpt_path, map_location=device)
         for k, v in ckpt["state_dict"].items():
-            if k.startswith("query_encoder."):
-                sd_enc[k[14:]] = v
+            prefix = "query_encoder."
+            if k.startswith(prefix):
+                sd_enc[k[len(prefix):]] = v
         self.encoder.load_state_dict(sd_enc)
         self.encoder.eval()
 
-    def _encode(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """Encode and normalize tokenized inputs.
-
-        Args:
-            inputs (Dict[str, torch.Tensor]): The tokenized inputs.
-
-        Returns:
-            torch.Tensor: The normalized representations.
-        """
-        with torch.no_grad():
-            rep = self.encoder({k: v.to(self.device) for k, v in inputs.items()})
-            return torch.nn.functional.normalize(rep).detach().cpu().numpy()
-
     def __call__(self, texts: Sequence[str]) -> np.ndarray:
-        return self._encode(self.tokenizer(texts))
+        inputs = self.tokenizer(
+            texts,
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
+            max_length=512,
+        )
+        # TODO: either line probably works. Verify this and then remove one:
+        inputs.to(self.device)
+        # inputs = {k: v.to(self.device) for k, v in inputs}
+
+        with torch.no_grad():
+            # TODO: Can I move the query_encoder.forward call to here? Set self.embeddings in init too.
+            rep = self.encoder(inputs)
+            rep_norm = torch.nn.functional.normalize(rep)
+            return rep_norm.detach().cpu().numpy()
