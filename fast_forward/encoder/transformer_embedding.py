@@ -69,6 +69,7 @@ class TransformerEmbeddingEncoder(EncoderModel):
         return self.embeddings.embedding_dim
 
 
+# TODO: Merge TransformerEmbeddingEncoder into StandaloneEncoder and rename StandaloneEncoder to TransformerEmbeddingEncoder.
 class StandaloneEncoder(Encoder):
     """Adapter class to use encoders for indexing, retrieval, or re-ranking.
     Can be used as an encoder for Fast-Forward indexes. Outputs normalized representations.
