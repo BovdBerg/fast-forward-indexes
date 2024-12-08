@@ -41,6 +41,17 @@ def parse_args():
         action="store_true",
         help="Load the target index in memory.",
     )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        help="Device to use.",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print debug information.",
+    )
     return parser.parse_args()
 
 
@@ -56,6 +67,7 @@ def main(args: argparse.Namespace) -> None:
     print("Loading source index...")
     ff_index_source = OnDiskIndex.load(
         args.src_path,
+        verbose=args.verbose,
     )
     if args.src_in_memory:
         ff_index_source.load_in_memory(2**14)
@@ -72,6 +84,7 @@ def main(args: argparse.Namespace) -> None:
         query_encoder,
         overwrite=True,
         init_size=len(ff_index_source),
+        verbose=args.verbose,
     )
     if args.des_in_memory:
         ff_index_des.load_in_memory(2**14)
