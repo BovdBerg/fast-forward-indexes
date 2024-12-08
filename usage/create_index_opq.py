@@ -32,6 +32,13 @@ def parse_args():
         help="Path to the source index.",
     )
     parser.add_argument(
+        "--ckpt_path",
+        type=Path,
+        required=True,
+        default="/home/bvdb9/models/emb_768.ckpt",
+        help="Path to the encoder checkpoint.",
+    )
+    parser.add_argument(
         "--src_in_memory",
         action="store_true",
         help="Load the source index in memory.",
@@ -75,7 +82,7 @@ def main(args: argparse.Namespace) -> None:
     print("Creating query encoder...")
     query_encoder = StandaloneEncoder(
         "google/bert_uncased_L-12_H-768_A-12",
-        ckpt_path="/home/bvdb9/models/emb_768.ckpt",
+        ckpt_path=args.ckpt_path,
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
     print("Creating target index...")
