@@ -377,7 +377,7 @@ def main(args: argparse.Namespace) -> None:
     if args.in_memory:
         index_emb = index_emb.to_memory(2**14)
     ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.5)
+    int_emb = FFInterpolate(alpha=0.1)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
     # TODO [later]: Try using best performing sys_avg in sys_avg_tct rather than the first
