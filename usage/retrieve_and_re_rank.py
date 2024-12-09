@@ -175,6 +175,13 @@ def parse_args():
         ],  # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
         help="Metrics used for evaluation.",
     )
+    # SAVING TO GOOGLE SHEETS
+    parser.add_argument(
+        "--gsheets_credentials",
+        type=Path,
+        default="/home/bvdb9/thesis-gsheets-credentials.json",
+        help="Path to the Google Sheets credentials file.",
+    )
     # PROFILING
     parser.add_argument(
         "--profiling",
@@ -217,9 +224,7 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         results (pd.DataFrame): Results of the experiment to append.
         settings_str (str): Settings used for the experiment
     """
-    service_acc = gspread.service_account(
-        filename="/home/bvdb9/thesis-gsheets-credentials.json"
-    )
+    service_acc = gspread.service_account(filename=args.gsheets_credentials)
     spreadsheet = service_acc.open("Thesis Results")
     worksheet = spreadsheet.sheet1
     print(f"Saving results to Google Sheets file...")
