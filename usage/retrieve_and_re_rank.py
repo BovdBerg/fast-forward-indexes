@@ -341,9 +341,9 @@ def main(args: argparse.Namespace) -> None:
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
         verbose=args.verbose,
     )
-    # if args.in_memory:
-    #     # TODO [bug]: somehow --in_memory avg1 scores higher than OnDiskIndex
-    #     index_tct = index_tct.to_memory(2**14)
+    if args.in_memory:
+        # TODO [bug]: somehow --in_memory avg1 scores higher than OnDiskIndex
+        index_tct = index_tct.to_memory(2**14)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.1)
     sys_tct = sys_bm25_cut >> ff_tct >> int_tct
