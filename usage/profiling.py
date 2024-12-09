@@ -9,7 +9,8 @@ import pyterrier as pt
 from tqdm import tqdm
 
 from fast_forward.encoder.avg import WeightedAvgEncoder
-from fast_forward.encoder.transformer import TCTColBERTQueryEncoder, TransformerEmbeddingEncoder
+from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
+from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 import pandas as pd
@@ -63,10 +64,22 @@ def parse_args():
         help="Print additional information.",
     )
     parser.add_argument(
-        "--index_path",
+        "--index_tct_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
-        help="Path to the index file.",
+        help="The path to the TCTColBERT index.",
+    )
+    parser.add_argument(
+        "--index_emb_path",
+        type=Path,
+        default="/home/bvdb9/indices/msm-psg/ff_index_L-0_opq.h5",
+        help="The path to the TransformerEmbedding index.",
+    )
+    parser.add_argument(
+        "--ckpt_path",
+        type=Path,
+        default="/home/bvdb9/models/emb_768.ckpt",
+        help="The path to the emb checkpoint file.",
     )
     return parser.parse_args()
 
@@ -117,7 +130,7 @@ def main(args: argparse.Namespace) -> None:
     sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
 
     index_tct = OnDiskIndex.load(
-        args.index_path,
+        args.index_tct_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
         verbose=args.verbose,
         encoder_batch_size=args.batch_size,
@@ -128,10 +141,18 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(index_avg)
 
-    index_emb = copy(index_tct)
-    index_emb.query_encoder = TransformerEmbeddingEncoder(
-        "google/bert_uncased_L-12_H-768_A-12", device=args.device
+    query_encoder_emb = StandaloneEncoder(
+        "google/bert_uncased_L-12_H-768_A-12",
+        ckpt_path=args.ckpt_path,
+        device=args.device,
     )
+    index_emb = OnDiskIndex.load(
+        args.index_emb_path,
+        query_encoder_emb,
+        verbose=args.verbose,
+    )
+    if args.storage == "mem":
+        index_emb = index_emb.to_memory(2**14)
 
     pipelines = [
         ("tct", index_tct),
