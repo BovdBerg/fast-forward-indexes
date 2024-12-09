@@ -350,7 +350,7 @@ def main(args: argparse.Namespace) -> None:
     )
     if args.in_memory:
         # TODO [bug]: somehow --in_memory avg1 scores higher than OnDiskIndex
-        index_tct = index_tct.to_memory(2**14)
+        index_tct = index_tct.to_memory(2**15)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.1)
     sys_tct = sys_bm25_cut >> ff_tct >> int_tct
@@ -382,7 +382,7 @@ def main(args: argparse.Namespace) -> None:
         verbose=args.verbose,
     )
     if args.in_memory:
-        index_emb = index_emb.to_memory(2**14)
+        index_emb = index_emb.to_memory(2**15)
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.2)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
