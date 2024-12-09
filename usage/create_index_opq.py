@@ -77,7 +77,7 @@ def main(args: argparse.Namespace) -> None:
         verbose=args.verbose,
     )
     if args.src_in_memory:
-        ff_index_source.load_in_memory(2**14)
+        ff_index_source.to_memory(2**14)
 
     print("Creating query encoder...")
     query_encoder = StandaloneEncoder(
@@ -94,7 +94,7 @@ def main(args: argparse.Namespace) -> None:
         verbose=args.verbose,
     )
     if args.des_in_memory:
-        ff_index_des.load_in_memory(2**14)
+        ff_index_des.to_memory(2**14)
 
     print("Indexing des index...")
     Indexer(
