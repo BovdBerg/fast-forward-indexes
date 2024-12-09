@@ -23,7 +23,7 @@ from ir_measures import measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
-from fast_forward.encoder.transformer_embedding import StandaloneEncoder
+from fast_forward.encoder.transformer_embedding import TransformerEmbeddingEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -364,7 +364,7 @@ def main(args: argparse.Namespace) -> None:
         sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
-    query_encoder_emb = StandaloneEncoder(
+    query_encoder_emb = TransformerEmbeddingEncoder(
         "google/bert_uncased_L-12_H-768_A-12",
         ckpt_path=args.ckpt_path,
         device=args.device,
