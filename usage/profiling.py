@@ -95,6 +95,21 @@ def print_settings(prof_dir: Path) -> None:
     print("Settings:\n\t" + "\n\t".join(settings_description))
 
 
+class JsonProfiler:
+    def __init__(self, runtime_baseline, n_queries):
+        self.runtime_baseline = runtime_baseline
+        self.n_queries = n_queries
+
+    def create(self, name, runtime):
+        return {
+            "name": name,
+            "runtime": runtime,
+            "speedup": round(self.runtime_baseline / runtime, 2),
+            "runtime_batch": round(runtime / (self.n_queries / args.batch_size), 2),
+            "runtime_query": round(runtime / self.n_queries, 5),
+        }
+
+
 # TODO [important]: avg1 sometimes gives an error (easier to detect with many queries). e.g. `python usage/profiling.py --runs=3 --batch_size=256 --batches=2 --storage=disk --verbose`
 def main(args: argparse.Namespace) -> None:
     """
@@ -177,25 +192,14 @@ def main(args: argparse.Namespace) -> None:
         runtime = min(runtimes)
         if runtime_baseline is None:
             runtime_baseline = runtime
-        profile = {
-            "name": name,
-            "runtime": runtime,
-            "speedup": round(runtime_baseline / runtime, 2),
-            "runtime_batch": round(runtime / (len(queries) / args.batch_size), 2),
-            "runtime_query": round(runtime / len(queries), 2),
-        }
+            jsonProfile = JsonProfiler(runtime_baseline, len(queries))
+        profile = jsonProfile.create(name, runtime)
         print(f"Profile:{profile}")
         profiles.append(profile)
 
     # Add a profile "avg_emb" that combines the avg1 and emb profiles by summing their runtime.
     runtime_avg_emb = sum(profile["runtime"] for profile in profiles if profile["name"] in ["avg1", "emb"])
-    profiles.append({
-        "name": "avg_emb",
-        "runtime": runtime_avg_emb,
-        "speedup": round(runtime_baseline / runtime_avg_emb, 2),
-        "runtime_batch": round(runtime_avg_emb / (len(queries) / args.batch_size), 2),
-        "runtime_query": round(runtime_avg_emb / len(queries), 2),
-    })
+    profiles.append(jsonProfile.create("avg_emb", runtime_avg_emb))
 
     profiles = pd.DataFrame(profiles)
     profiles.to_json(prof_file, indent=4)
