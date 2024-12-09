@@ -23,7 +23,7 @@ from ir_measures import measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
-from fast_forward.encoder.transformer_embedding import TransformerEmbeddingEncoder
+from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -66,7 +66,7 @@ def parse_args():
     parser.add_argument(
         "--index_emb_path",
         type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_L-0.h5",
+        default="/home/bvdb9/indices/msm-psg/ff_index_L-0_opq.h5",
         help="Path to the index file.",
     )
     parser.add_argument(
@@ -341,9 +341,9 @@ def main(args: argparse.Namespace) -> None:
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
         verbose=args.verbose,
     )
-    if args.in_memory:
-        # TODO [bug]: somehow --in_memory avg1 scores higher than OnDiskIndex
-        index_tct = index_tct.to_memory(2**14)
+    # if args.in_memory:
+    #     # TODO [bug]: somehow --in_memory avg1 scores higher than OnDiskIndex
+    #     index_tct = index_tct.to_memory(2**14)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.1)
     sys_tct = sys_bm25_cut >> ff_tct >> int_tct
@@ -364,7 +364,7 @@ def main(args: argparse.Namespace) -> None:
         sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
-    query_encoder_emb = TransformerEmbeddingEncoder(
+    query_encoder_emb = StandaloneEncoder(
         "google/bert_uncased_L-12_H-768_A-12",
         ckpt_path=args.ckpt_path,
         device=args.device,
@@ -374,11 +374,10 @@ def main(args: argparse.Namespace) -> None:
         query_encoder_emb,
         verbose=args.verbose,
     )
-    # TODO: uncomment these lines once OPQ index is created
-    # if args.in_memory:
-    #     index_emb = index_emb.to_memory(2**14)
+    if args.in_memory:
+        index_emb = index_emb.to_memory(2**14)
     ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.1)
+    int_emb = FFInterpolate(alpha=0.2)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
     # TODO [later]: Try using best performing sys_avg in sys_avg_tct rather than the first

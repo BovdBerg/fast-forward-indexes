@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 
 from fast_forward import Indexer, OnDiskIndex
-from fast_forward.encoder.transformer_embedding import TransformerEmbeddingEncoder
+from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.quantizer.nanopq import NanoOPQ
 
 logging.basicConfig(level=logging.DEBUG)
@@ -80,7 +80,7 @@ def main(args: argparse.Namespace) -> None:
         ff_index_source.to_memory(2**14)
 
     print("Creating query encoder...")
-    query_encoder = TransformerEmbeddingEncoder(
+    query_encoder = StandaloneEncoder(
         "google/bert_uncased_L-12_H-768_A-12",
         ckpt_path=args.ckpt_path,
         device="cuda" if torch.cuda.is_available() else "cpu",
