@@ -201,7 +201,7 @@ def print_settings() -> None:
     ]
     # Validation settings
     if args.val_pipelines:
-        settings_description.append(f"Val: {args.val_pipelines}, '{args.dev_dataset}', α={args.alphas}")
+        settings_description.append(f"Val: {args.val_pipelines}, '{args.dev_dataset}', α=[{','.join(map(str, args.alphas))}]")
 
     print("Settings:\n\t" + "\n\t".join(settings_description))
     return "\n".join(settings_description)
