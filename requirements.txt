@@ -13,3 +13,6 @@ torchmetrics==1.4.0
 h5py==3.11.0
 tensorboardx==2.2
 python-terrier==0.10.1
+gspread==6.1.4
+gspread-dataframe==4.0.0
+gspread-formatting==1.2.0
