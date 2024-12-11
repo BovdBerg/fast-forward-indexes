@@ -113,10 +113,14 @@ class WeightedAvgEncoder(Encoder):
             top_docs_scores: Sequence[float] = top_docs["score"].values
 
             # Get the embeddings of the top-ranked documents
-            d_reps: np.ndarray = self.index._get_vectors(top_docs_ids)[0]
+            d_reps, d_ids = self.index._get_vectors(top_docs_ids)
             if self.index.quantizer is not None:
                 d_reps = self.index.quantizer.decode(d_reps)
 
+            # TODO: not just flatten, but use mode (e.g. MaxP). Compare to _compute_scores in index. For non-psg datasets.
+            d_ids = [x[0] for x in d_ids]  # [[0], [2], [1]] --> [0, 2, 1]
+            d_reps = d_reps[d_ids]  # sort d_reps on d_ids order
+            
             # Calculate the weighted average of the embeddings and save it to q_no index in q_reps
             q_reps[i] = np.average(
                 d_reps, axis=0, weights=self._get_weights(len(d_reps), top_docs_scores)
