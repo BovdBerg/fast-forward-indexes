@@ -7,7 +7,6 @@ import pandas as pd
 import pyterrier as pt
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -17,13 +16,26 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
+### PARAMETERS
+BATCH_SIZE = 1
+SAMPLES = 1000
+K_AVG = 10
+DIM = 768
+IN_MEMORY = True
+SAVE_INTERVAL = 1000
+
+
 ### PyTerrier setup
 pt.init()
+
+# BM25
 sys_bm25 = pt.BatchRetrieve.from_dataset(
-    "msmarco_passage", "terrier_stemmed", wmodel="BM25", verbose=False
+    "msmarco_passage", "terrier_stemmed", wmodel="BM25"
 )
+sys_bm25.verbose = False
 sys_bm25_cut = ~sys_bm25 % 1000
 
+# FF with TCT-ColBERT encoding + Interpolation
 index_tct = OnDiskIndex.load(
     Path("/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5"),
     TCTColBERTQueryEncoder(
@@ -32,18 +44,12 @@ index_tct = OnDiskIndex.load(
     ),
     verbose=False,
 )
-# index_tct = index_tct.to_memory(2**15)
+if IN_MEMORY:
+    index_tct = index_tct.to_memory(2**15)
 sys_tct = sys_bm25_cut >> FFScore(index_tct) >> FFInterpolate(alpha=0.1)
 
 
 ### Dataset and DataLoader
-BATCH_SIZE = 1
-SAMPLES = 1
-K_AVG = 10
-DIM = 768
-
-
-# TODO: Load data (inputs, labels) per batch
 def dataset_to_dataloader(
     dataset_name: str,
     shuffle: bool,
@@ -90,14 +96,16 @@ val_loader = dataset_to_dataloader("irds:msmarco-passage/dev", False)
 class LearnedAvgWeights(nn.Module):
     def __init__(self):
         super().__init__()
-        self.weights = nn.Parameter(torch.ones(10))
+        self.weights = nn.Parameter(
+            torch.ones(K_AVG) / K_AVG
+        )  # shape (K_AVG,), init as uniform weights
         print("Model initialized as {}".format(self))
 
-    def forward(self, d_reps: np.ndarray) -> Sequence[float]:
-        # Softmax: Normalize weights to sum to 1
-        weights = F.softmax(self.weights, dim=0)
-        # Compute the weighted average of the input embeddings
-        q_rep = torch.sum(weights.unsqueeze(1) * d_reps, dim=0)
+    def forward(
+        self,
+        d_reps: np.ndarray,  # shape (BATCH_SIZE, K_AVG, DIM) or (K_AVG, DIM)
+    ) -> Sequence[float]:  # shape (BATCH_SIZE, DIM)
+        q_rep = torch.einsum("k,bkd->bd", self.weights, d_reps)
         return q_rep
 
 
@@ -109,47 +117,7 @@ model = LearnedAvgWeights()
 
 
 ### Loss Function
-# TODO: select loss function to fit my needs
-loss_fn = nn.MSELoss()
-
-# Example usage:
-# Assuming `input_embeddings` is a tensor of shape (K_AVG, DIM)
-# and `target_embedding` is a tensor of shape (BATCH_SIZE, DIM)
-input_embeddings = torch.randn(K_AVG, DIM)  # Example input
-target_embedding = torch.randn(DIM)  # Example target
-print(
-    "input_embeddings.shape: {}".format(input_embeddings.shape)
-)  # Should be (DIM,)
-print("target_embedding.shape: {}".format(target_embedding.shape))  # Should be (BATCH_SIZE, DIM)
-
-# Forward pass
-output_embedding = model(input_embeddings)
-
-# Compute loss
-loss = loss_fn(output_embedding, target_embedding)
-print("Loss:", loss.item())
-
-exit()
-
-# TODO: modify classes, inputs, and test loss function
-# classes = ('T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat', 'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle Boot')
-# print(f"Classes: {classes}")
-
-# # NB: Loss functions expect data in batches, so we're creating batches of 4
-# n_batches = 4
-# n_classes = len(classes)
-
-# # Represents the model's confidence in each of the n_classes classes for a given input
-# dummy_outputs = torch.rand(n_batches, n_classes)
-# print('dummy_outputs:\n{}'.format(dummy_outputs))
-# print('-> selected: {}'.format(torch.argmax(dummy_outputs, dim=1)))
-
-# # Represents the correct class among the n_classes being tested
-# dummy_labels = torch.randint(0, n_classes, (n_batches,))
-# print('dummy_labels: {}'.format(dummy_labels))
-
-# loss = loss_fn(dummy_outputs, dummy_labels)
-# print('Total loss for this batch: {}'.format(loss.item()))
+loss_fn = nn.MSELoss()  # TODO: select loss function to fit my needs
 
 
 ### Optimizer
@@ -164,6 +132,7 @@ def train_one_epoch(epoch_index, tb_writer):
 
     # Gets a batch of training data from the DataLoader
     for i, (inputs, labels) in enumerate(train_loader):
+        print(f"inputs.shape: {inputs.shape}, labels.shape: {labels.shape}")
         # Zero the optimizer’s gradients
         optimizer.zero_grad()
 
@@ -183,8 +152,8 @@ def train_one_epoch(epoch_index, tb_writer):
 
         # Gather data and reports avg per-batch loss every 1000 batches. For comparison with a validation run
         run_loss += loss.item()
-        if i % 1000 == 999:
-            last_loss = run_loss / 1000  # loss per batch
+        if i % SAVE_INTERVAL == SAVE_INTERVAL - 1:
+            last_loss = run_loss / SAVE_INTERVAL  # loss per batch
             print("\tbatch {} loss: {}".format(i + 1, last_loss))
             tb_x = epoch_index * len(train_loader) + i + 1
             tb_writer.add_scalar("Loss/train", last_loss, tb_x)
@@ -196,9 +165,7 @@ def train_one_epoch(epoch_index, tb_writer):
 ### Per-Epoch Activity
 # Initializing in a separate cell so we can easily add more epochs to the same run
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-writer = SummaryWriter(
-    "runs/fashion_trainer_{}".format(timestamp)
-)  # TODO: rename to fit my needs
+writer = SummaryWriter("runs/avg_weights_{}".format(timestamp))
 
 EPOCHS = 3
 
@@ -238,6 +205,8 @@ for epoch in range(EPOCHS):
     # Track best performance, and save the model's state
     if avg_vloss < best_vloss:
         best_vloss = avg_vloss
-        model_path = "outputs/models/model_{}_{}".format(timestamp, epoch)
+        model_dir = Path("outputs/models")
+        model_dir.mkdir(parents=True, exist_ok=True)
+        model_path = model_dir / "model_{}_{}".format(timestamp, epoch)
         print("Saving model to {}".format(model_path))
         torch.save(model.state_dict(), model_path)
