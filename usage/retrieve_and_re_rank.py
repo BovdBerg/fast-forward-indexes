@@ -76,7 +76,11 @@ def parse_args():
         help="Path to the checkpoint file.",
     )
     parser.add_argument(
-        "--in_memory", action="store_true", help="Whether to load the index in memory."
+        "--storage",
+        type=str,
+        choices=["disk", "mem"],
+        default="mem",
+        help="Storage type for the index.",
     )
     parser.add_argument(
         "--sparse_cutoff",
@@ -203,7 +207,7 @@ def print_settings() -> None:
     """
     # General settings
     settings_description: List[str] = [
-        f"sparse_cutoff={args.sparse_cutoff}, in_memory={args.in_memory}, device={args.device}",
+        f"sparse_cutoff={args.sparse_cutoff}, in_memory={args.storage == 'mem'}, device={args.device}",
         f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}",
     ]
     # Validation settings
@@ -275,8 +279,7 @@ def profile(pipelines: List[Tuple[str, pt.Transformer, pt.Transformer]]) -> None
     Args:
         pipelines (List[Tuple[str, pt.Transformer, pt.Transformer]): List of re-ranking pipelines to profile.
     """
-    mem_s = "mem" if args.in_memory else "disk"
-    profile_dir = Path(__file__).parent.parent / "profiles" / f"{mem_s}_{args.device}"
+    profile_dir = Path(__file__).parent.parent / "profiles" / f"{args.storage}_{args.device}"
     profile_dir.mkdir(parents=True, exist_ok=True)
     print(f"Creating re-ranking profiles in {profile_dir}...")
 
@@ -348,7 +351,7 @@ def main(args: argparse.Namespace) -> None:
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
         verbose=args.verbose,
     )
-    if args.in_memory:
+    if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.1)
@@ -380,7 +383,7 @@ def main(args: argparse.Namespace) -> None:
         query_encoder_emb,
         verbose=args.verbose,
     )
-    if args.in_memory:
+    if args.storage == "mem":
         index_emb = index_emb.to_memory(2**15)
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.2)
