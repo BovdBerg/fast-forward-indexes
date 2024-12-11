@@ -113,13 +113,13 @@ class WeightedAvgEncoder(Encoder):
 
             # Get the embeddings of the top-ranked documents
             # TODO: Make sure d_reps is only retrieved once throughout full re-ranking pipeline.
-            d_reps, d_ids = self.index._get_vectors(top_docs_ids)
+            d_reps, d_idxs = self.index._get_vectors(top_docs_ids)
             if self.index.quantizer is not None:
                 d_reps = self.index.quantizer.decode(d_reps)
 
             # TODO: not just flatten, but use mode (e.g. MaxP). Compare to _compute_scores in index. For non-psg datasets.
-            d_ids = [x[0] for x in d_ids]  # [[0], [2], [1]] --> [0, 2, 1]
-            d_reps = d_reps[d_ids]  # sort d_reps on d_ids order
+            order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
+            d_reps = d_reps[order]  # sort d_reps on d_ids order
             
             # Calculate the weighted average of the embeddings and save it to q_no index in q_reps
             q_reps[i] = np.average(
