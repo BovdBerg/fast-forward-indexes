@@ -20,7 +20,7 @@ from fast_forward.util.pyterrier import FFInterpolate, FFScore
 ### PyTerrier setup
 pt.init()
 sys_bm25 = pt.BatchRetrieve.from_dataset(
-    "msmarco_passage", "terrier_stemmed", wmodel="BM25", verbose=True
+    "msmarco_passage", "terrier_stemmed", wmodel="BM25", verbose=False
 )
 sys_bm25_cut = ~sys_bm25 % 1000
 
@@ -30,7 +30,7 @@ index_tct = OnDiskIndex.load(
         "castorini/tct_colbert-msmarco",
         device="cuda" if torch.cuda.is_available() else "cpu",
     ),
-    verbose=True,
+    verbose=False,
 )
 # index_tct = index_tct.to_memory(2**15)
 sys_tct = sys_bm25_cut >> FFScore(index_tct) >> FFInterpolate(alpha=0.1)
@@ -40,6 +40,7 @@ sys_tct = sys_bm25_cut >> FFScore(index_tct) >> FFInterpolate(alpha=0.1)
 BATCH_SIZE = 1
 SAMPLES = 1
 K_AVG = 10
+DIM = 768
 
 
 # TODO: Load data (inputs, labels) per batch
@@ -57,8 +58,7 @@ def dataset_to_dataloader(
         query = pd.DataFrame([query._asdict()])
 
         # Encode query using TCT-ColBERT
-        q_rep_tct = index_tct.encode_queries(query["query"])
-        print(f"q_rep_tct.shape: {q_rep_tct.shape}")
+        q_rep_tct = index_tct.encode_queries(query["query"])[0]
 
         # Get the top-ranked document vectors for the query
         # TODO: would be cleaner to use an index with WeightedAvgEncoder and add a method there to get the d_reps
@@ -73,8 +73,6 @@ def dataset_to_dataloader(
             d_reps = index_tct.quantizer.decode(d_reps)
         order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
         d_reps = d_reps[order]  # sort d_reps on d_ids order
-        print(f"d_reps.shape: {d_reps.shape}")
-        # print(f'avg shape: {np.average(d_reps, axis=0).shape}')
 
         set.append((d_reps, q_rep_tct))  # (inputs, labels)
 
@@ -115,14 +113,14 @@ model = LearnedAvgWeights()
 loss_fn = nn.MSELoss()
 
 # Example usage:
-# Assuming `input_embeddings` is a tensor of shape (10, 768)
-# and `target_embedding` is a tensor of shape (768,)
-input_embeddings = torch.randn(10, 768)  # Example input
-target_embedding = torch.randn(768)  # Example target
+# Assuming `input_embeddings` is a tensor of shape (K_AVG, DIM)
+# and `target_embedding` is a tensor of shape (BATCH_SIZE, DIM)
+input_embeddings = torch.randn(K_AVG, DIM)  # Example input
+target_embedding = torch.randn(DIM)  # Example target
 print(
     "input_embeddings.shape: {}".format(input_embeddings.shape)
-)  # Should be (10, 768,)
-print("target_embedding.shape: {}".format(target_embedding.shape))  # Should be (768,)
+)  # Should be (DIM,)
+print("target_embedding.shape: {}".format(target_embedding.shape))  # Should be (BATCH_SIZE, DIM)
 
 # Forward pass
 output_embedding = model(input_embeddings)
