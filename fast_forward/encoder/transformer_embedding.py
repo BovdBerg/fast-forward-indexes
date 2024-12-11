@@ -1,10 +1,9 @@
-import abc
 from pathlib import Path
-from typing import Any, Dict, Sequence, Union
+from typing import Sequence, Union
 
 import numpy as np
 import torch
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, BatchEncoding
 
 from fast_forward.encoder import Encoder
 
@@ -25,7 +24,7 @@ class TransformerEmbeddingEncoder(torch.nn.Module):
         model = AutoModel.from_pretrained(pretrained_model, return_dict=True)
         self.embeddings = model.get_input_embeddings()
 
-    def forward(self, batch: Any) -> torch.Tensor:
+    def forward(self, batch: BatchEncoding) -> torch.Tensor:
         input_ids = batch["input_ids"]
         lengths = (input_ids != 0).sum(dim=1)
         sequences_emb = self.embeddings(input_ids)
