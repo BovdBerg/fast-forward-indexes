@@ -175,6 +175,7 @@ def main(args: argparse.Namespace) -> None:
         ("emb", index_emb),
     ]
 
+    # TODO: Use timeit with multiple iterations as runtime. Keep below for method/class profiling to view. https://docs.python.org/3/library/timeit.html AND https://ipython.readthedocs.io/en/stable/interactive/magics.html#magic-timeit.
     profiles = []
     runtime_baseline = None
     for name, index in pipelines:

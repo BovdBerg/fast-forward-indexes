@@ -6,7 +6,6 @@ import pandas as pd
 
 from fast_forward.encoder import Encoder
 from fast_forward.index import Index
-from fast_forward.ranking import Ranking
 
 
 class W_METHOD(Enum):
@@ -113,6 +112,7 @@ class WeightedAvgEncoder(Encoder):
             top_docs_scores: Sequence[float] = top_docs["score"].values
 
             # Get the embeddings of the top-ranked documents
+            # TODO: Make sure d_reps is only retrieved once throughout full re-ranking pipeline.
             d_reps, d_ids = self.index._get_vectors(top_docs_ids)
             if self.index.quantizer is not None:
                 d_reps = self.index.quantizer.decode(d_reps)
