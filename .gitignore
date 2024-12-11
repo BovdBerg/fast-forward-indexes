@@ -112,3 +112,6 @@ venv.bak/
 cache/*/*
 results.json
 profiles/
+data/
+runs/
+outputs/
