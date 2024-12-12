@@ -7,33 +7,32 @@ Date: 12-12-2024.
 import os
 
 import lightning as L
-import torch
-from torch import Tensor, nn, optim, utils
+from torch import nn, optim, utils
 from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 
+
 ### 2: Define a LightningModule
-# define any number of nn.Modules (or use your current ones)
-encoder = nn.Sequential(nn.Linear(28 * 28, 64), nn.ReLU(), nn.Linear(64, 3))
-decoder = nn.Sequential(nn.Linear(3, 64), nn.ReLU(), nn.Linear(64, 28 * 28))
-
-
-# define the LightningModule
 class LitAutoEncoder(L.LightningModule):
-    def __init__(self, encoder, decoder):
+    def __init__(self):
         super().__init__()
-        self.encoder = encoder
-        self.decoder = decoder
+        self.encoder = nn.Sequential(nn.Linear(28 * 28, 10))
+        self.decoder = nn.Sequential(nn.Linear(10, 28 * 28))
+
+    # def forward(self, *args, **kwargs):
+    #     return super().forward(*args, **kwargs)
 
     def training_step(self, batch, batch_idx):
-        # training_step defines the train loop.
-        # it is independent of forward
+        print(f"batch shape: {batch[0].shape}")
         x, _ = batch
+        print(f"x shape: {x.shape}")
         x = x.view(x.size(0), -1)
+        print(f"x shape 2: {x.shape}")
         z = self.encoder(x)
+        print(f"z shape: {z.shape}")
         x_hat = self.decoder(z)
+        print(f"x_hat shape: {x_hat.shape}")
         loss = nn.functional.mse_loss(x_hat, x)
-        # Logging to TensorBoard (if installed) by default
         self.log("train_loss", loss)
         return loss
 
@@ -52,33 +51,34 @@ class LitAutoEncoder(L.LightningModule):
 
 
 # init the autoencoder
-autoencoder = LitAutoEncoder(encoder, decoder)
+autoencoder = LitAutoEncoder()
 
 
 ### 3: Define a dataset
 # setup data
 dataset = MNIST(os.getcwd(), download=True, transform=ToTensor())
-train_loader = utils.data.DataLoader(dataset)
+print(f"dataset.data.shape: {dataset.data.shape}")
+train_loader = utils.data.DataLoader(dataset, num_workers=11, batch_size=2)
 
 
 ### 4: Train the model
 # train the model (hint: here are some helpful Trainer arguments for rapid idea iteration)
-trainer = L.Trainer(limit_train_batches=100, max_epochs=5)
+trainer = L.Trainer(limit_train_batches=500, max_epochs=1)
 trainer.fit(model=autoencoder, train_dataloaders=train_loader)
 
 
 ### 5: Use the model
-# load checkpoint
-checkpoint = "./lightning_logs/version_0/checkpoints/epoch=0-step=100.ckpt"
-autoencoder = LitAutoEncoder.load_from_checkpoint(
-    checkpoint, encoder=encoder, decoder=decoder
-)
+# # load checkpoint
+# checkpoint = "./lightning_logs/version_0/checkpoints/epoch=0-step=100.ckpt"
+# autoencoder = LitAutoEncoder.load_from_checkpoint(
+#     checkpoint, encoder=encoder, decoder=decoder
+# )
 
-# choose your trained nn.Module
-encoder = autoencoder.encoder
-encoder.eval()
+# # choose your trained nn.Module
+# encoder = autoencoder.encoder
+# encoder.eval()
 
-# embed 4 fake images!
-fake_image_batch = torch.rand(4, 28 * 28, device=autoencoder.device)
-embeddings = encoder(fake_image_batch)
-print("⚡" * 20, "\nPredictions (4 image embeddings):\n", embeddings, "\n", "⚡" * 20)
+# # embed 4 fake images!
+# fake_image_batch = torch.rand(4, 28 * 28, device=autoencoder.device)
+# embeddings = encoder(fake_image_batch)
+# print("⚡" * 20, "\nPredictions (4 image embeddings):\n", embeddings, "\n", "⚡" * 20)
