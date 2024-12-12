@@ -115,3 +115,5 @@ profiles/
 data/
 runs/
 outputs/
+lightning_logs/
+MNIST/
