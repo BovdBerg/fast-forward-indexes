@@ -109,7 +109,9 @@ class LearnedAvgWeights(nn.Module):
         self,
         d_reps: np.ndarray,  # shape (BATCH_SIZE, K_AVG, DIM) or (K_AVG, DIM)
     ) -> Sequence[float]:  # shape (BATCH_SIZE, DIM)
-        q_rep = torch.einsum("k,bkd->bd", self.weights, d_reps)
+        weights_cut = self.weights[:len(d_reps)]
+        weights_softmax = torch.softmax(weights_cut, dim=0)  # TODO: Check if softmax is needed
+        q_rep = torch.einsum("k,bkd->bd", weights_softmax, d_reps)
         return q_rep
 
 
