@@ -14,18 +14,17 @@ from tqdm import tqdm
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
-from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
 # TODO [important]: Why does validation loss remain exactly the same?
 # TODO: Rewrite to PyTorch Lightning for simplicity? https://lightning.ai/docs/pytorch/stable/starter/introduction.html
 ### PARAMETERS
 TCT_INDEX_PATH = Path("/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5")
 BATCH_SIZE = 1  # Number of instances to process in a batch
-SAMPLES = 100  # Number of queries to sample from the dataset
+SAMPLES = 1  # Number of queries to sample from the dataset
 K_AVG = 10  # Number of top-ranked documents to average
 IN_MEMORY = False  # Load the TCT index to memory
 SAVE_INTERVAL = 20  # Number of batches between each loss print
-EPOCHS = 5  # Number of epochs to train
+EPOCHS = 1  # Number of epochs to train
 MODEL_PATH = None  # Path to a model to load and continue training from
 
 
@@ -49,7 +48,6 @@ index_tct = OnDiskIndex.load(
 )
 if IN_MEMORY:
     index_tct = index_tct.to_memory(2**15)
-sys_tct = sys_bm25_cut >> FFScore(index_tct) >> FFInterpolate(alpha=0.1)
 
 
 ### Dataset and DataLoader
@@ -107,20 +105,15 @@ val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", False)
 class LearnedAvgWeights(nn.Module):
     def __init__(self):
         super().__init__()
-        self.weights = nn.Parameter(
-            torch.ones(K_AVG) / K_AVG
-        )  # shape (K_AVG,), init as uniform weights
+        self.encoder = nn.Sequential(nn.Linear(10 * 768, 768))
         print("Model initialized as {}".format(self))
 
     def forward(
         self,
         d_reps: np.ndarray,  # shape (BATCH_SIZE, K_AVG, DIM) or (K_AVG, DIM)
     ) -> Sequence[float]:  # shape (BATCH_SIZE, DIM)
-        weights_cut = self.weights[: len(d_reps)]
-        weights_softmax = torch.softmax(
-            weights_cut, dim=0
-        )  # TODO: Check if softmax is needed
-        q_rep = torch.einsum("k,bkd->bd", weights_softmax, d_reps)
+        print(f"d_reps: {d_reps.shape}")
+        q_rep = self.encoder(d_reps)
         return q_rep
 
 
