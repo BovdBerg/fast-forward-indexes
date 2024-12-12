@@ -98,7 +98,7 @@ def dataset_to_dataloader(
 
 # Create data loaders for our datasets; shuffle for training, not for validation
 train_loader = dataset_to_dataloader("irds:msmarco-passage/train", True)
-val_loader = dataset_to_dataloader("irds:msmarco-passage/dev", False)
+val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", False)
 # TODO: Cache the dataloaders to disk for faster re-runs
 
 
