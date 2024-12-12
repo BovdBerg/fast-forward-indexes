@@ -73,6 +73,10 @@ def dataset_to_dataloader(
             df_sparse.rename(columns={"qid": "q_id", "docno": "id"})
         ).cut(K_AVG)
         top_docs = ranking_sparse._df.query("query == @query['query'].iloc[0]")
+        # Skip queries with too little top_docs
+        if len(top_docs) == 0:
+            print(f"Skipping query {query['qid'].iloc[0]}: '{query['query'].iloc[0]}' (has no top_docs)")
+            continue
         top_docs_ids = top_docs["id"].values
         d_reps, d_idxs = index_tct._get_vectors(top_docs_ids)
         if index_tct.quantizer is not None:
