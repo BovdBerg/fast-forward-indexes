@@ -21,11 +21,11 @@ from fast_forward.util.pyterrier import FFInterpolate, FFScore
 ### PARAMETERS
 TCT_INDEX_PATH = Path("/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5")
 BATCH_SIZE = 1  # Number of instances to process in a batch
-SAMPLES = 10  # Number of queries to sample from the dataset
+SAMPLES = 100  # Number of queries to sample from the dataset
 K_AVG = 10  # Number of top-ranked documents to average
 IN_MEMORY = False  # Load the TCT index to memory
-SAVE_INTERVAL = 5  # Number of batches between each loss print
-EPOCHS = 3  # Number of epochs to train
+SAVE_INTERVAL = 20  # Number of batches between each loss print
+EPOCHS = 5  # Number of epochs to train
 MODEL_PATH = None  # Path to a model to load and continue training from
 
 
@@ -220,7 +220,7 @@ for epoch in range(EPOCHS):
         best_vloss = avg_vloss
         model_dir = Path("outputs/models")
         model_dir.mkdir(parents=True, exist_ok=True)
-        model_path = model_dir / "model_{}_{}".format(timestamp, epoch)
+        model_path = model_dir / "model_{}_{}.ckpt".format(timestamp, epoch)
         print("Saving model to {}".format(model_path))
         torch.save(model.state_dict(), model_path)
 
