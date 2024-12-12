@@ -16,13 +16,17 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
+# TODO [important]: Why does validation loss remain exactly the same?
+# TODO: Rewrite to PyTorch Lightning for simplicity? https://lightning.ai/docs/pytorch/stable/starter/introduction.html
 ### PARAMETERS
-BATCH_SIZE = 1
-SAMPLES = 1000
-K_AVG = 10
-DIM = 768
-IN_MEMORY = True
-SAVE_INTERVAL = 1000
+TCT_INDEX_PATH = Path("/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5")
+BATCH_SIZE = 1  # Number of instances to process in a batch
+SAMPLES = 10  # Number of queries to sample from the dataset
+K_AVG = 10  # Number of top-ranked documents to average
+IN_MEMORY = False  # Load the TCT index to memory
+SAVE_INTERVAL = 5  # Number of batches between each loss print
+EPOCHS = 3  # Number of epochs to train
+MODEL_PATH = None  # Path to a model to load and continue training from
 
 
 ### PyTerrier setup
@@ -37,12 +41,11 @@ sys_bm25_cut = ~sys_bm25 % 1000
 
 # FF with TCT-ColBERT encoding + Interpolation
 index_tct = OnDiskIndex.load(
-    Path("/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5"),
+    TCT_INDEX_PATH,
     TCTColBERTQueryEncoder(
         "castorini/tct_colbert-msmarco",
         device="cuda" if torch.cuda.is_available() else "cpu",
     ),
-    verbose=False,
 )
 if IN_MEMORY:
     index_tct = index_tct.to_memory(2**15)
@@ -63,10 +66,10 @@ def dataset_to_dataloader(
     ):
         query = pd.DataFrame([query._asdict()])
 
-        # Encode query using TCT-ColBERT
+        ## Label: query encoded using TCT-ColBERT
         q_rep_tct = index_tct.encode_queries(query["query"])[0]
 
-        # Get the top-ranked document vectors for the query
+        ## Inputs: top-ranked document vectors for the query
         # TODO: would be cleaner to use an index with WeightedAvgEncoder and add a method there to get the d_reps
         df_sparse = sys_bm25_cut.transform(query)
         ranking_sparse = Ranking(
@@ -75,7 +78,9 @@ def dataset_to_dataloader(
         top_docs = ranking_sparse._df.query("query == @query['query'].iloc[0]")
         # Skip queries with too little top_docs
         if len(top_docs) == 0:
-            print(f"Skipping query {query['qid'].iloc[0]}: '{query['query'].iloc[0]}' (has no top_docs)")
+            print(
+                f"Skipping query {query['qid'].iloc[0]}: '{query['query'].iloc[0]}' (has no top_docs)"
+            )
             continue
         top_docs_ids = top_docs["id"].values
         d_reps, d_idxs = index_tct._get_vectors(top_docs_ids)
@@ -94,8 +99,10 @@ def dataset_to_dataloader(
 # Create data loaders for our datasets; shuffle for training, not for validation
 train_loader = dataset_to_dataloader("irds:msmarco-passage/train", True)
 val_loader = dataset_to_dataloader("irds:msmarco-passage/dev", False)
+# TODO: Cache the dataloaders to disk for faster re-runs
 
 
+# TODO [important]: Validation loss remains constant. The model should probably have a neural network that learns the weights for the top-ranked documents.
 ### Model
 class LearnedAvgWeights(nn.Module):
     def __init__(self):
@@ -109,25 +116,25 @@ class LearnedAvgWeights(nn.Module):
         self,
         d_reps: np.ndarray,  # shape (BATCH_SIZE, K_AVG, DIM) or (K_AVG, DIM)
     ) -> Sequence[float]:  # shape (BATCH_SIZE, DIM)
-        weights_cut = self.weights[:len(d_reps)]
-        weights_softmax = torch.softmax(weights_cut, dim=0)  # TODO: Check if softmax is needed
+        weights_cut = self.weights[: len(d_reps)]
+        weights_softmax = torch.softmax(
+            weights_cut, dim=0
+        )  # TODO: Check if softmax is needed
         q_rep = torch.einsum("k,bkd->bd", weights_softmax, d_reps)
         return q_rep
 
 
 model = LearnedAvgWeights()
-# model.load_state_dict(torch.load(model_path))
-
-
-### Create target embedding
+if MODEL_PATH:
+    model.load_state_dict(torch.load(MODEL_PATH))
 
 
 ### Loss Function
 loss_fn = nn.MSELoss()  # TODO: select loss function to fit my needs
 
 
+# TODO: Which optimizer should be used? https://pytorch.org/docs/stable/optim.html
 ### Optimizer
-# Optimizers specified in the torch.optim package
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
 
@@ -138,7 +145,6 @@ def train_one_epoch(epoch_index, tb_writer):
 
     # Gets a batch of training data from the DataLoader
     for i, (inputs, labels) in enumerate(train_loader):
-        print(f"inputs.shape: {inputs.shape}, labels.shape: {labels.shape}")
         # Zero the optimizer’s gradients
         optimizer.zero_grad()
 
@@ -152,15 +158,19 @@ def train_one_epoch(epoch_index, tb_writer):
         # Calculate backward gradients over learning weights
         loss.backward()
 
-        # Adjust learning weights
-        # Perform 1 optimizer learning step - adjust model’s learning weights based on the observed gradients, according to the optimization algorithm we chose
+        # Perform optimizer learning step - optimizer adjusts model’s learning weights based on the observed gradients
         optimizer.step()
 
         # Gather data and reports avg per-batch loss every 1000 batches. For comparison with a validation run
         run_loss += loss.item()
-        if i % SAVE_INTERVAL == SAVE_INTERVAL - 1:
+
+        if (i + 1) % SAVE_INTERVAL == 0:
             last_loss = run_loss / SAVE_INTERVAL  # loss per batch
-            print("\tbatch {} loss: {}".format(i + 1, last_loss))
+            print(
+                "\tbatch {} ({:.2f}%) loss: {}".format(
+                    i + 1, (i + 1) / len(train_loader) * 100, last_loss
+                )
+            )
             tb_x = epoch_index * len(train_loader) + i + 1
             tb_writer.add_scalar("Loss/train", last_loss, tb_x)
             run_loss = 0.0
@@ -172,9 +182,6 @@ def train_one_epoch(epoch_index, tb_writer):
 # Initializing in a separate cell so we can easily add more epochs to the same run
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 writer = SummaryWriter("runs/avg_weights_{}".format(timestamp))
-
-EPOCHS = 3
-
 best_vloss = float("inf")
 for epoch in range(EPOCHS):
     print("EPOCH {}:".format(epoch + 1))
@@ -197,7 +204,7 @@ for epoch in range(EPOCHS):
             run_vloss += vloss
 
     avg_vloss = run_vloss / (i + 1)
-    print("LOSS train {} valid {}".format(avg_loss, avg_vloss))
+    print("LOSS: train {}, val {}".format(avg_loss, avg_vloss))
 
     # Log the running loss averaged per batch
     # for both training and validation
@@ -216,3 +223,5 @@ for epoch in range(EPOCHS):
         model_path = model_dir / "model_{}_{}".format(timestamp, epoch)
         print("Saving model to {}".format(model_path))
         torch.save(model.state_dict(), model_path)
+
+writer.close()
