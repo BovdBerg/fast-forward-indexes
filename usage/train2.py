@@ -82,6 +82,37 @@ def parse_args():
     return parser.parse_args()
 
 
+# TODO: training_step input should be a tuple of (x, y) where x is the input and y is the target.
+### 2: Define a LightningModule
+class LearnedAvgWeights(L.LightningModule):
+    def __init__(self):
+        super().__init__()
+        self.encoder = nn.Sequential(nn.Linear(10 * 768, 768))
+        print(f"LearnedAvgWeights initialized as: {self}")
+
+    def training_step(self, batch, batch_idx):
+        print(f"batch shape: {batch[0].shape}")
+        (x, y), _ = batch  # x should be combination of d_reps and q_rep_tct
+        print(f"x shape: {x.shape}")
+        x = x.view(x.size(0), -1)
+        print(f"x shape 2: {x.shape}")
+        z = self.encoder(x)
+        print(f"z shape: {z.shape}")
+        x_hat = self.decoder(z)
+        print(f"x_hat shape: {x_hat.shape}")
+        loss = nn.functional.mse_loss(x_hat, y)  # TODO: verify if this is a correct loss function
+        self.log("train_loss", loss)
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+        return optimizer
+
+    # def predict_step(self, *args, **kwargs):
+    # def validation_step(self, *args, **kwargs):
+    # def test_step(self, *args, **kwargs):
+
+
 def main(args: argparse.Namespace) -> None:
     """
     Train a model using PyTorch Lightning.
@@ -108,7 +139,7 @@ def main(args: argparse.Namespace) -> None:
         index_tct = index_tct.to_memory(2**15)
 
 
-    ### Dataset and DataLoader
+    ### 3: Define a dataset
     def dataset_to_dataloader(
         dataset_name: str,
         shuffle: bool,
@@ -145,9 +176,9 @@ def main(args: argparse.Namespace) -> None:
             order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
             d_reps = d_reps[order]  # sort d_reps on d_ids order
 
-            set.append((d_reps, q_rep_tct))  # (inputs, labels)
+            set.append(((d_reps, q_rep_tct), [1]))  # (inputs, labels)
 
-        dataloader = DataLoader(set, batch_size=args.batch_size, shuffle=shuffle)
+        dataloader = DataLoader(set, batch_size=args.batch_size, shuffle=shuffle, num_workers=11)
         print("{} set has {} instances".format(dataset_name, len(dataloader)))
         return dataloader
 
@@ -156,52 +187,11 @@ def main(args: argparse.Namespace) -> None:
     train_loader = dataset_to_dataloader("irds:msmarco-passage/train", True)
     # val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", False)
 
-
-    ### 2: Define a LightningModule
-    class LearnedAvgWeights(L.LightningModule):
-        def __init__(self):
-            super().__init__()
-            self.encoder = nn.Sequential(nn.Linear(10 * 768, 768))
-            print(f"LearnedAvgWeights initialized as: {self}")
-
-        def training_step(self, batch, batch_idx):
-            print(f"batch shape: {batch[0].shape}")
-            x, _ = batch  # x should be combination of d_reps and q_rep_tct
-            print(f"x shape: {x.shape}")
-            x = x.view(x.size(0), -1)
-            print(f"x shape 2: {x.shape}")
-            z = self.encoder(x)
-            print(f"z shape: {z.shape}")
-            x_hat = self.decoder(z)
-            print(f"x_hat shape: {x_hat.shape}")
-            loss = nn.functional.mse_loss(x_hat, x)  # TODO: verify if this is a correct loss function
-            self.log("train_loss", loss)
-            return loss
-
-        def configure_optimizers(self):
-            optimizer = optim.Adam(self.parameters(), lr=1e-3)
-            return optimizer
-
-        # def predict_step(self, *args, **kwargs):
-        # def validation_step(self, *args, **kwargs):
-        # def test_step(self, *args, **kwargs):
-
-
-    # init the autoencoder
-    autoencoder = LearnedAvgWeights()
-
-
-    ### 3: Define a dataset
-    # setup data
-    dataset = MNIST(os.getcwd(), download=True, transform=ToTensor())
-    print(f"dataset.data.shape: {dataset.data.shape}")
-    train_loader = utils.data.DataLoader(dataset, num_workers=11, batch_size=args.batch_size)
-
-
     ### 4: Train the model
     # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
-    trainer = L.Trainer(limit_train_batches=500, max_epochs=args.max_epochs)
-    trainer.fit(model=autoencoder, train_dataloaders=train_loader)
+    learned_avg_weights = LearnedAvgWeights()
+    trainer = L.Trainer(limit_train_batches=500, max_epochs=args.max_epochs, log_every_n_steps=1)
+    trainer.fit(model=learned_avg_weights, train_dataloaders=train_loader)
 
 
 if __name__ == "__main__":
