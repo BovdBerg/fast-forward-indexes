@@ -395,6 +395,7 @@ def main(args: argparse.Namespace) -> None:
     int_avg_emb = FFInterpolate(alpha=0.4)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
+    # TODO: Train Knowledge Distillation model (custom shape?) + add pipeline here
     pipelines = [
         ("bm25", ~sys_bm25, None),
         ("tct", sys_tct, int_tct),
