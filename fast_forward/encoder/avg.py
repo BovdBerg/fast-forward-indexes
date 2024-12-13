@@ -139,6 +139,7 @@ class WeightedAvgEncoder(Encoder):
 class LearnedAvgWeights(L.LightningModule):
     def __init__(self):
         super().__init__()
+        # TODO: Consider adding some nonlinearity (ReLu, sigmoid, ...) and perhaps more than 1 layer to the encoder
         self.encoder = torch.nn.Sequential(torch.nn.Linear(10 * 768, 768))
         print(f"LearnedAvgWeights initialized as: {self}")
 
