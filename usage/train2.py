@@ -7,15 +7,15 @@ import pandas as pd
 import pyterrier as pt
 import torch
 import torch.nn as nn
-from torch import nn, optim, utils
+from torch import nn, optim
 from torch.utils.data import DataLoader
-from torchvision.datasets import MNIST
-from torchvision.transforms import ToTensor
 from tqdm import tqdm
 
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def parse_args():
@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument(
         "--samples",
         type=int,
-        default=1,
+        default=2,
         help="Number of queries to sample from the dataset.",
     )
     parser.add_argument(
@@ -58,7 +58,7 @@ def parse_args():
     parser.add_argument(
         "--storage",
         type=str,
-        default="mem",
+        default="disk",
         choices=["disk", "mem"],
         help="The storage type of the index.",
     )
@@ -91,16 +91,12 @@ class LearnedAvgWeights(L.LightningModule):
         print(f"LearnedAvgWeights initialized as: {self}")
 
     def training_step(self, batch, batch_idx):
-        print(f"batch shape: {batch[0].shape}")
-        (x, y), _ = batch  # x should be combination of d_reps and q_rep_tct
-        print(f"x shape: {x.shape}")
+        x, y = batch
         x = x.view(x.size(0), -1)
-        print(f"x shape 2: {x.shape}")
         z = self.encoder(x)
-        print(f"z shape: {z.shape}")
-        x_hat = self.decoder(z)
-        print(f"x_hat shape: {x_hat.shape}")
-        loss = nn.functional.mse_loss(x_hat, y)  # TODO: verify if this is a correct loss function
+        loss = nn.functional.mse_loss(
+            z, y
+        )  # TODO: verify if this is a correct loss function
         self.log("train_loss", loss)
         return loss
 
@@ -124,8 +120,8 @@ def main(args: argparse.Namespace) -> None:
     sys_bm25 = pt.BatchRetrieve.from_dataset(
         "msmarco_passage", "terrier_stemmed", wmodel="BM25"
     )
-    sys_bm25.verbose = False
-    sys_bm25_cut = ~sys_bm25 % 1000
+    sys_bm25.verbose = True
+    sys_bm25_cut = ~sys_bm25 % args.k_avg
 
     # FF with TCT-ColBERT encoding + Interpolation
     index_tct = OnDiskIndex.load(
@@ -138,16 +134,22 @@ def main(args: argparse.Namespace) -> None:
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
 
-
     ### 3: Define a dataset
     def dataset_to_dataloader(
         dataset_name: str,
         shuffle: bool,
     ) -> DataLoader:
-        dataset = pt.get_dataset(dataset_name)
-        topics = dataset.get_topics().sample(n=args.samples, random_state=42)
+        topics = (
+            pt.get_dataset(dataset_name)
+            .get_topics()
+            .sample(n=args.samples, random_state=42)
+        )
+        df_sparse = sys_bm25_cut.transform(topics)
+        ranking_sparse = Ranking(
+            df_sparse.rename(columns={"qid": "q_id", "docno": "id"})
+        ).cut(args.k_avg)
 
-        set = []
+        dataset = []
         for query in tqdm(
             topics.itertuples(), desc="Processing queries", total=len(topics)
         ):
@@ -158,10 +160,6 @@ def main(args: argparse.Namespace) -> None:
 
             ## Inputs: top-ranked document vectors for the query
             # TODO: would be cleaner to use an index with WeightedAvgEncoder and add a method there to get the d_reps
-            df_sparse = sys_bm25_cut.transform(query)
-            ranking_sparse = Ranking(
-                df_sparse.rename(columns={"qid": "q_id", "docno": "id"})
-            ).cut(args.k_avg)
             top_docs = ranking_sparse._df.query("query == @query['query'].iloc[0]")
             # Skip queries with too little top_docs
             if len(top_docs) == 0:
@@ -176,21 +174,25 @@ def main(args: argparse.Namespace) -> None:
             order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
             d_reps = d_reps[order]  # sort d_reps on d_ids order
 
-            set.append(((d_reps, q_rep_tct), [1]))  # (inputs, labels)
+            dataset.append((d_reps, q_rep_tct))  # (inputs, labels)
 
-        dataloader = DataLoader(set, batch_size=args.batch_size, shuffle=shuffle, num_workers=11)
+        dataloader = DataLoader(
+            dataset, shuffle=shuffle, batch_size=args.batch_size, num_workers=11
+        )
         print("{} set has {} instances".format(dataset_name, len(dataloader)))
         return dataloader
-
 
     # Create data loaders for our datasets; shuffle for training, not for validation
     train_loader = dataset_to_dataloader("irds:msmarco-passage/train", True)
     # val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", False)
 
+
     ### 4: Train the model
     # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
     learned_avg_weights = LearnedAvgWeights()
-    trainer = L.Trainer(limit_train_batches=500, max_epochs=args.max_epochs, log_every_n_steps=1)
+    trainer = L.Trainer(
+        limit_train_batches=500, max_epochs=args.max_epochs, log_every_n_steps=1
+    )
     trainer.fit(model=learned_avg_weights, train_dataloaders=train_loader)
 
 
