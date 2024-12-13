@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -33,9 +33,8 @@ classifiers = [
 pyterrier = ["python-terrier >= 0.10.0, < 1"]
 
 [project.urls]
-Repository = "https://github.com/mrjleo/fast-forward-indexes"
+Repository = "https://github.com/BovdBerg/fast-forward-indexes"
 Documentation = "https://mrjleo.github.io/fast-forward-indexes/docs/"
 
-[tool.pytest.ini_options]
-log_cli = true
-log_cli_level = "DEBUG"
+[tool.setuptools.packages.find]
+include = ["fast_forward"]
