@@ -105,7 +105,6 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
         "msmarco_passage", "terrier_stemmed", wmodel="BM25", memory=True, verbose=True
     )
     sys_bm25_cut = ~sys_bm25 % args.k_avg
-    sys_bm25_cut.verbose = True
 
     # TCT-ColBERT TransformerEncoder
     encoder_tct = TCTColBERTQueryEncoder(
@@ -144,9 +143,13 @@ def dataset_to_dataloader(
     Returns:
         DataLoader: A DataLoader for the given dataset.
     """
-    dataset_cache_path = args.dataset_cache_path.with_suffix(".pt")
+    dataset_cache_path = args.dataset_cache_path.with_name(
+        f"{args.dataset_cache_path.stem}_k-avg={args.k_avg}"
+    )
     if args.samples:
-        dataset_cache_path = dataset_cache_path.with_stem(f"{dataset_cache_path.stem}_{args.samples}")
+        dataset_cache_path = dataset_cache_path.with_stem(
+            f"{dataset_cache_path.stem}_samples={args.samples}"
+        )
 
     if dataset_cache_path.exists():
         dataset = torch.load(dataset_cache_path)
@@ -157,16 +160,21 @@ def dataset_to_dataloader(
             print(s + f"{args.samples} samples...")
         else:
             print(s + "all samples...")
+
         topics = pt.get_dataset(dataset_name).get_topics()
         if args.samples:
             topics = topics.sample(n=args.samples)
 
         top_ranking = Ranking(
-            sys_bm25_cut.transform(topics).rename(columns={"qid": "q_id", "docno": "id"})
+            sys_bm25_cut.transform(topics).rename(
+                columns={"qid": "q_id", "docno": "id"}
+            )
         ).cut(args.k_avg)
 
         dataset = []
-        for query in tqdm(topics["query"], desc="Processing queries", total=len(topics)):
+        for query in tqdm(
+            topics["query"], desc="Processing queries", total=len(topics)
+        ):
             # Label: query encoded by TCT-ColBERT
             q_rep_tct = encoder_tct([query])[0]  # [0]: only one query
 
@@ -194,6 +202,7 @@ def dataset_to_dataloader(
     return dataloader
 
 
+# TODO: rewrite to use ir_datasets instead of pyterrier. dataset.scoreddocs_iter() for bm25 % 1000.
 def main() -> None:
     """
     Train a model using PyTorch Lightning.
