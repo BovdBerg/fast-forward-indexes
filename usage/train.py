@@ -1,13 +1,14 @@
 import argparse
 import os
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import Tuple
 
 import lightning as L
 import pyterrier as pt
 import torch
 import torch.nn as nn
+from lightning.pytorch import callbacks
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -30,22 +31,16 @@ def parse_args() -> argparse.Namespace:
         description="Create an OPQ index from an existing Fast-Forward index."
     )
     parser.add_argument(
+        "--dataset_cache_path",
+        type=Path,
+        default="data/msmarco-passage/train",
+        help="Path to the dataloader file to save or load.",
+    )
+    parser.add_argument(
         "--tct_index_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the TCT index.",
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=2,
-        help="Number of instances to process in a batch.",
-    )
-    parser.add_argument(
-        "--samples",
-        type=int,
-        default=2,
-        help="Number of queries to sample from the dataset.",
     )
     parser.add_argument(
         "--k_avg",
@@ -54,28 +49,26 @@ def parse_args() -> argparse.Namespace:
         help="Number of top-ranked documents to average.",
     )
     parser.add_argument(
+        "--samples",
+        type=int,
+        help="""Number of queries to sample from the dataset.
+        Traditional (too simplistic) rule of thumb: at least 10 * |features| = 10 * (k_avg * 768). 
+        E.g. 76800 samples for k_avg=10.""",
+    )
+    parser.add_argument(
         "--storage",
         type=str,
         default="mem",
         choices=["disk", "mem"],
-        help="The storage type of the index.",
+        help="""The storage type of the index. 
+        'mem' takes some time to load Index into memory, which speeds up WeightedAvg._get_top_docs().
+        Use 'disk' when using few samples, and 'mem' when using many samples.
+        """,
     )
     parser.add_argument(
-        "--log_every_n_steps",
-        type=int,
-        default=100,
-        help="Number of batches between each loss print.",
-    )
-    parser.add_argument(
-        "--max_epochs",
-        type=int,
-        default=1,
-        help="Number of epochs to train.",
-    )
-    parser.add_argument(
-        "--model_path",
+        "--ckpt_path",
         type=Path,
-        help="Path to a model to load and continue training from.",
+        help="Path to the checkpoint file to load. If not provided, the model is trained from scratch.",
     )
     return parser.parse_args()
 
@@ -126,6 +119,9 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     encoder_avg = WeightedAvgEncoder(index_tct, k_avg=args.k_avg)
+    if args.ckpt_path:
+        ckpt = torch.load(args.ckpt_path)
+        encoder_avg.load_state_dict(ckpt)
 
     return sys_bm25_cut, encoder_tct, encoder_avg
 
@@ -145,38 +141,53 @@ def dataset_to_dataloader(
         sys_bm25_cut (pt.Transformer): The BM25 transformer.
         encoder_tct (TransformerEncoder): The TCT-ColBERT encoder.
         encoder_avg (WeightedAvgEncoder): The WeightedAvg encoder.
-    
+
     Returns:
         DataLoader: A DataLoader for the given dataset.
     """
-    topics = (
-        pt.get_dataset(dataset_name)
-        .get_topics()
-        .sample(n=args.samples, random_state=42)
-    )
-    top_ranking = Ranking(
-        sys_bm25_cut.transform(topics).rename(columns={"qid": "q_id", "docno": "id"})
-    ).cut(args.k_avg)
+    dataset_cache_path = args.dataset_cache_path.with_suffix(".pt")
+    if args.samples:
+        dataset_cache_path = dataset_cache_path.with_stem(f"{dataset_cache_path.stem}_{args.samples}")
 
-    dataset = []
-    for query in tqdm(topics["query"], desc="Processing queries", total=len(topics)):
-        # Label: query encoded by TCT-ColBERT
-        q_rep_tct = encoder_tct([query])[0]  # [0]: only one query
+    if dataset_cache_path.exists():
+        dataset = torch.load(dataset_cache_path)
+        print(f"Loaded dataloader from {dataset_cache_path}")
+    else:
+        s = f"Creating dataloader for {dataset_name} with "
+        if args.samples:
+            print(s + f"{args.samples} samples...")
+        else:
+            print(s + "all samples...")
+        topics = pt.get_dataset(dataset_name).get_topics()
+        if args.samples:
+            topics = topics.sample(n=args.samples)
 
-        # Inputs: top-ranked document vectors for the query
-        top_docs = encoder_avg._get_top_docs(query, top_ranking)
-        if top_docs is None:
-            continue  # skip sample: no top_docs
-        d_reps, _ = top_docs
-        if len(d_reps) < args.k_avg:
-            continue  # skip sample: not enough top_docs
+        top_ranking = Ranking(
+            sys_bm25_cut.transform(topics).rename(columns={"qid": "q_id", "docno": "id"})
+        ).cut(args.k_avg)
 
-        dataset.append((d_reps, q_rep_tct))  # (inputs, labels)
+        dataset = []
+        for query in tqdm(topics["query"], desc="Processing queries", total=len(topics)):
+            # Label: query encoded by TCT-ColBERT
+            q_rep_tct = encoder_tct([query])[0]  # [0]: only one query
+
+            # Inputs: top-ranked document vectors for the query
+            top_docs = encoder_avg._get_top_docs(query, top_ranking)
+            if top_docs is None:
+                continue  # skip sample: no top_docs
+            d_reps, _ = top_docs
+            if len(d_reps) < args.k_avg:
+                continue  # skip sample: not enough top_docs
+
+            dataset.append((d_reps, q_rep_tct))  # (inputs, labels)
+
+        dataset_cache_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(dataset, dataset_cache_path)
+        print(f"Saved dataloader to {dataset_cache_path}")
 
     dataloader = DataLoader(
         dataset,
         shuffle=shuffle,
-        batch_size=args.batch_size,
         num_workers=11,
         drop_last=True,
     )
@@ -184,7 +195,7 @@ def dataset_to_dataloader(
     return dataloader
 
 
-def main(args: argparse.Namespace) -> None:
+def main() -> None:
     """
     Train a model using PyTorch Lightning.
     """
@@ -201,9 +212,13 @@ def main(args: argparse.Namespace) -> None:
     # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
     learned_avg_weights = LearnedAvgWeights()
     trainer = L.Trainer(
-        limit_train_batches=500,
-        max_epochs=args.max_epochs,
-        log_every_n_steps=args.log_every_n_steps,
+        deterministic="warn",
+        max_epochs=50,
+        callbacks=[
+            callbacks.LearningRateMonitor(),
+            callbacks.EarlyStopping(monitor="train_loss", patience=0, verbose=True),
+            callbacks.ModelCheckpoint(monitor="train_loss", verbose=True),
+        ],
     )
     trainer.fit(model=learned_avg_weights, train_dataloaders=train_loader)
 
@@ -213,4 +228,4 @@ def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     args = parse_args()
-    main(args)
+    main()
