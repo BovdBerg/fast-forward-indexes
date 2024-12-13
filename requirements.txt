@@ -9,6 +9,7 @@ ir-datasets==0.5.8
 ir-measures==0.3.3
 torch==2.3.1
 pytorch-lightning==2.3.0
+lightning==2.4.0
 torchmetrics==1.4.0
 h5py==3.11.0
 tensorboardx==2.2
@@ -16,3 +17,5 @@ python-terrier==0.10.1
 gspread==6.1.4
 gspread-dataframe==4.0.0
 gspread-formatting==1.2.0
+protobuf==4.25.3
+tensorboard==2.18.0
