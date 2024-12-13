@@ -1,5 +1,6 @@
 """
 Copied from PyTorch Lightning tutorial: https://lightning.ai/docs/pytorch/stable/starter/introduction.html
+Example of training a simple autoencoder on the MNIST dataset (images (28x28 pix) of numbers 0-9).
 
 Date: 12-12-2024.
 """
@@ -38,7 +39,7 @@ class LitAutoEncoder(L.LightningModule):
 
 ### 3: Define a dataset
 dataset = MNIST(os.getcwd(), download=True, transform=ToTensor())
-train_loader = utils.data.DataLoader(dataset, num_workers=11, batch_size=2)
+train_loader = utils.data.DataLoader(dataset, num_workers=11)
 
 
 ### 4: Train the model
@@ -48,15 +49,15 @@ trainer.fit(model=autoencoder, train_dataloaders=train_loader)
 
 
 ### 5: Use the model
-# load checkpoint
-checkpoint = "./lightning_logs/version_0/checkpoints/epoch=2-step=1500.ckpt"
-autoencoder = LitAutoEncoder.load_from_checkpoint(checkpoint)
+# # load checkpoint
+# checkpoint = "./lightning_logs/version_0/checkpoints/epoch=2-step=1500.ckpt"
+# autoencoder = LitAutoEncoder.load_from_checkpoint(checkpoint)
 
-# choose your trained nn.Module
-encoder = autoencoder.encoder
-encoder.eval()
+# # choose your trained nn.Module
+# encoder = autoencoder.encoder
+# encoder.eval()
 
-# embed 4 fake images!
-fake_image_batch = torch.rand(4, 28 * 28, device=autoencoder.device)
-embeddings = encoder(fake_image_batch)
-print("⚡" * 20, "\nPredictions (4 image embeddings):\n", embeddings, "\n", "⚡" * 20)
+# # embed 4 fake images!
+# fake_image_batch = torch.rand(4, 28 * 28, device=autoencoder.device)
+# embeddings = encoder(fake_image_batch)
+# print("⚡" * 20, "\nPredictions (4 image embeddings):\n", embeddings, "\n", "⚡" * 20)
