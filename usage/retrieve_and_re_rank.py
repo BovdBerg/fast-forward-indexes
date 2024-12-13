@@ -334,7 +334,7 @@ def main(args: argparse.Namespace) -> None:
     print("Creating BM25 retriever via PyTerrier index...")
     try:
         sys_bm25 = pt.BatchRetrieve.from_dataset(
-            dataset, "terrier_stemmed", wmodel="BM25"
+            dataset, "terrier_stemmed", wmodel="BM25", memory=True
         )
     except:
         indexer = pt.IterDictIndexer(
@@ -342,7 +342,7 @@ def main(args: argparse.Namespace) -> None:
             type=pt.index.IndexingType.MEMORY,
         )
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
-        sys_bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True)
+        sys_bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True, memory=True)
     sys_bm25.verbose = True
     sys_bm25_cut = ~sys_bm25 % args.sparse_cutoff
 

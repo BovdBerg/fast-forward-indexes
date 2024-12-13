@@ -138,7 +138,7 @@ def main(args: argparse.Namespace) -> None:
 
     print("Creating BM25 retriever via PyTerrier index...")
     sys_bm25 = pt.BatchRetrieve.from_dataset(
-        "msmarco_passage", "terrier_stemmed", wmodel="BM25", verbose=True
+        "msmarco_passage", "terrier_stemmed", wmodel="BM25", verbose=True, memory=True
     )
     sys_bm25_cut = ~sys_bm25 % 1000
     sparse_df = sys_bm25_cut(topics)

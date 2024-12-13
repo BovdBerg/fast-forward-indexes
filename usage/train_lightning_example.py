@@ -38,7 +38,7 @@ class LitAutoEncoder(L.LightningModule):
 
 
 ### 3: Define a dataset
-dataset = MNIST(os.getcwd(), download=True, transform=ToTensor())
+dataset = MNIST(os.getcwd() + "/data", download=True, transform=ToTensor())
 train_loader = utils.data.DataLoader(dataset, num_workers=11)
 
 

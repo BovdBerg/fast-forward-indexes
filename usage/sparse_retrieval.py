@@ -87,7 +87,7 @@ def main(args: argparse.Namespace) -> None:
     # Retrieve BM25 model from the batchretrieve index
     print(f"Retrieving {args.retriever_wmodel} model from {args.dataset} dataset...")
     retriever = pt.BatchRetrieve.from_dataset(
-        args.dataset, args.retriever_variant, wmodel=args.retriever_wmodel, verbose=True
+        args.dataset, args.retriever_variant, wmodel=args.retriever_wmodel, verbose=True, memory=True
     )
 
     # Get the test topics (dataframe with columns=['qid', 'query'])

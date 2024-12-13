@@ -102,7 +102,7 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
 
     # BM25
     sys_bm25 = pt.BatchRetrieve.from_dataset(
-        "msmarco_passage", "terrier_stemmed", wmodel="BM25"
+        "msmarco_passage", "terrier_stemmed", wmodel="BM25", memory=True
     )
     sys_bm25.verbose = True
     sys_bm25_cut = ~sys_bm25 % args.k_avg
