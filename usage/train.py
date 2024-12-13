@@ -70,6 +70,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Path to the checkpoint file to load. If not provided, the model is trained from scratch.",
     )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=11,
+        help="Number of workers for the DataLoader.",
+    )
     return parser.parse_args()
 
 
@@ -195,7 +201,7 @@ def dataset_to_dataloader(
     dataloader = DataLoader(
         dataset,
         shuffle=shuffle,
-        num_workers=11,
+        num_workers=args.num_workers,
         drop_last=True,
     )
     print(f"Created dataloader with {len(dataloader)} instances from {dataset_name}")
