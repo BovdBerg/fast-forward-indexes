@@ -3,12 +3,13 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fast-forward-indexes"
+name = "fast-forward"
 description = "Efficient interpolation-based ranking on CPUs"
 authors = [
     {name = "Jurek Leonhardt"},
+    {name = "Bo van den Berg"},
 ]
-version = "0.5.1"
+version = "0.5.2"
 readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["information retrieval", "ranking", "search"]
