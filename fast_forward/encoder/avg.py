@@ -6,6 +6,7 @@ import pandas as pd
 
 from fast_forward.encoder import Encoder
 from fast_forward.index import Index
+from fast_forward.ranking import Ranking
 
 
 class W_METHOD(Enum):
@@ -88,6 +89,27 @@ class WeightedAvgEncoder(Encoder):
                     f"Unknown probability distribution type: {self.w_method}"
                 )
 
+    def _get_top_docs(self, query: str, top_ranking: Ranking) -> np.ndarray:
+        # Get the ids of the top-ranked documents for the query
+        top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
+        if len(top_docs) == 0:
+            print(f"Skipping query {query} (has no top_docs)")
+            return  # Remains encoded as zeros
+        top_docs_ids: Sequence[int] = top_docs["id"].values
+        top_docs_scores: Sequence[float] = top_docs["score"].values
+
+        # Get the embeddings of the top-ranked documents
+        # TODO: Make sure d_reps is only retrieved once throughout full re-ranking pipeline.
+        d_reps, d_idxs = self.index._get_vectors(top_docs_ids)
+        if self.index.quantizer is not None:
+            d_reps = self.index.quantizer.decode(d_reps)
+
+        # TODO: not just flatten, but use mode (e.g. MaxP). Compare to _compute_scores in index. For non-psg datasets.
+        order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
+        d_reps = d_reps[order]  # sort d_reps on d_ids order
+
+        return d_reps, top_docs_scores
+
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
         """
         Estimate query embeddings by weighted averaging the embeddings of the top-ranked documents.
@@ -105,25 +127,7 @@ class WeightedAvgEncoder(Encoder):
 
         q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
         for i, query in enumerate(queries):
-            # Get the ids of the top-ranked documents for the query
-            top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
-            if len(top_docs) == 0:
-                print(f"Skipping query {query} (has no top_docs)")
-                continue  # Remains encoded as zeros
-            top_docs_ids: Sequence[int] = top_docs["id"].values
-            top_docs_scores: Sequence[float] = top_docs["score"].values
-
-            # Get the embeddings of the top-ranked documents
-            # TODO: Make sure d_reps is only retrieved once throughout full re-ranking pipeline.
-            d_reps, d_idxs = self.index._get_vectors(top_docs_ids)
-            if self.index.quantizer is not None:
-                d_reps = self.index.quantizer.decode(d_reps)
-
-            # TODO: not just flatten, but use mode (e.g. MaxP). Compare to _compute_scores in index. For non-psg datasets.
-            order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
-            d_reps = d_reps[order]  # sort d_reps on d_ids order
-            
-            # Calculate the weighted average of the embeddings and save it to q_no index in q_reps
+            d_reps, top_docs_scores = self._get_top_docs(query, top_ranking)
             q_reps[i] = np.average(
                 d_reps, axis=0, weights=self._get_weights(len(d_reps), top_docs_scores)
             )
