@@ -93,7 +93,6 @@ class WeightedAvgEncoder(Encoder):
         # Get the ids of the top-ranked documents for the query
         top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
         if len(top_docs) == 0:
-            print(f"Skipping query {query} (has no top_docs)")
             return  # Remains encoded as zeros
         top_docs_ids: Sequence[int] = top_docs["id"].values
         top_docs_scores: Sequence[float] = top_docs["score"].values
