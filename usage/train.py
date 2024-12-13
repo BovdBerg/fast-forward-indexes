@@ -1,6 +1,7 @@
 import argparse
 import os
 from pathlib import Path
+import time
 from typing import Tuple
 
 import lightning as L
@@ -85,19 +86,17 @@ class LearnedAvgWeights(L.LightningModule):
         self.encoder = nn.Sequential(nn.Linear(10 * 768, 768))
         print(f"LearnedAvgWeights initialized as: {self}")
 
+    # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
     def training_step(self, batch, batch_idx):
         x, y = batch
         x = x.view(x.size(0), -1)
         z = self.encoder(x)
-        loss = nn.functional.mse_loss(
-            z, y
-        )  # TODO: verify if this is a correct loss function
+        loss = nn.functional.mse_loss(z, y)
         self.log("train_loss", loss)
         return loss
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=1e-3)
-        return optimizer
+        return optim.Adam(self.parameters(), lr=1e-3)
 
 
 def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
@@ -189,6 +188,7 @@ def main(args: argparse.Namespace) -> None:
     """
     Train a model using PyTorch Lightning.
     """
+    start_time = time.time()
     sys_bm25_cut, encoder_tct, encoder_avg = setup()
 
     # Create data loaders for our datasets; shuffle for training, not for validation
@@ -206,6 +206,9 @@ def main(args: argparse.Namespace) -> None:
         log_every_n_steps=args.log_every_n_steps,
     )
     trainer.fit(model=learned_avg_weights, train_dataloaders=train_loader)
+
+    end_time = time.time()
+    print(f"\nScript {__file__} took {end_time - start_time:.2f} seconds.")
 
 
 if __name__ == "__main__":
