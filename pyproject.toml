@@ -1,27 +1,24 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fast-forward"
+name = "fast-forward-indexes"
 description = "Efficient interpolation-based ranking on CPUs"
-authors = [
-    {name = "Jurek Leonhardt"},
-    {name = "Bo van den Berg"},
-]
-version = "0.5.2"
+authors = [{ name = "Jurek Leonhardt" }]
+version = "0.6.0"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 keywords = ["information retrieval", "ranking", "search"]
-requires-python = ">= 3.8"
+requires-python = ">=3.10, <3.13"
 dependencies = [
-    "torch >= 2.0.0, < 3",
-    "numpy >= 1.24.0, < 2",
-    "pandas >= 2.0.3, < 3",
-    "transformers >= 4.28.0, < 5",
-    "h5py >= 3.0.0, < 4",
-    "tqdm >= 4.66.0, < 5",
-    "nanopq >= 0.2.1, < 0.3",
+    "torch>=2.0.0, <3",
+    "numpy>=1.24.0, <2",
+    "pandas>=2.0.3, <3",
+    "transformers>=4.28.0, <5",
+    "h5py>=3.0.0, <4",
+    "tqdm>=4.66.0, <5",
+    "nanopq>=0.2.1, <0.3",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -30,11 +27,68 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-pyterrier = ["python-terrier >= 0.10.0, < 1"]
+pyterrier = ["python-terrier>=0.10.0, <1"]
 
 [project.urls]
-Repository = "https://github.com/BovdBerg/fast-forward-indexes"
+Repository = "https://github.com/mrjleo/fast-forward-indexes"
 Documentation = "https://mrjleo.github.io/fast-forward-indexes/docs/"
 
-[tool.setuptools.packages.find]
-include = ["fast_forward"]
+[dependency-groups]
+dev = [
+    "pandas-stubs>=2.2.3.241126",
+    "pdoc>=15.0.0",
+    "pyright>=1.1.390",
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "DEBUG"
+
+[tool.pyright]
+include = ["src"]
+ignore = ["tests"]
+typeCheckingMode = "standard"
+useLibraryCodeForTypes = true
+reportMissingParameterType = true
+
+[tool.ruff]
+extend-exclude = ["tests"]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "F",   # Pyflakes
+    "E",   # pycodestyle
+    "W",   # pycodestyle
+    "I",   # isort
+    "N",   # pep8-naming
+    "D",   # pydocstyle
+    "UP",  # pyupgrade
+    "ANN", # flake8-annotations
+    "ICN", # flake8-import-conventions
+    "LOG", # flake8-logging
+    "G",   # flake8-logging-format
+    "RET", # flake8-return
+    "TID", # flake8-tidy-imports
+    "TC",  # flake8-type-checking
+    "ARG", # flake8-unused-arguments
+    "PTH", # flake8-use-pathlib
+    "PL",  # Pylint
+]
+ignore = [
+    "N803",    # invalid-argument-name
+    "N806",    # non-lowercase-variable-in-function
+    "D100",    # undocumented-public-module
+    "D203",    # one-blank-line-before-class
+    "D213",    # multi-line-summary-second-line
+    "ANN401",  # any-type
+    "PLR0913", # too-many-arguments
+    "PLR2004", # magic-value-comparison
+]
+
+[tool.ruff.lint.flake8-type-checking]
+quote-annotations = true
+
+[tool.setuptools]
+packages = ["fast_forward"]

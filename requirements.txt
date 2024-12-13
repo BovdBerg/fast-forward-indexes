@@ -1,3 +1,4 @@
+# TODO: move to pyproject.toml
 # git+https://github.com/mrjleo/ranking-utils.git#egg=ranking_utils
 python==3.12.3
 transformers==4.38.2
