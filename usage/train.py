@@ -7,13 +7,11 @@ from typing import Tuple
 import lightning as L
 import pyterrier as pt
 import torch
-import torch.nn as nn
 from lightning.pytorch import callbacks
-from torch import nn, optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from fast_forward.encoder.avg import WeightedAvgEncoder
+from fast_forward.encoder.avg import LearnedAvgWeights, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder, TransformerEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -77,25 +75,6 @@ def parse_args() -> argparse.Namespace:
         help="Number of workers for the DataLoader.",
     )
     return parser.parse_args()
-
-
-class LearnedAvgWeights(L.LightningModule):
-    def __init__(self):
-        super().__init__()
-        self.encoder = nn.Sequential(nn.Linear(10 * 768, 768))
-        print(f"LearnedAvgWeights initialized as: {self}")
-
-    # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
-    def training_step(self, batch, batch_idx):
-        x, y = batch
-        x = x.view(x.size(0), -1)
-        z = self.encoder(x)
-        loss = nn.functional.mse_loss(z, y)
-        self.log("train_loss", loss)
-        return loss
-
-    def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-3)
 
 
 def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:

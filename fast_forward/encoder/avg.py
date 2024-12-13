@@ -1,8 +1,10 @@
 from enum import Enum
 from typing import Sequence
 
+import lightning as L
 import numpy as np
 import pandas as pd
+import torch
 
 from fast_forward.encoder import Encoder
 from fast_forward.index import Index
@@ -132,3 +134,22 @@ class WeightedAvgEncoder(Encoder):
             )
 
         return q_reps
+
+
+class LearnedAvgWeights(L.LightningModule):
+    def __init__(self):
+        super().__init__()
+        self.encoder = torch.nn.Sequential(torch.nn.Linear(10 * 768, 768))
+        print(f"LearnedAvgWeights initialized as: {self}")
+
+    # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        x = x.view(x.size(0), -1)
+        z = self.encoder(x)
+        loss = torch.nn.functional.mse_loss(z, y)
+        self.log("train_loss", loss)
+        return loss
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
