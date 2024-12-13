@@ -343,7 +343,6 @@ def main(args: argparse.Namespace) -> None:
         )
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
         sys_bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True, memory=True)
-    sys_bm25.verbose = True
     sys_bm25_cut = ~sys_bm25 % args.sparse_cutoff
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
