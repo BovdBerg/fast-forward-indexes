@@ -213,7 +213,7 @@ def main() -> None:
 
     # Create data loaders for our datasets; shuffle for training, not for validation
     train_loader = dataset_to_dataloader("irds:msmarco-passage/train", True)
-    # val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", False)
+    val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", False)
 
     # Train the model
     # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
@@ -222,12 +222,12 @@ def main() -> None:
         deterministic="warn",
         max_epochs=args.max_epochs,
         callbacks=[
-            callbacks.EarlyStopping(monitor="train_loss", min_delta=0.001, patience=2, verbose=True),
-            callbacks.ModelCheckpoint(monitor="train_loss", verbose=True),
+            callbacks.EarlyStopping(monitor="val_loss", min_delta=0.001, patience=2, verbose=True),
+            callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.ModelSummary(max_depth=2),
         ],
     )
-    trainer.fit(model=learned_avg_weights, train_dataloaders=train_loader)
+    trainer.fit(model=learned_avg_weights, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
     end_time = time.time()
     print(f"\nScript took {end_time - start_time:.2f} seconds to complete.")
