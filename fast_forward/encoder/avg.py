@@ -161,7 +161,7 @@ class LearnedAvgWeights(L.LightningModule):
         x, y = batch
         logits = self(x)
         loss = torch.nn.functional.mse_loss(logits, y)
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, on_epoch=True)
         return loss
 
     def configure_optimizers(self):
