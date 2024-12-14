@@ -86,6 +86,16 @@ def parse_args() -> argparse.Namespace:
         default=50,
         help="Maximum number of epochs to train the model (if not stopped by EarlyStopping).",
     )
+    parser.add_argument(
+        "--test_datasets",
+        type=str,
+        nargs="*",
+        default=[
+            "irds:msmarco-passage/trec-dl-2019/judged",
+            "irds:msmarco-passage/trec-dl-2020/judged",
+        ],
+        help="List of test datasets to evaluate the model on.",
+    )
     return parser.parse_args()
 
 
@@ -222,12 +232,29 @@ def main() -> None:
         deterministic="warn",
         max_epochs=args.max_epochs,
         callbacks=[
-            callbacks.EarlyStopping(monitor="val_loss", min_delta=0.001, patience=2, verbose=True),
+            callbacks.EarlyStopping(
+                monitor="val_loss", min_delta=0.001, patience=2, verbose=True
+            ),
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.ModelSummary(max_depth=2),
         ],
     )
-    trainer.fit(model=learned_avg_weights, train_dataloaders=train_loader, val_dataloaders=val_loader)
+    trainer.fit(
+        model=learned_avg_weights,
+        train_dataloaders=train_loader,
+        val_dataloaders=val_loader,
+    )
+
+    # Now test it on TREC-DL-2019 judged queries, compared to an untrained model
+    untrained_avg_weights = LearnedAvgWeights()
+    test_datasets = args.test_datasets
+    for dataset in test_datasets:
+        print(f"Testing the trained model on {dataset}...")
+        test_loader = dataset_to_dataloader(dataset, False)
+        trainer.test(model=learned_avg_weights, dataloaders=test_loader)
+
+        print("\nTesting an untrained model on the same test set.")
+        trainer.test(model=untrained_avg_weights, dataloaders=test_loader)
 
     end_time = time.time()
     print(f"\nScript took {end_time - start_time:.2f} seconds to complete.")
