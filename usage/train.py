@@ -142,16 +142,19 @@ def dataset_to_dataloader(
 
     dataset = []
     print(f"Creating/retrieving dataset for {samples_ub} samples from {dataset_name}")
-    for lb in range(0, samples_ub, step):
+    for lb in tqdm(
+        range(0, samples_ub, step),
+        desc="Processing dataset steps",
+        total=samples_ub // step,
+    ):
         ub = lb + step
         step_dataset_file = dataset_stem / f"{lb}-{ub}"
         step_dataset_file.parent.mkdir(parents=True, exist_ok=True)
 
         if (step_dataset_file).exists():  # Load dataset part
-            print(f"...Step {lb}-{ub}: Loading data from {step_dataset_file}")
             new_data = torch.load(step_dataset_file)
         else:
-            print(f"...Step {lb}-{ub}: Creating data in {step_dataset_file}")
+            print(f"...Step {lb}-{ub}: Creating new data in {step_dataset_file}")
             if not setup_done:
                 print(
                     f"Setting up BM25, TCT-ColBERT, and WeightedAvg for {dataset_name}"
@@ -165,7 +168,7 @@ def dataset_to_dataloader(
                 sys_bm25_cut.transform(step_topics).rename(
                     columns={"qid": "q_id", "docno": "id"}
                 )
-            )#.cut(args.k_avg)  # Cut not needed because `bm25 % k_avg` earlier
+            )  # .cut(args.k_avg)  # Cut not needed because `bm25 % k_avg` earlier
 
             new_data = []
             for query in tqdm(
@@ -220,7 +223,7 @@ def main() -> None:
         max_epochs=args.max_epochs,
         callbacks=[
             callbacks.LearningRateMonitor(),
-            callbacks.EarlyStopping(monitor="train_loss", patience=0, verbose=True),
+            # callbacks.EarlyStopping(monitor="train_loss", patience=0, verbose=True),
             callbacks.ModelCheckpoint(monitor="train_loss", verbose=True),
         ],
     )
