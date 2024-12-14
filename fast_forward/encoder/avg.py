@@ -149,19 +149,29 @@ class LearnedAvgWeights(L.LightningModule):
             torch.nn.ReLU(),
             torch.nn.Linear(10, 768),
         )
+        # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
+        self.loss_fn = torch.nn.MSELoss()  
 
     def forward(self, x):
         x = self.flatten(x)
         x = self.linear_relu_stack(x)
         return x
 
-    # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
-    def training_step(self, batch, batch_idx):
+    def step(self, batch, name):
         x, y = batch
         logits = self(x)
-        loss = torch.nn.functional.mse_loss(logits, y)
-        self.log("train_loss", loss, on_epoch=True)
+        loss = self.loss_fn(logits, y)
+        self.log(f"{name}_loss", loss, on_epoch=True)
         return loss
+
+    def training_step(self, batch, batch_idx):
+        return self.step(batch, "train")
+
+    def validation_step(self, batch, batch_idx):
+        return self.step(batch, "val")
+
+    def test_step(self, batch, batch_idx):
+        return self.step(batch, "test")
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=1e-3)
