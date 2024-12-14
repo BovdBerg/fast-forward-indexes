@@ -159,7 +159,7 @@ def dataset_to_dataloader(
                 sys_bm25_cut.transform(step_topics).rename(
                     columns={"qid": "q_id", "docno": "id"}
                 )
-            ).cut(args.k_avg)
+            )#.cut(args.k_avg)  # Cut not needed because `bm25 % k_avg` earlier
 
             new_data = []
             for query in tqdm(
