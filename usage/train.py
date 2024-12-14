@@ -223,14 +223,14 @@ def main() -> None:
         max_epochs=args.max_epochs,
         callbacks=[
             callbacks.LearningRateMonitor(),
-            # callbacks.EarlyStopping(monitor="train_loss", patience=0, verbose=True),
+            callbacks.EarlyStopping(monitor="train_loss", patience=3, verbose=True),
             callbacks.ModelCheckpoint(monitor="train_loss", verbose=True),
         ],
     )
     trainer.fit(model=learned_avg_weights, train_dataloaders=train_loader)
 
     end_time = time.time()
-    print(f"\nScript {__file__} took {end_time - start_time:.2f} seconds.")
+    print(f"\nScript took {end_time - start_time:.2f} seconds to complete.")
 
 
 if __name__ == "__main__":
