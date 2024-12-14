@@ -135,7 +135,7 @@ def dataset_to_dataloader(
         DataLoader: A DataLoader for the given dataset.
     """
     print("\033[96m")  # Prints in this method are cyan
-    dataset_stem = args.dataset_cache_path / dataset_name
+    dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
     step = 1000
     samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
     setup_done = False
@@ -223,7 +223,7 @@ def main() -> None:
         max_epochs=args.max_epochs,
         callbacks=[
             callbacks.LearningRateMonitor(),
-            callbacks.EarlyStopping(monitor="train_loss", patience=3, verbose=True),
+            callbacks.EarlyStopping(monitor="train_loss", patience=2, verbose=True),
             callbacks.ModelCheckpoint(monitor="train_loss", verbose=True),
         ],
     )
