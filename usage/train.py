@@ -223,7 +223,7 @@ def main() -> None:
         max_epochs=args.max_epochs,
         callbacks=[
             callbacks.LearningRateMonitor(),
-            callbacks.EarlyStopping(monitor="train_loss", patience=2, verbose=True),
+            callbacks.EarlyStopping(monitor="train_loss", min_delta=0.001, patience=2, verbose=True),
             callbacks.ModelCheckpoint(monitor="train_loss", verbose=True),
         ],
     )
