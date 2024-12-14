@@ -137,18 +137,30 @@ class WeightedAvgEncoder(Encoder):
 
 
 class LearnedAvgWeights(L.LightningModule):
+    """
+    Watch this short video on PyTorch for this class to make sense: https://youtu.be/ORMx45xqWkA?si=Bvkm9SWi8Hz1n2Sh&t=147
+    """
+
     def __init__(self):
         super().__init__()
-        # TODO: Consider adding some nonlinearity (ReLu, sigmoid, ...) and perhaps more than 1 layer to the encoder
-        self.encoder = torch.nn.Sequential(torch.nn.Linear(10 * 768, 768))
+        self.flatten = torch.nn.Flatten()
+        self.linear_relu_stack = torch.nn.Sequential(
+            torch.nn.Linear(10 * 768, 10),
+            torch.nn.ReLU(),
+            torch.nn.Linear(10, 768),
+        )
         print(f"LearnedAvgWeights initialized as: {self}")
+
+    def forward(self, x):
+        x = self.flatten(x)
+        x = self.linear_relu_stack(x)
+        return x
 
     # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
     def training_step(self, batch, batch_idx):
         x, y = batch
-        x = x.view(x.size(0), -1)
-        z = self.encoder(x)
-        loss = torch.nn.functional.mse_loss(z, y)
+        logits = self(x)
+        loss = torch.nn.functional.mse_loss(logits, y)
         self.log("train_loss", loss)
         return loss
 
