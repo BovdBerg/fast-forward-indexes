@@ -1,10 +1,10 @@
 import argparse
 import os
 import time
+import warnings
 from math import ceil
 from pathlib import Path
 from typing import Tuple
-import warnings
 
 import lightning as L
 import pyterrier as pt
@@ -19,7 +19,9 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-warnings.filterwarnings("ignore", category=FutureWarning, message=".*weights_only=False.*")
+warnings.filterwarnings(
+    "ignore", category=FutureWarning, message=".*weights_only=False.*"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset_cache_path",
         type=Path,
-        default="data/msmarco-passage/train",
+        default="data/",
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
@@ -122,15 +124,12 @@ def dataset_to_dataloader(
     Args:
         dataset_name (str): The name of the dataset.
         shuffle (bool): Whether to shuffle the dataset.
-        sys_bm25_cut (pt.Transformer): The BM25 transformer.
-        encoder_tct (TransformerEncoder): The TCT-ColBERT encoder.
-        encoder_avg (WeightedAvgEncoder): The WeightedAvg encoder.
 
     Returns:
         DataLoader: A DataLoader for the given dataset.
     """
     print("\033[96m")  # Prints in this method are cyan
-    dataset_stem = Path.cwd() / "data" / dataset_name
+    dataset_stem = args.dataset_cache_path / dataset_name
     step = 1000
     samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
     setup_done = False
