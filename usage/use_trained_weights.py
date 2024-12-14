@@ -1,17 +1,15 @@
+"""
+Watch this short video on PyTorch for this class to make sense: https://youtu.be/ORMx45xqWkA?si=Bvkm9SWi8Hz1n2Sh&t=147
+"""
+
 import torch
 from fast_forward.encoder.avg import LearnedAvgWeights
 
 ckpt_path = "/home/bvdb9/fast-forward-indexes/lightning_logs/version_8/checkpoints/epoch=0-step=995.ckpt"
-learned_weights = LearnedAvgWeights.load_from_checkpoint(ckpt_path)
-encoder = learned_weights.encoder
-encoder.eval()
-print(f"Encoder loaded as: {encoder}")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = LearnedAvgWeights.load_from_checkpoint(ckpt_path).to(device)
 
-ckpt = torch.load(ckpt_path)
-for k, v in ckpt["state_dict"].items():
-    print(f"k: {k}, v.shape: {v.shape}")
-
-# embed 10 fake d_reps!
-fake_image_batch = torch.rand(10 * 768, device=learned_weights.device)
-embeddings = encoder(fake_image_batch)
+# embed some fake top docs (= d_reps)! model(X) calls model.forward(X). Output is weighted average of d_reps.
+X = torch.rand(10 * 768, device=model.device)
+embeddings = model(X)
 print("⚡" * 20, "\nPredictions:\n", embeddings.shape, "\n", "⚡" * 20)
