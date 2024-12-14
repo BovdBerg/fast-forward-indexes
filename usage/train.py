@@ -4,6 +4,7 @@ import time
 from math import ceil
 from pathlib import Path
 from typing import Tuple
+import warnings
 
 import lightning as L
 import pyterrier as pt
@@ -18,6 +19,7 @@ from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+warnings.filterwarnings("ignore", category=FutureWarning, message=".*weights_only=False.*")
 
 
 def parse_args() -> argparse.Namespace:
@@ -114,9 +116,6 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
 def dataset_to_dataloader(
     dataset_name: str,
     shuffle: bool,
-    sys_bm25_cut: pt.Transformer,
-    encoder_tct: TransformerEncoder,
-    encoder_avg: WeightedAvgEncoder,
 ) -> DataLoader:
     """Create a DataLoader for the given dataset.
 
@@ -134,9 +133,9 @@ def dataset_to_dataloader(
     dataset_stem = Path.cwd() / "data" / dataset_name
     step = 1000
     samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
+    setup_done = False
 
     dataset = []
-    topics = pt.get_dataset(dataset_name).get_topics()
     print(f"Creating/retrieving dataset for {samples_ub} samples from {dataset_name}")
     for lb in range(0, samples_ub, step):
         ub = lb + step
@@ -147,10 +146,16 @@ def dataset_to_dataloader(
             print(f"...Step {lb}-{ub}: Loading data from {step_dataset_file}")
             new_data = torch.load(step_dataset_file)
         else:
-            # TODO: setup() is only needed at this point. Only onces --> use flag
             print(f"...Step {lb}-{ub}: Creating data in {step_dataset_file}")
-            step_topics = topics.iloc[lb : ub]
+            if not setup_done:
+                print(
+                    f"Setting up BM25, TCT-ColBERT, and WeightedAvg for {dataset_name}"
+                )
+                sys_bm25_cut, encoder_tct, encoder_avg = setup()
+                topics = pt.get_dataset(dataset_name).get_topics()
+                setup_done = True
 
+            step_topics = topics.iloc[lb:ub]
             top_ranking = Ranking(
                 sys_bm25_cut.transform(step_topics).rename(
                     columns={"qid": "q_id", "docno": "id"}
@@ -184,7 +189,9 @@ def dataset_to_dataloader(
         num_workers=args.num_workers,
         drop_last=True,
     )
-    print(f"Created dataloader with {len(dataloader)} instances from {dataset_name}. Note that size may vary from --samples (={args.samples}).")
+    print(
+        f"Created dataloader with {len(dataloader)} instances from {dataset_name}. Note that size may vary from --samples (={args.samples})."
+    )
     print("\033[0m")  # Reset print color
     return dataloader
 
@@ -195,13 +202,10 @@ def main() -> None:
     Train a model using PyTorch Lightning.
     """
     start_time = time.time()
-    sys_bm25_cut, encoder_tct, encoder_avg = setup()
 
     # Create data loaders for our datasets; shuffle for training, not for validation
-    train_loader = dataset_to_dataloader(
-        "irds:msmarco-passage/train", True, sys_bm25_cut, encoder_tct, encoder_avg
-    )
-    # val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", False, sys_bm25_cut, encoder_tct, encoder_avg)
+    train_loader = dataset_to_dataloader("irds:msmarco-passage/train", True)
+    # val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", False)
 
     # Train the model
     # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
