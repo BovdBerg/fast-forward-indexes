@@ -80,6 +80,12 @@ def parse_args() -> argparse.Namespace:
         default=11,
         help="Number of workers for the DataLoader.",
     )
+    parser.add_argument(
+        "--max_epochs",
+        type=int,
+        default=50,
+        help="Maximum number of epochs to train the model (if not stopped by EarlyStopping).",
+    )
     return parser.parse_args()
 
 
@@ -211,7 +217,7 @@ def main() -> None:
     learned_avg_weights = LearnedAvgWeights()
     trainer = L.Trainer(
         deterministic="warn",
-        max_epochs=50,
+        max_epochs=args.max_epochs,
         callbacks=[
             callbacks.LearningRateMonitor(),
             callbacks.EarlyStopping(monitor="train_loss", patience=0, verbose=True),
