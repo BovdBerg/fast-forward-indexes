@@ -1,6 +1,7 @@
 import argparse
 import os
 import time
+from math import ceil
 from pathlib import Path
 from typing import Tuple
 
@@ -49,6 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--samples",
         type=int,
+        default=80000,
         help="""Number of queries to sample from the dataset.
         Traditional (too simplistic) rule of thumb: at least 10 * |features| = 10 * (k_avg * 768). 
         E.g. 76800 samples for k_avg=10.""",
@@ -128,62 +130,62 @@ def dataset_to_dataloader(
     Returns:
         DataLoader: A DataLoader for the given dataset.
     """
-    dataset_cache_path = args.dataset_cache_path.with_name(
-        f"{args.dataset_cache_path.stem}_k-avg={args.k_avg}"
-    )
-    if args.samples:
-        dataset_cache_path = dataset_cache_path.with_stem(
-            f"{dataset_cache_path.stem}_samples={args.samples}"
-        )
+    print("\033[96m")  # Prints in this method are cyan
+    dataset_stem = Path.cwd() / "data" / dataset_name
+    step = 1000
+    samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
 
-    if dataset_cache_path.exists():
-        dataset = torch.load(dataset_cache_path)
-        print(f"Loaded dataloader from {dataset_cache_path}")
-    else:
-        s = f"Creating dataloader for {dataset_name} with "
-        if args.samples:
-            print(s + f"{args.samples} samples...")
+    dataset = []
+    topics = pt.get_dataset(dataset_name).get_topics()
+    print(f"Creating/retrieving dataset for {samples_ub} samples from {dataset_name}")
+    for lb in range(0, samples_ub, step):
+        ub = lb + step
+        step_dataset_file = dataset_stem / f"{lb}-{ub}"
+        step_dataset_file.parent.mkdir(parents=True, exist_ok=True)
+
+        if (step_dataset_file).exists():  # Load dataset part
+            print(f"...Step {lb}-{ub}: Loading data from {step_dataset_file}")
+            new_data = torch.load(step_dataset_file)
         else:
-            print(s + "all samples...")
+            # TODO: setup() is only needed at this point. Only onces --> use flag
+            print(f"...Step {lb}-{ub}: Creating data in {step_dataset_file}")
+            step_topics = topics.iloc[lb : ub]
 
-        topics = pt.get_dataset(dataset_name).get_topics()
-        if args.samples:
-            topics = topics.sample(n=args.samples)
+            top_ranking = Ranking(
+                sys_bm25_cut.transform(step_topics).rename(
+                    columns={"qid": "q_id", "docno": "id"}
+                )
+            ).cut(args.k_avg)
 
-        top_ranking = Ranking(
-            sys_bm25_cut.transform(topics).rename(
-                columns={"qid": "q_id", "docno": "id"}
-            )
-        ).cut(args.k_avg)
+            new_data = []
+            for query in tqdm(
+                step_topics["query"], desc="Processing queries", total=len(step_topics)
+            ):
+                # Label: query encoded by TCT-ColBERT
+                q_rep_tct = encoder_tct([query])[0]  # [0]: only one query
 
-        dataset = []
-        for query in tqdm(
-            topics["query"], desc="Processing queries", total=len(topics)
-        ):
-            # Label: query encoded by TCT-ColBERT
-            q_rep_tct = encoder_tct([query])[0]  # [0]: only one query
+                # Inputs: top-ranked document vectors for the query
+                top_docs = encoder_avg._get_top_docs(query, top_ranking)
+                if top_docs is None:
+                    continue  # skip sample: no top_docs
+                d_reps, _ = top_docs
+                if len(d_reps) < args.k_avg:
+                    continue  # skip sample: not enough top_docs
 
-            # Inputs: top-ranked document vectors for the query
-            top_docs = encoder_avg._get_top_docs(query, top_ranking)
-            if top_docs is None:
-                continue  # skip sample: no top_docs
-            d_reps, _ = top_docs
-            if len(d_reps) < args.k_avg:
-                continue  # skip sample: not enough top_docs
+                new_data.append((d_reps, q_rep_tct))  # (inputs, labels)
+            torch.save(new_data, step_dataset_file)
+        dataset.extend(new_data)
 
-            dataset.append((d_reps, q_rep_tct))  # (inputs, labels)
-
-        dataset_cache_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(dataset, dataset_cache_path)
-        print(f"Saved dataloader to {dataset_cache_path}")
-
+    # Cut dataset to --samples and create DataLoader
+    dataset = dataset[: args.samples]
     dataloader = DataLoader(
         dataset,
         shuffle=shuffle,
         num_workers=args.num_workers,
         drop_last=True,
     )
-    print(f"Created dataloader with {len(dataloader)} instances from {dataset_name}")
+    print(f"Created dataloader with {len(dataloader)} instances from {dataset_name}. Note that size may vary from --samples (={args.samples}).")
+    print("\033[0m")  # Reset print color
     return dataloader
 
 
