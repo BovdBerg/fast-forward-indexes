@@ -224,6 +224,7 @@ def main() -> None:
         callbacks=[
             callbacks.EarlyStopping(monitor="train_loss", min_delta=0.001, patience=2, verbose=True),
             callbacks.ModelCheckpoint(monitor="train_loss", verbose=True),
+            callbacks.ModelSummary(max_depth=2),
         ],
     )
     trainer.fit(model=learned_avg_weights, train_dataloaders=train_loader)

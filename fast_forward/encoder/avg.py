@@ -149,7 +149,6 @@ class LearnedAvgWeights(L.LightningModule):
             torch.nn.ReLU(),
             torch.nn.Linear(10, 768),
         )
-        print(f"LearnedAvgWeights initialized as: {self}")
 
     def forward(self, x):
         x = self.flatten(x)
