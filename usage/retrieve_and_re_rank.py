@@ -5,6 +5,7 @@ import time
 from copy import copy
 from pathlib import Path
 from typing import List, Tuple
+import warnings
 
 import gspread
 import numpy as np
@@ -30,6 +31,9 @@ from fast_forward.ranking import Ranking
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
 PREV_RESULTS = Path("results.json")
+warnings.filterwarnings(
+    "ignore", category=FutureWarning, message=".*weights_only=False.*"
+)
 
 
 def parse_args():
