@@ -123,10 +123,7 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     index_tct = OnDiskIndex.load(args.tct_index_path)
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
-    encoder_avg = WeightedAvgEncoder(index_tct, k_avg=args.k_avg)
-    if args.ckpt_path:
-        ckpt = torch.load(args.ckpt_path)
-        encoder_avg.load_state_dict(ckpt)
+    encoder_avg = WeightedAvgEncoder(index_tct, k_avg=args.k_avg, ckpt_path=args.ckpt_path)
 
     return sys_bm25_cut, encoder_tct, encoder_avg
 

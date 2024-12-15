@@ -1,4 +1,5 @@
 from enum import Enum
+from pathlib import Path
 from typing import Sequence
 
 import lightning as L
@@ -30,7 +31,7 @@ class W_METHOD(Enum):
     SOFTMAX_SCORES = "SOFTMAX_SCORES"
     LINEAR_DECAY_RANKS = "LINEAR_DECAY_RANKS"
     LINEAR_DECAY_SCORES = "LINEAR_DECAY_SCORES"
-    # TODO [IMPORTANT]: Add LEARNED distribution, with learned model weights based on training/validation data
+    LEARNED = "LEARNED"
     # TODO [later]: After adding LEARNED distribution, should I train different transformers when chaining (per FFScore_i)?
 
 
@@ -44,6 +45,8 @@ class WeightedAvgEncoder(Encoder):
         index: Index,
         w_method: W_METHOD = W_METHOD.SOFTMAX_SCORES,
         k_avg: int = 30,
+        ckpt_path: Path = None,
+        device: str = "cpu"
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
@@ -54,11 +57,19 @@ class WeightedAvgEncoder(Encoder):
             k_avg (int): The number of top-ranked documents to average.
             ranking_in (Ranking): The initial sparse ranking of documents.
         """
+        super().__init__()
         self.index = index
         self.w_method = w_method
         self.k_avg = k_avg
         self.ranking_in = None
-        super().__init__()
+        self.device = device
+
+        if ckpt_path is not None:
+            self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(ckpt_path, k_avg=k_avg)
+        else:
+            self.learned_avg_weights = LearnedAvgWeights(k_avg=self.k_avg)
+        self.learned_avg_weights.to(device)
+        self.learned_avg_weights.eval()
 
     def _get_weights(self, n_docs: int, scores: Sequence[float]) -> Sequence[float]:
         """
@@ -129,9 +140,16 @@ class WeightedAvgEncoder(Encoder):
         q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
         for i, query in enumerate(queries):
             d_reps, top_docs_scores = self._get_top_docs(query, top_ranking)
-            q_reps[i] = np.average(
-                d_reps, axis=0, weights=self._get_weights(len(d_reps), top_docs_scores)
-            )
+            if self.w_method == W_METHOD.LEARNED:
+                d_reps = np.expand_dims(d_reps, axis=0)  # Add dim on axis 0
+                d_reps = torch.from_numpy(d_reps).float().to(self.device)
+                if d_reps is None or len(d_reps[0]) < self.k_avg:
+                    continue  # TODO [discuss]: Check if I can create a model which accepts <k_avg docs. Padding?
+                q_reps[i] = self.learned_avg_weights(d_reps)[0].detach().cpu().numpy()  # Batch_size == 1, so take 1st element
+            else:
+                q_reps[i] = np.average(
+                    d_reps, axis=0, weights=self._get_weights(len(d_reps), top_docs_scores)
+                )
 
         return q_reps
 

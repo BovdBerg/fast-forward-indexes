@@ -80,6 +80,12 @@ def parse_args():
         help="Path to the emb checkpoint file.",
     )
     parser.add_argument(
+        "--ckpt_avg_path",
+        type=Path,
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/version_0/checkpoints/epoch=10-step=10978.ckpt",
+        help="Path to the avg checkpoint file. Create it by running usage/train.py"
+    )
+    parser.add_argument(
         "--storage",
         type=str,
         choices=["disk", "mem"],
@@ -110,13 +116,13 @@ def parse_args():
         "--w_method",
         type=W_METHOD,
         choices=list(W_METHOD),
-        default="SOFTMAX_SCORES",
+        default="LEARNED",
         help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     parser.add_argument(
         "--k_avg",
         type=int,
-        default=30,
+        default=10,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     parser.add_argument(
@@ -363,7 +369,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index_tct)
-    index_avg.query_encoder = WeightedAvgEncoder(index_avg, args.w_method, args.k_avg)
+    index_avg.query_encoder = WeightedAvgEncoder(index_avg, args.w_method, args.k_avg, ckpt_path=args.ckpt_avg_path, device=args.device)
 
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
