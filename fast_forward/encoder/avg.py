@@ -46,7 +46,7 @@ class WeightedAvgEncoder(Encoder):
         w_method: W_METHOD = W_METHOD.SOFTMAX_SCORES,
         k_avg: int = 30,
         ckpt_path: Path = None,
-        device: str = "cpu"
+        device: str = "cpu",
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
@@ -65,7 +65,9 @@ class WeightedAvgEncoder(Encoder):
         self.device = device
 
         if ckpt_path is not None:
-            self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(ckpt_path, k_avg=k_avg)
+            self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(
+                ckpt_path, k_avg=k_avg
+            )
         else:
             self.learned_avg_weights = LearnedAvgWeights(k_avg=self.k_avg)
         self.learned_avg_weights.to(device)
@@ -145,10 +147,14 @@ class WeightedAvgEncoder(Encoder):
                 d_reps = torch.from_numpy(d_reps).float().to(self.device)
                 if d_reps is None or len(d_reps[0]) < self.k_avg:
                     continue  # TODO [discuss]: Check if I can create a model which accepts <k_avg docs. Padding?
-                q_reps[i] = self.learned_avg_weights(d_reps)[0].detach().cpu().numpy()  # Batch_size == 1, so take 1st element
+                q_reps[i] = (
+                    self.learned_avg_weights(d_reps)[0].detach().cpu().numpy()
+                )  # Batch_size == 1, so take 1st element
             else:
                 q_reps[i] = np.average(
-                    d_reps, axis=0, weights=self._get_weights(len(d_reps), top_docs_scores)
+                    d_reps,
+                    axis=0,
+                    weights=self._get_weights(len(d_reps), top_docs_scores),
                 )
 
         return q_reps
