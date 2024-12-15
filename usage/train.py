@@ -52,6 +52,18 @@ def parse_args() -> argparse.Namespace:
         help="Number of top-ranked documents to average.",
     )
     parser.add_argument(
+        "--hidden_layers",
+        type=int,
+        default=0,
+        help="Amount of hidden layers of size --hidden_dimensions.",
+    )
+    parser.add_argument(
+        "--hidden_dimensions",
+        type=int,
+        default=10,
+        help="Amount of hidden dimensions for each hidden layer in --hidden_layers.",
+    )
+    parser.add_argument(
         "--samples",
         type=int,
         default=80000,
@@ -225,7 +237,11 @@ def main() -> None:
 
     # Train the model
     # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
-    learned_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
+    learned_avg_weights = LearnedAvgWeights(
+        k_avg=args.k_avg,
+        hidden_layers=args.hidden_layers,
+        hidden_dimensions=args.hidden_dimensions,
+    )
     trainer = L.Trainer(
         deterministic="warn",
         max_epochs=args.max_epochs,
@@ -244,7 +260,11 @@ def main() -> None:
     )
 
     # Now test it on TREC-DL-2019 judged queries, compared to an untrained model
-    untrained_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
+    untrained_avg_weights = LearnedAvgWeights(
+        k_avg=args.k_avg,
+        hidden_layers=args.hidden_layers,
+        hidden_dimensions=args.hidden_dimensions,
+    )
     test_datasets = args.test_datasets
     for dataset in test_datasets:
         print(f"Testing the trained model on {dataset}...")

@@ -49,6 +49,7 @@ class WeightedAvgEncoder(Encoder):
         k_avg: int = 30,
         ckpt_path: Path = None,
         device: str = "cpu",
+        **enc_args,
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
@@ -68,10 +69,10 @@ class WeightedAvgEncoder(Encoder):
 
         if ckpt_path is not None:
             self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(
-                ckpt_path, k_avg=k_avg
+                ckpt_path, k_avg=k_avg, **enc_args
             )
         else:
-            self.learned_avg_weights = LearnedAvgWeights(k_avg=self.k_avg)
+            self.learned_avg_weights = LearnedAvgWeights(k_avg=self.k_avg, **enc_args)
         self.learned_avg_weights.to(device)
         self.learned_avg_weights.eval()
 
@@ -167,15 +168,28 @@ class LearnedAvgWeights(lightning.LightningModule):
     Watch this short video on PyTorch for this class to make sense: https://youtu.be/ORMx45xqWkA?si=Bvkm9SWi8Hz1n2Sh&t=147
     """
 
-    def __init__(self, k_avg: int = 10):
+    def __init__(
+        self, k_avg: int = 10, hidden_layers: int = 1, hidden_dimensions: int = 10
+    ):
+        assert hidden_layers >= 1
+        assert hidden_dimensions >= 1
         super().__init__()
+
         self.k_avg = k_avg
+        self.hidden_layers = hidden_layers
+        self.hidden_dimensions = hidden_dimensions
 
         self.flatten = torch.nn.Flatten()
+        
         self.linear_relu_stack = torch.nn.Sequential(
-            torch.nn.Linear(k_avg * 768, 10),
-            torch.nn.ReLU(),
-            torch.nn.Linear(10, 768),
+            torch.nn.Linear(k_avg * 768, hidden_dimensions)  # 
+        )
+        for l in range(hidden_layers - 1):
+            self.linear_relu_stack.extend(
+                [torch.nn.ReLU(), torch.nn.Linear(hidden_dimensions, hidden_dimensions)]
+            )
+        self.linear_relu_stack.extend(
+            [torch.nn.ReLU(), torch.nn.Linear(hidden_dimensions, 768)]
         )
 
         # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
@@ -187,7 +201,11 @@ class LearnedAvgWeights(lightning.LightningModule):
         return x
 
     def on_train_start(self):
-        self.log("k_avg", self.k_avg)
+        self.log_dict({
+            "k_avg": self.k_avg,
+            "hidden_layers": self.hidden_layers,
+            "hidden_dimensions": self.hidden_dimensions,
+        })
 
     def step(self, batch, name):
         x, y = batch

@@ -119,12 +119,27 @@ def parse_args():
         default="LEARNED",
         help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
+    # LearnedAvgWeights
+    parser.add_argument(
+        "--hidden_layers",
+        type=int,
+        default=1,
+        help="Number of hidden layers of size --hidden_dimensions in LearnedAvgWeights. Must be equal to training. Only relevant if --w_method==LEARNED.",
+    )
+    parser.add_argument(
+        "--hidden_dimensions",
+        type=int,
+        default=10,
+        help="Dimension of each hidden layer in --hidden_layers. Must be equal to training. Only relevant if --w_method==LEARNED.",
+    )
+    # WeightedAvgEncoder + LearnedAvgWeights
     parser.add_argument(
         "--k_avg",
         type=int,
         default=10,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
+    # Chained WeightedAvgEncoder
     parser.add_argument(
         "--avg_chains",
         type=int,
@@ -219,6 +234,7 @@ def print_settings() -> None:
     settings_description: List[str] = [
         f"sparse_cutoff={args.sparse_cutoff}, in_memory={args.storage == 'mem'}, device={args.device}",
         f"WeightedAvgEncoder: k_avg={args.k_avg}, w_method={args.w_method.name}",
+        f"\tLearnedAvgWeights: hidden_layers={args.hidden_layers}, hidden_dimensions={args.hidden_dimensions}"
     ]
     # Validation settings
     if args.val_pipelines:
@@ -371,7 +387,15 @@ def main(args: argparse.Namespace) -> None:
 
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index_tct)
-    index_avg.query_encoder = WeightedAvgEncoder(index_avg, args.w_method, args.k_avg, ckpt_path=args.ckpt_avg_path, device=args.device)
+    index_avg.query_encoder = WeightedAvgEncoder(
+        index_avg,
+        args.w_method,
+        args.k_avg,
+        ckpt_path=args.ckpt_avg_path,
+        device=args.device,
+        hidden_layers=args.hidden_layers,
+        hidden_dimensions=args.hidden_dimensions,
+    )
 
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
