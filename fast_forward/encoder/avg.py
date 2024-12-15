@@ -2,7 +2,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Sequence
 
-import lightning as L
+import lightning
 import numpy as np
 import pandas as pd
 import torch
@@ -154,7 +154,7 @@ class WeightedAvgEncoder(Encoder):
         return q_reps
 
 
-class LearnedAvgWeights(L.LightningModule):
+class LearnedAvgWeights(lightning.LightningModule):
     """
     Watch this short video on PyTorch for this class to make sense: https://youtu.be/ORMx45xqWkA?si=Bvkm9SWi8Hz1n2Sh&t=147
     """
