@@ -227,7 +227,7 @@ def main() -> None:
 
     # Train the model
     # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
-    learned_avg_weights = LearnedAvgWeights()
+    learned_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
     trainer = L.Trainer(
         deterministic="warn",
         max_epochs=args.max_epochs,
@@ -246,7 +246,7 @@ def main() -> None:
     )
 
     # Now test it on TREC-DL-2019 judged queries, compared to an untrained model
-    untrained_avg_weights = LearnedAvgWeights()
+    untrained_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
     test_datasets = args.test_datasets
     for dataset in test_datasets:
         print(f"Testing the trained model on {dataset}...")

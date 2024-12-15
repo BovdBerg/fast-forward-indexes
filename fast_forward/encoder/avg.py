@@ -141,21 +141,27 @@ class LearnedAvgWeights(L.LightningModule):
     Watch this short video on PyTorch for this class to make sense: https://youtu.be/ORMx45xqWkA?si=Bvkm9SWi8Hz1n2Sh&t=147
     """
 
-    def __init__(self):
+    def __init__(self, k_avg: int = 10):
         super().__init__()
+        self.k_avg = k_avg
+
         self.flatten = torch.nn.Flatten()
         self.linear_relu_stack = torch.nn.Sequential(
-            torch.nn.Linear(10 * 768, 10),
+            torch.nn.Linear(k_avg * 768, 10),
             torch.nn.ReLU(),
             torch.nn.Linear(10, 768),
         )
+
         # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
-        self.loss_fn = torch.nn.MSELoss()  
+        self.loss_fn = torch.nn.MSELoss()
 
     def forward(self, x):
         x = self.flatten(x)
         x = self.linear_relu_stack(x)
         return x
+
+    def on_train_start(self):
+        self.log("k_avg", self.k_avg)
 
     def step(self, batch, name):
         x, y = batch
