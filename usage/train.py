@@ -92,7 +92,6 @@ def parse_args() -> argparse.Namespace:
         nargs="*",
         default=[
             "irds:msmarco-passage/trec-dl-2019/judged",
-            "irds:msmarco-passage/trec-dl-2020/judged",
         ],
         help="List of test datasets to evaluate the model on.",
     )
@@ -123,7 +122,9 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     index_tct = OnDiskIndex.load(args.tct_index_path)
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
-    encoder_avg = WeightedAvgEncoder(index_tct, k_avg=args.k_avg, ckpt_path=args.ckpt_path)
+    encoder_avg = WeightedAvgEncoder(
+        index_tct, k_avg=args.k_avg, ckpt_path=args.ckpt_path
+    )
 
     return sys_bm25_cut, encoder_tct, encoder_avg
 
@@ -249,9 +250,6 @@ def main() -> None:
         print(f"Testing the trained model on {dataset}...")
         test_loader = dataset_to_dataloader(dataset, False)
         trainer.test(model=learned_avg_weights, dataloaders=test_loader)
-
-        print("\nTesting an untrained model on the same test set.")
-        trainer.test(model=untrained_avg_weights, dataloaders=test_loader)
 
     end_time = time.time()
     print(f"\nScript took {end_time - start_time:.2f} seconds to complete.")

@@ -35,6 +35,8 @@ class W_METHOD(Enum):
     # TODO [later]: After adding LEARNED distribution, should I train different transformers when chaining (per FFScore_i)?
 
 
+# TODO: Train model with query --> TCT-ColBERT query (KD)
+# TODO: Train model with query + top_docs as input
 class WeightedAvgEncoder(Encoder):
     """
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.
@@ -61,7 +63,7 @@ class WeightedAvgEncoder(Encoder):
         self.index = index
         self.w_method = w_method
         self.k_avg = k_avg
-        self.ranking_in = None
+        self.ranking_in = None  # TODO: Cut ranking_in before passing it to WeightedAvgEncoder, rename to top_ranking
         self.device = device
 
         if ckpt_path is not None:

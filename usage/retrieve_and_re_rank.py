@@ -2,10 +2,10 @@ import argparse
 import cProfile
 import pstats
 import time
+import warnings
 from copy import copy
 from pathlib import Path
 from typing import List, Tuple
-import warnings
 
 import gspread
 import numpy as np
@@ -83,7 +83,7 @@ def parse_args():
         "--ckpt_avg_path",
         type=Path,
         default="/home/bvdb9/fast-forward-indexes/lightning_logs/version_0/checkpoints/epoch=10-step=10978.ckpt",
-        help="Path to the avg checkpoint file. Create it by running usage/train.py"
+        help="Path to the avg checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
         "--storage",
@@ -218,7 +218,7 @@ def print_settings() -> None:
     # General settings
     settings_description: List[str] = [
         f"sparse_cutoff={args.sparse_cutoff}, in_memory={args.storage == 'mem'}, device={args.device}",
-        f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}",
+        f"WeightedAvgEncoder: k_avg={args.k_avg}, w_method={args.w_method.name}",
     ]
     # Validation settings
     if args.val_pipelines:
@@ -289,7 +289,9 @@ def profile(pipelines: List[Tuple[str, pt.Transformer, pt.Transformer]]) -> None
     Args:
         pipelines (List[Tuple[str, pt.Transformer, pt.Transformer]): List of re-ranking pipelines to profile.
     """
-    profile_dir = Path(__file__).parent.parent / "profiles" / f"{args.storage}_{args.device}"
+    profile_dir = (
+        Path(__file__).parent.parent / "profiles" / f"{args.storage}_{args.device}"
+    )
     profile_dir.mkdir(parents=True, exist_ok=True)
     print(f"Creating re-ranking profiles in {profile_dir}...")
 
