@@ -74,10 +74,10 @@ def parse_args():
         help="Path to the index file.",
     )
     parser.add_argument(
-        "--ckpt_path",
+        "--ckpt_emb_path",
         type=Path,
         default="/home/bvdb9/models/emb_768.ckpt",
-        help="Path to the checkpoint file.",
+        help="Path to the emb checkpoint file.",
     )
     parser.add_argument(
         "--storage",
@@ -379,7 +379,7 @@ def main(args: argparse.Namespace) -> None:
 
     query_encoder_emb = StandaloneEncoder(
         "google/bert_uncased_L-12_H-768_A-12",
-        ckpt_path=args.ckpt_path,
+        ckpt_path=args.ckpt_emb_path,
         device=args.device,
     )
     index_emb = OnDiskIndex.load(
