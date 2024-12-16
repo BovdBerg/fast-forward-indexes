@@ -158,7 +158,7 @@ def dataset_to_dataloader(
     dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
     step = 1000
     if shuffle:
-        samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
+        samples_ub = 10000
     else:
         samples_ub = 1000  # Only need 1k validation samples
 
@@ -246,7 +246,7 @@ def main() -> None:
         limit_val_batches=1000,
         callbacks=[
             callbacks.EarlyStopping(
-                monitor="val_loss", min_delta=0.001, patience=3, verbose=True
+                monitor="val_loss", min_delta=0.0001, patience=5, verbose=True
             ),
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.ModelSummary(max_depth=2),
@@ -270,8 +270,11 @@ def main() -> None:
         test_loader = dataset_to_dataloader(dataset, False)
         trainer.test(model=learned_avg_weights, dataloaders=test_loader)
 
+    # TODO: save best model to transformers hub?
+
     end_time = time.time()
     print(f"\nScript took {end_time - start_time:.2f} seconds to complete.")
+    return
 
 
 if __name__ == "__main__":
