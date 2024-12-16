@@ -219,7 +219,7 @@ def print_settings() -> None:
     # General settings
     settings_description: List[str] = [
         f"sparse_cutoff={args.sparse_cutoff}, in_memory={args.storage == 'mem'}, device={args.device}",
-        f"WeightedAvgEncoder: k_avg={args.k_avg}, w_method={args.w_method.name}",
+        f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}",
     ]
     # Validation settings
     if args.val_pipelines:
