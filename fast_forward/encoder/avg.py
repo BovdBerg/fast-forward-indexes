@@ -187,6 +187,10 @@ class LearnedAvgWeights(lightning.LightningModule):
         self.hidden_layers = hidden_layers
         self.hidden_dimensions = hidden_dimensions
 
+        self.loss_fn = torch.nn.MSELoss()
+        self.flatten = torch.nn.Flatten(0)
+        self.softmax = torch.nn.Softmax(dim=0)
+
         self.linear_relu_stack = torch.nn.Sequential(
             torch.nn.Linear(k_avg * 768, hidden_dimensions)
         )
@@ -202,9 +206,9 @@ class LearnedAvgWeights(lightning.LightningModule):
         )
 
     def forward(self, x):
-        x = torch.nn.Flatten(0)(x)
+        x = self.flatten(x)
         x = self.linear_relu_stack(x)
-        x = torch.nn.Softmax()(x)
+        x = self.softmax(x)
         return x
 
     def on_train_start(self):
@@ -221,7 +225,7 @@ class LearnedAvgWeights(lightning.LightningModule):
         weights = self(x)  # shape (k_avg)
         weights = weights.unsqueeze(0).unsqueeze(-1)  # Add dims to match x for broadcasting -> shape (:, k_avg, :)
         q_rep = torch.sum(x * weights, dim=1)  # Weighted sum along the second dimension
-        loss = torch.nn.MSELoss()(q_rep, y)
+        loss = self.loss_fn(q_rep, y)
         self.log(f"{name}_loss", loss, on_epoch=True)
         return loss
 
