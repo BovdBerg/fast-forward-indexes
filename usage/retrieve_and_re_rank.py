@@ -428,7 +428,7 @@ def main(args: argparse.Namespace) -> None:
 
     # TODO [later]: Try using best performing sys_avg in sys_avg_tct rather than the first
     # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
-    int_avg_emb = FFInterpolate(alpha=0.4)
+    int_avg_emb = FFInterpolate(alpha=0.5)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
     # TODO: Train Knowledge Distillation model (custom shape?) + add pipeline here

@@ -67,47 +67,58 @@ class WeightedAvgEncoder(Encoder):
         self._ranking_in = None
         self.device = device
 
-        if ckpt_path is not None:
-            self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(
-                ckpt_path, k_avg=k_avg, **enc_args
-            )
-        else:
-            self.learned_avg_weights = LearnedAvgWeights(k_avg=self.k_avg, **enc_args)
-        self.learned_avg_weights.to(device)
-        self.learned_avg_weights.eval()
+        if w_method == W_METHOD.LEARNED:
+            if ckpt_path is not None:
+                self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(
+                    ckpt_path, k_avg=k_avg, **enc_args
+                )
+            else:
+                self.learned_avg_weights = LearnedAvgWeights(
+                    k_avg=self.k_avg, **enc_args
+                )
+            self.learned_avg_weights.to(device)
+            self.learned_avg_weights.eval()
 
-    def _get_weights(self, n_docs: int, scores: Sequence[float]) -> Sequence[float]:
+    def _get_weights(
+        self, d_reps: torch.Tensor, scores: Sequence[float]
+    ) -> torch.Tensor:
         """
-        Get the weights for the top-ranked documents based on the probability distribution type.
+        Get the weights for the top-ranked documents based on the probability distribution type or learned weights.
 
         Args:
-            n_docs (int): Number of top-ranked documents
+            d_reps (torch.Tensor): The document representations.
+            scores (Sequence[float]): The scores of the top-ranked documents.
 
         Returns:
-            Sequence[float]: A sequence of interpolation parameters.
+            torch.Tensor: A tensor of interpolation parameters (weights).
         """
+        n_docs = len(d_reps)
         match self.w_method:
-            # See description of ProbDist for details on each distribution
+            case W_METHOD.LEARNED:
+                return self.learned_avg_weights(d_reps)
             case W_METHOD.UNIFORM:
-                return np.ones(n_docs) / n_docs
+                return torch.ones(n_docs, device=self.device) / n_docs
             case W_METHOD.EXPONENTIAL:
-                return np.exp(-np.linspace(0, 1, n_docs))
+                return torch.exp(-torch.linspace(0, 1, n_docs, device=self.device))
             case W_METHOD.HALF_NORMAL:
-                return np.flip(np.exp(-np.linspace(0, 1, n_docs) ** 2))
+                return torch.flip(
+                    torch.exp(-torch.linspace(0, 1, n_docs, device=self.device) ** 2),
+                    dims=[0],
+                )
             case W_METHOD.SOFTMAX_SCORES:
-                max_score = np.max(scores)
-                exp_scores = np.exp(scores - max_score)
-                return exp_scores / np.sum(exp_scores)
+                max_score = torch.max(scores)
+                exp_scores = torch.exp(scores - max_score)
+                return exp_scores / torch.sum(exp_scores)
             case W_METHOD.LINEAR_DECAY_RANKS:
-                return np.linspace(1, 0, n_docs)
+                return torch.linspace(1, 0, n_docs, device=self.device)
             case W_METHOD.LINEAR_DECAY_SCORES:
-                return np.linspace(1, 0, n_docs) * scores
+                return torch.linspace(1, 0, n_docs, device=self.device) * scores
             case _:
                 raise ValueError(
                     f"Unknown probability distribution type: {self.w_method}"
                 )
 
-    def _get_top_docs(self, query: str, top_ranking: Ranking) -> np.ndarray:
+    def _get_top_docs(self, query: str, top_ranking: Ranking) -> torch.Tensor:
         # Get the ids of the top-ranked documents for the query
         top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
         if len(top_docs) == 0:
@@ -125,7 +136,11 @@ class WeightedAvgEncoder(Encoder):
         order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
         d_reps = d_reps[order]  # sort d_reps on d_ids order
 
-        return d_reps, top_docs_scores
+        # Convert d_reps and top_docs_scores to tensors
+        d_reps_tensor = torch.tensor(d_reps, device=self.device)
+        top_docs_scores_tensor = torch.tensor(top_docs_scores, device=self.device)
+
+        return d_reps_tensor, top_docs_scores_tensor
 
     @property
     def ranking_in(self):
@@ -149,26 +164,23 @@ class WeightedAvgEncoder(Encoder):
             self.ranking_in is not None
         ), "Please set the ranking_in attribute before calling the encoder."
 
-        q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
-        # TODO: could probably be rewritten to handling a batch.
+        # TODO: could probably be rewritten to handle batches at a time.
+        q_reps = torch.zeros((len(queries), self.index.dim), device=self.device)
         for i, query in enumerate(queries):
             d_reps, top_docs_scores = self._get_top_docs(query, self.ranking_in)
-            if self.w_method == W_METHOD.LEARNED:
-                d_reps = np.expand_dims(d_reps, axis=0)  # Add dim on axis 0
-                d_reps = torch.from_numpy(d_reps).float().to(self.device)
-                if d_reps is None or len(d_reps[0]) < self.k_avg:
-                    continue  # TODO [discuss]: Check if I can create a model which accepts <k_avg docs. Padding?
-                q_reps[i] = (
-                    self.learned_avg_weights(d_reps)[0].detach().cpu().numpy()
-                )  # Batch_size == 1, so take 1st element
-            else:
-                q_reps[i] = np.average(
-                    d_reps,
-                    axis=0,
-                    weights=self._get_weights(len(d_reps), top_docs_scores),
-                )
+            if d_reps is None or len(d_reps) < self.k_avg:
+                continue  # TODO [discuss]: Check if I can create a model which accepts <k_avg docs. Padding?
+            # Get the weights for the top docs using the selected method
+            weights = self._get_weights(
+                d_reps, top_docs_scores.clone().detach()
+            ).unsqueeze(-1)
 
-        return q_reps
+            # Calculate the weighted sum of document representations
+            weighted_sum = torch.sum(d_reps * weights, dim=0)
+            total_weight = torch.sum(weights)
+            q_reps[i] = weighted_sum / total_weight
+
+        return q_reps.cpu().detach().numpy()
 
 
 class LearnedAvgWeights(lightning.LightningModule):
@@ -223,7 +235,7 @@ class LearnedAvgWeights(lightning.LightningModule):
     def step(self, batch, name):
         x, y = batch
         weights = self(x)  # shape (k_avg)
-        weights = weights.unsqueeze(0).unsqueeze(-1)  # Add dims to match x for broadcasting -> shape (:, k_avg, :)
+        weights = weights.unsqueeze(0).unsqueeze(-1)
         q_rep = torch.sum(x * weights, dim=1)  # Weighted sum along the second dimension
         loss = self.loss_fn(q_rep, y)
         self.log(f"{name}_loss", loss, on_epoch=True)
