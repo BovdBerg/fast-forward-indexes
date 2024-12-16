@@ -153,7 +153,7 @@ def dataset_to_dataloader(
     Returns:
         DataLoader: A DataLoader for the given dataset.
     """
-    global setup_done
+    global setup_done, sys_bm25_cut, encoder_tct, encoder_avg
     print("\033[96m")  # Prints in this method are cyan
     dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
     step = 1000
