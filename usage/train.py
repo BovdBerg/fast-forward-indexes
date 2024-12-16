@@ -6,7 +6,7 @@ from math import ceil
 from pathlib import Path
 from typing import Tuple
 
-import lightning as L
+import lightning
 import pyterrier as pt
 import torch
 from lightning.pytorch import callbacks
@@ -242,7 +242,7 @@ def main() -> None:
         hidden_layers=args.hidden_layers,
         hidden_dimensions=args.hidden_dimensions,
     )
-    trainer = L.Trainer(
+    trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=args.max_epochs,
         callbacks=[
