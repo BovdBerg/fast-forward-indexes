@@ -197,10 +197,11 @@ class LearnedAvgWeights(lightning.LightningModule):
         self.flatten = torch.nn.Flatten(0)
         self.softmax = torch.nn.Softmax(dim=0)
 
+        hidden_dim = 100
         self.linear_relu_stack = torch.nn.Sequential(
-            torch.nn.Linear(k_avg * 768, 100),
+            torch.nn.Linear(k_avg * 768, hidden_dim),
             torch.nn.ReLU(),
-            torch.nn.Linear(100, k_avg),
+            torch.nn.Linear(hidden_dim, k_avg),
         )
 
     def forward(self, x):
