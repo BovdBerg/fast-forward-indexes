@@ -140,7 +140,7 @@ def main(args: argparse.Namespace) -> None:
     sys_bm25 = pt.BatchRetrieve.from_dataset(
         "msmarco_passage", "terrier_stemmed", wmodel="BM25", verbose=True, memory=True
     )
-    sys_bm25_cut = ~sys_bm25 % 1000
+    sys_bm25_cut = ~sys_bm25 % k_avg
     sparse_df = sys_bm25_cut(topics)
     sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
 
