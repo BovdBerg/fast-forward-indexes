@@ -1,3 +1,4 @@
+import json
 from enum import Enum
 from pathlib import Path
 from typing import Sequence
@@ -223,13 +224,18 @@ class LearnedAvgWeights(lightning.LightningModule):
         return x
 
     def on_train_start(self):
-        self.log_dict(
-            {
-                "k_avg": self.k_avg,
-                "hidden_layers": self.hidden_layers,
-                "hidden_dimensions": self.hidden_dimensions,
-            }
-        )
+        settings_file = Path(self.trainer.log_dir) / "settings.json"
+        with open(settings_file, "w") as f:
+            json.dump(
+                {
+                    "Class": self.__class__.__name__,
+                    "k_avg": self.k_avg,
+                    "hidden_layers": self.hidden_layers,
+                    "hidden_dimensions": self.hidden_dimensions,
+                },
+                f,
+                indent=4,
+            )
 
     def step(self, batch, name):
         x, y = batch
