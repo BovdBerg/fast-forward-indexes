@@ -407,7 +407,6 @@ def main(args: argparse.Namespace) -> None:
     int_emb = FFInterpolate(alpha=0.2)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
-    # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
     int_avg_emb = FFInterpolate(alpha=0.5)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
