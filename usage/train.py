@@ -22,6 +22,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 warnings.filterwarnings(
     "ignore", category=FutureWarning, message=".*weights_only=False.*"
 )
+setup_done = False
 
 
 def parse_args() -> argparse.Namespace:
@@ -152,6 +153,7 @@ def dataset_to_dataloader(
     Returns:
         DataLoader: A DataLoader for the given dataset.
     """
+    global setup_done
     print("\033[96m")  # Prints in this method are cyan
     dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
     step = 1000
@@ -159,7 +161,6 @@ def dataset_to_dataloader(
         samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
     else:
         samples_ub = 1000  # Only need 1k validation samples
-    setup_done = False
 
     dataset = []
     print(f"Creating/retrieving dataset for {samples_ub} samples from {dataset_name}")
