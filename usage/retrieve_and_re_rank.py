@@ -325,7 +325,6 @@ def profile(pipelines: List[Tuple[str, pt.Transformer, pt.Transformer]]) -> None
 
 
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
-# TODO: Split the main function into smaller functions for better readability.
 def main(args: argparse.Namespace) -> None:
     """
     Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
@@ -426,12 +425,10 @@ def main(args: argparse.Namespace) -> None:
     int_emb = FFInterpolate(alpha=0.2)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
-    # TODO [later]: Try using best performing sys_avg in sys_avg_tct rather than the first
     # Re-ranking pipelines based on combining TCTColBERT and WeightedAvgEncoder
     int_avg_emb = FFInterpolate(alpha=0.5)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
-    # TODO: Train Knowledge Distillation model (custom shape?) + add pipeline here
     pipelines = [
         ("bm25", ~sys_bm25, None),
         ("tct", sys_tct, int_tct),

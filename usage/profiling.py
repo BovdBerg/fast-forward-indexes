@@ -110,7 +110,6 @@ class JsonProfiler:
         }
 
 
-# TODO [important]: avg1 sometimes gives an error (easier to detect with many queries). e.g. `python usage/profiling.py --runs=3 --batch_size=256 --batches=2 --storage=disk --verbose`
 def main(args: argparse.Namespace) -> None:
     """
     Create plots for CPU re-ranking runtime profiles.

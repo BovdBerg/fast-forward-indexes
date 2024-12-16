@@ -222,7 +222,6 @@ def dataset_to_dataloader(
     return dataloader
 
 
-# TODO: rewrite to use ir_datasets instead of pyterrier. dataset.scoreddocs_iter() for bm25 % 1000.
 def main() -> None:
     """
     Train a model using PyTorch Lightning.

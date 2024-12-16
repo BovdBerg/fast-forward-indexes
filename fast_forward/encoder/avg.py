@@ -32,10 +32,9 @@ class W_METHOD(Enum):
     LINEAR_DECAY_RANKS = "LINEAR_DECAY_RANKS"
     LINEAR_DECAY_SCORES = "LINEAR_DECAY_SCORES"
     LEARNED = "LEARNED"
-    # TODO [later]: After adding LEARNED distribution, should I train different transformers when chaining (per FFScore_i)?
 
 
-# TODO: Train model with query --> TCT-ColBERT query (KD)
+# TODO: Train model with query --> TCT-ColBERT query (KD) with custom shape
 # TODO: Train model with query + top_docs as input
 class WeightedAvgEncoder(Encoder):
     """
