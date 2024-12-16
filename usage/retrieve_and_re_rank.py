@@ -120,6 +120,7 @@ def parse_args():
         help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     # LearnedAvgWeights
+    # TODO: Can't I retrieve the --hidden_layers and --hidden_dimensions directly from the ckpt_avg?
     parser.add_argument(
         "--hidden_layers",
         type=int,

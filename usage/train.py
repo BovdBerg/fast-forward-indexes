@@ -30,9 +30,7 @@ def parse_args() -> argparse.Namespace:
     Returns:
         argparse.Namespace: Parsed command-line arguments.
     """
-    parser = argparse.ArgumentParser(
-        description="Create an OPQ index from an existing Fast-Forward index."
-    )
+    parser = argparse.ArgumentParser(description="Train a LearnedAvgWeights model.")
     parser.add_argument(
         "--dataset_cache_path",
         type=Path,
@@ -157,7 +155,10 @@ def dataset_to_dataloader(
     print("\033[96m")  # Prints in this method are cyan
     dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
     step = 1000
-    samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
+    if shuffle:
+        samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
+    else:
+        samples_ub = 1000  # Only need 1k validation samples
     setup_done = False
 
     dataset = []
@@ -188,7 +189,7 @@ def dataset_to_dataloader(
                 sys_bm25_cut.transform(step_topics).rename(
                     columns={"qid": "q_id", "docno": "id"}
                 )
-            )  # .cut(args.k_avg)  # Cut not needed because `bm25 % k_avg` earlier
+            )
 
             new_data = []
             for query in tqdm(

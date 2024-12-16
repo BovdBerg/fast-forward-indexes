@@ -64,7 +64,7 @@ class WeightedAvgEncoder(Encoder):
         self.index = index
         self.w_method = w_method
         self.k_avg = k_avg
-        self.ranking_in = None  # TODO: Cut ranking_in before passing it to WeightedAvgEncoder, rename to top_ranking
+        self._ranking_in = None
         self.device = device
 
         if ckpt_path is not None:
@@ -127,6 +127,14 @@ class WeightedAvgEncoder(Encoder):
 
         return d_reps, top_docs_scores
 
+    @property
+    def ranking_in(self):
+        return self._ranking_in
+
+    @ranking_in.setter
+    def ranking_in(self, ranking: Ranking):
+        self._ranking_in = ranking.cut(self.k_avg)
+
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
         """
         Estimate query embeddings by weighted averaging the embeddings of the top-ranked documents.
@@ -140,11 +148,11 @@ class WeightedAvgEncoder(Encoder):
         assert (
             self.ranking_in is not None
         ), "Please set the ranking_in attribute before calling the encoder."
-        top_ranking = self.ranking_in.cut(self.k_avg)
 
         q_reps: np.ndarray = np.zeros((len(queries), self.index.dim), dtype=np.float32)
+        # TODO: could probably be rewritten to handling a batch.
         for i, query in enumerate(queries):
-            d_reps, top_docs_scores = self._get_top_docs(query, top_ranking)
+            d_reps, top_docs_scores = self._get_top_docs(query, self.ranking_in)
             if self.w_method == W_METHOD.LEARNED:
                 d_reps = np.expand_dims(d_reps, axis=0)  # Add dim on axis 0
                 d_reps = torch.from_numpy(d_reps).float().to(self.device)
