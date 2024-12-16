@@ -182,7 +182,7 @@ class LearnedAvgWeights(lightning.LightningModule):
         self.flatten = torch.nn.Flatten()
         
         self.linear_relu_stack = torch.nn.Sequential(
-            torch.nn.Linear(k_avg * 768, hidden_dimensions)  # 
+            torch.nn.Linear(k_avg * 768, hidden_dimensions)
         )
         for l in range(hidden_layers - 1):
             self.linear_relu_stack.extend(
@@ -191,9 +191,6 @@ class LearnedAvgWeights(lightning.LightningModule):
         self.linear_relu_stack.extend(
             [torch.nn.ReLU(), torch.nn.Linear(hidden_dimensions, 768)]
         )
-
-        # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
-        self.loss_fn = torch.nn.MSELoss()
 
     def forward(self, x):
         x = self.flatten(x)
@@ -210,7 +207,8 @@ class LearnedAvgWeights(lightning.LightningModule):
     def step(self, batch, name):
         x, y = batch
         logits = self(x)
-        loss = self.loss_fn(logits, y)
+        # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
+        loss = torch.nn.MSELoss()(logits, y)
         self.log(f"{name}_loss", loss, on_epoch=True)
         return loss
 
