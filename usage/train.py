@@ -246,7 +246,7 @@ def main() -> None:
         limit_val_batches=1000,
         callbacks=[
             callbacks.EarlyStopping(
-                monitor="val_loss", min_delta=0.0001, patience=5, verbose=True
+                monitor="val_loss", min_delta=0.0001, patience=3, verbose=True
             ),
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.ModelSummary(max_depth=2),
