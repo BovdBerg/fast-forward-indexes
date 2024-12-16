@@ -53,13 +53,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--hidden_layers",
         type=int,
-        default=0,
+        default=1,
         help="Amount of hidden layers of size --hidden_dimensions.",
     )
     parser.add_argument(
         "--hidden_dimensions",
         type=int,
-        default=10,
+        default=100,
         help="Amount of hidden dimensions for each hidden layer in --hidden_layers.",
     )
     parser.add_argument(
@@ -158,7 +158,7 @@ def dataset_to_dataloader(
     dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
     step = 1000
     if shuffle:
-        samples_ub = 10000
+        samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
     else:
         samples_ub = 1000  # Only need 1k validation samples
 
