@@ -130,7 +130,7 @@ def parse_args():
     parser.add_argument(
         "--hidden_dimensions",
         type=int,
-        default=10,
+        default=100,
         help="Dimension of each hidden layer in --hidden_layers. Must be equal to training. Only relevant if --w_method==LEARNED.",
     )
     # WeightedAvgEncoder + LearnedAvgWeights

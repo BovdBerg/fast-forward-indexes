@@ -243,7 +243,7 @@ class LearnedAvgWeights(lightning.LightningModule):
         weights = weights.unsqueeze(0).unsqueeze(-1)
         q_rep = torch.sum(x * weights, dim=1)  # Weighted sum along the second dimension
         loss = self.loss_fn(q_rep, y)
-        self.log(f"{name}_loss", loss, on_epoch=True)
+        self.log(f"{name}_loss", loss, on_epoch=True, on_step=True)
         return loss
 
     def training_step(self, batch, batch_idx):
