@@ -187,8 +187,6 @@ class LearnedAvgWeights(lightning.LightningModule):
         self.hidden_layers = hidden_layers
         self.hidden_dimensions = hidden_dimensions
 
-        self.flatten = torch.nn.Flatten()
-        
         self.linear_relu_stack = torch.nn.Sequential(
             torch.nn.Linear(k_avg * 768, hidden_dimensions)
         )
@@ -197,26 +195,33 @@ class LearnedAvgWeights(lightning.LightningModule):
                 [torch.nn.ReLU(), torch.nn.Linear(hidden_dimensions, hidden_dimensions)]
             )
         self.linear_relu_stack.extend(
-            [torch.nn.ReLU(), torch.nn.Linear(hidden_dimensions, 768)]
+            [
+                torch.nn.ReLU(),
+                torch.nn.Linear(hidden_dimensions, k_avg),
+            ]
         )
 
     def forward(self, x):
-        x = self.flatten(x)
+        x = torch.nn.Flatten(0)(x)
         x = self.linear_relu_stack(x)
+        x = torch.nn.Softmax()(x)
         return x
 
     def on_train_start(self):
-        self.log_dict({
-            "k_avg": self.k_avg,
-            "hidden_layers": self.hidden_layers,
-            "hidden_dimensions": self.hidden_dimensions,
-        })
+        self.log_dict(
+            {
+                "k_avg": self.k_avg,
+                "hidden_layers": self.hidden_layers,
+                "hidden_dimensions": self.hidden_dimensions,
+            }
+        )
 
     def step(self, batch, name):
         x, y = batch
-        logits = self(x)
-        # TODO: should I use Contrastive loss with negatives such as bm25 hard-negatives & in-batch negatives?
-        loss = torch.nn.MSELoss()(logits, y)
+        weights = self(x)  # shape (k_avg)
+        weights = weights.unsqueeze(0).unsqueeze(-1)  # Add dims to match x for broadcasting -> shape (:, k_avg, :)
+        q_rep = torch.sum(x * weights, dim=1)  # Weighted sum along the second dimension
+        loss = torch.nn.MSELoss()(q_rep, y)
         self.log(f"{name}_loss", loss, on_epoch=True)
         return loss
 
