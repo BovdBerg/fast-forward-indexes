@@ -181,8 +181,8 @@ def dataset_to_dataloader(
                     f"Setting up BM25, TCT-ColBERT, and WeightedAvg for {dataset_name}"
                 )
                 sys_bm25_cut, encoder_tct, encoder_avg = setup()
-                topics = pt.get_dataset(dataset_name).get_topics()
                 setup_done = True
+            topics = pt.get_dataset(dataset_name).get_topics()
 
             step_topics = topics.iloc[lb:ub]
             top_ranking = Ranking(
@@ -211,16 +211,12 @@ def dataset_to_dataloader(
         dataset.extend(new_data)
 
     # Cut dataset to --samples and create DataLoader
-    dataset = dataset[: args.samples]
     dataloader = DataLoader(
         dataset,
         shuffle=shuffle,
         num_workers=args.num_workers,
-        drop_last=True,
     )
-    print(
-        f"Created dataloader with {len(dataloader)} instances from {dataset_name}. Note that size may vary from --samples (={args.samples})."
-    )
+    print(f"Created dataloader with {len(dataloader)} instances from {dataset_name}.")
     print("\033[0m")  # Reset print color
     return dataloader
 
@@ -246,9 +242,11 @@ def main() -> None:
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=args.max_epochs,
+        limit_train_batches=args.samples,
+        limit_val_batches=1000,
         callbacks=[
             callbacks.EarlyStopping(
-                monitor="val_loss", min_delta=0.001, patience=2, verbose=True
+                monitor="val_loss", min_delta=0.001, patience=3, verbose=True
             ),
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.ModelSummary(max_depth=2),
