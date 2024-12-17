@@ -407,6 +407,9 @@ def main(args: argparse.Namespace) -> None:
     int_emb = FFInterpolate(alpha=0.2)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
+    int_tct_emb = FFInterpolate(alpha=0.5)
+    sys_tct_emb = sys_tct >> ff_emb >> int_tct_emb
+
     int_avg_emb = FFInterpolate(alpha=0.5)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
@@ -415,6 +418,7 @@ def main(args: argparse.Namespace) -> None:
         ("tct", sys_tct, int_tct),
         ("avg1", sys_avg[0], int_avg[0]),
         ("emb", sys_emb, int_emb),
+        ("tct_emb", sys_tct_emb, int_tct_emb),
         ("avg_emb", sys_avg_emb, int_avg_emb),
     ] + [
         (f"avg{i+1}", system, int_avg[i])
