@@ -341,6 +341,7 @@ def main(args: argparse.Namespace) -> None:
             metric_name, at_value = metric_str.split("@")
             eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
 
+    print("\033[96m")  # Prints in this method are cyan
     # Load dataset and create sparse retriever (e.g. BM25)
     dataset = pt.get_dataset(args.dataset)
     print("Creating BM25 retriever via PyTerrier index...")
@@ -424,6 +425,7 @@ def main(args: argparse.Namespace) -> None:
         (f"avg{i+1}", system, int_avg[i])
         for i, system in enumerate(sys_avg[1:], start=1)
     ]
+    print("\033[0m")  # Reset print color
 
     if args.profiling:
         profile(pipelines)
