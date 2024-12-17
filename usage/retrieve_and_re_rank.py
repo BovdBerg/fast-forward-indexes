@@ -82,7 +82,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_avg_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/version_0/checkpoints/epoch=10-step=10978.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/k_avg=10.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
@@ -154,7 +154,7 @@ def parse_args():
     parser.add_argument(
         "--dev_sample_size",
         type=int,
-        default=1024,
+        default=256,
         help="Number of queries to sample for validation.",
     )
     parser.add_argument(
