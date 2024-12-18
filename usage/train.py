@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--samples",
         type=int,
-        default=80000,
+        default=80_000,
         help="""Number of queries to sample from the dataset.
         Traditional (too simplistic) rule of thumb: at least 10 * |features| = 10 * (k_avg * 768). 
         E.g. 76800 samples for k_avg=10.""",
@@ -222,9 +222,7 @@ def main() -> None:
 
     # Train the model
     # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
-    learned_avg_weights = LearnedAvgWeights(
-        k_avg=args.k_avg,
-    )
+    learned_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=args.max_epochs,
@@ -244,12 +242,7 @@ def main() -> None:
         val_dataloaders=val_loader,
     )
 
-    # Now test it on TREC-DL-2019 judged queries, compared to an untrained model
-    untrained_avg_weights = LearnedAvgWeights(
-        k_avg=args.k_avg,
-    )
-    test_datasets = args.test_datasets
-    for dataset in test_datasets:
+    for dataset in args.test_datasets:
         print(f"Testing the trained model on {dataset}...")
         test_loader = dataset_to_dataloader(dataset, False)
         trainer.test(model=learned_avg_weights, dataloaders=test_loader)
