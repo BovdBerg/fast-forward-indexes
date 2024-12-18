@@ -141,13 +141,13 @@ def parse_args():
     parser.add_argument(
         "--dev_eval_metric",
         type=str,
-        default="map",  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
+        default="ndcg_cut_10",  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
         help="Evaluation metric for pt.GridSearch on dev set.",
     )
     parser.add_argument(
         "--dev_sample_size",
         type=int,
-        default=256,
+        default=512,
         help="Number of queries to sample for validation.",
     )
     parser.add_argument(
