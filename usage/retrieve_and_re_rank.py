@@ -275,32 +275,6 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         )
 
 
-def profile(pipelines: List[Tuple[str, pt.Transformer, pt.Transformer]]) -> None:
-    """
-    Profile the re-ranking step to identify bottlenecks.
-    View a profile by running `snakeviz path/to/profile.prof` and ctrl-clicking the link in your console.
-
-    Args:
-        pipelines (List[Tuple[str, pt.Transformer, pt.Transformer]): List of re-ranking pipelines to profile.
-    """
-    profile_dir = (
-        Path(__file__).parent.parent / "profiles" / f"{args.storage}_{args.device}"
-    )
-    profile_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Creating re-ranking profiles in {profile_dir}...")
-
-    prof_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
-
-    for name, system, _ in pipelines:
-        with cProfile.Profile() as prof:
-            system(prof_dataset.get_topics())
-
-        prof_file = profile_dir / f"{name}.prof"
-        prof.dump_stats(prof_file)
-        ps = pstats.Stats(prof).sort_stats(pstats.SortKey.TIME)
-        print(f"\t...{name} in {ps.total_tt:.2f}s, saved to {prof_file}")
-
-
 # TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 def main(args: argparse.Namespace) -> None:
     """
@@ -420,9 +394,6 @@ def main(args: argparse.Namespace) -> None:
         for i, system in enumerate(sys_avg[1:], start=1)
     ]
     print("\033[0m")  # Reset print color
-
-    if args.profiling:
-        profile(pipelines)
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
