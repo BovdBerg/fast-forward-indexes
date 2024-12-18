@@ -154,7 +154,7 @@ def parse_args():
         "--val_pipelines",
         type=str,
         nargs="*",
-        default=[],
+        default=['all'],
         help="List of pipelines to validate, based on exact pipeline names.",
     )
     parser.add_argument(
