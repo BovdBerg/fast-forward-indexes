@@ -393,11 +393,11 @@ def main(args: argparse.Namespace) -> None:
         (f"avg{i+1}", system, int_avg[i])
         for i, system in enumerate(sys_avg[1:], start=1)
     ]
-    print("\033[0m")  # Reset print color
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
+        print("\033[33m")
         dev_dataset = pt.get_dataset(args.dev_dataset)
         dev_queries = dev_dataset.get_topics()
         dev_qrels = dev_dataset.get_qrels()
@@ -429,6 +429,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Evaluate pipelines on args.test_datasets
     if args.test_datasets:
+        print("\033[0m")  # Reset print color to black
         for test_dataset_name in args.test_datasets:
             test_dataset = pt.get_dataset(test_dataset_name)
 
