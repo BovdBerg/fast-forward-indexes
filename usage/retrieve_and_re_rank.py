@@ -131,13 +131,6 @@ def parse_args():
         type=int,
         default=1,
     )
-    parser.add_argument(
-        "--avg_int_alphas",
-        type=float,
-        nargs="*",
-        default=[0.1, 0.8, 0.9],
-        help='List of interpolation "alpha" parameters we initialize the WeightedAvgEncoder chains with. If --avg_chains is larger than its length, the remaining values are initialized as 0.5.',
-    )
     # VALIDATION
     parser.add_argument(
         "--dev_dataset",
@@ -382,10 +375,11 @@ def main(args: argparse.Namespace) -> None:
 
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
-    avg_int_alphas = args.avg_int_alphas + [0.5] * (
-        avg_chains - len(args.avg_int_alphas)
+    int_avg_alphas = [0.2]
+    int_avg_alphas = int_avg_alphas + [0.5] * (
+        avg_chains - len(int_avg_alphas)
     )
-    int_avg = [FFInterpolate(alpha=a) for a in avg_int_alphas[:avg_chains]]
+    int_avg = [FFInterpolate(alpha=a) for a in int_avg_alphas[:avg_chains]]
     ff_avg = FFScore(index_avg)
     sys_avg = [sys_bm25_cut]
     for i in range(len(int_avg)):
@@ -405,13 +399,13 @@ def main(args: argparse.Namespace) -> None:
     if args.storage == "mem":
         index_emb = index_emb.to_memory(2**15)
     ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.2)
+    int_emb = FFInterpolate(alpha=0.1)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
-    int_tct_emb = FFInterpolate(alpha=0.5)
+    int_tct_emb = FFInterpolate(alpha=0.6)
     sys_tct_emb = sys_tct >> ff_emb >> int_tct_emb
 
-    int_avg_emb = FFInterpolate(alpha=0.5)
+    int_avg_emb = FFInterpolate(alpha=0.3)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
     pipelines = [
