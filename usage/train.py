@@ -130,13 +130,12 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
 
 def dataset_to_dataloader(
     dataset_name: str,
-    shuffle: bool,
+    samples: int,
 ) -> DataLoader:
     """Create a DataLoader for the given dataset.
 
     Args:
         dataset_name (str): The name of the dataset.
-        shuffle (bool): Whether to shuffle the dataset.
 
     Returns:
         DataLoader: A DataLoader for the given dataset.
@@ -145,10 +144,7 @@ def dataset_to_dataloader(
     print("\033[96m")  # Prints in this method are cyan
     dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
     step = 1000
-    if shuffle:
-        samples_ub = ceil(args.samples / step) * step  # Ceil ub to nearest 10k
-    else:
-        samples_ub = 1000  # Only need 1k validation samples
+    samples_ub = ceil(samples / step) * step  # Ceil ub to nearest 10k
 
     dataset = []
     print(f"Creating/retrieving dataset for {samples_ub} samples from {dataset_name}")
@@ -202,8 +198,9 @@ def dataset_to_dataloader(
     # Cut dataset to --samples and create DataLoader
     dataloader = DataLoader(
         dataset,
-        shuffle=shuffle,
+        shuffle=False,
         num_workers=args.num_workers,
+        drop_last=True,
     )
     print(f"Created dataloader with {len(dataloader)} instances from {dataset_name}.")
     print("\033[0m")  # Reset print color
@@ -217,23 +214,23 @@ def main() -> None:
     start_time = time.time()
 
     # Create data loaders for our datasets; shuffle for training, not for validation
-    train_loader = dataset_to_dataloader("irds:msmarco-passage/train", True)
-    val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", False)
+    train_loader = dataset_to_dataloader("irds:msmarco-passage/train", args.samples)
+    val_samples = 1000
+    val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", val_samples)
 
     # Train the model
     # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
     learned_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
     trainer = lightning.Trainer(
         deterministic="warn",
-        max_epochs=args.max_epochs,
+        max_epochs=1,
         limit_train_batches=args.samples,
-        limit_val_batches=1000,
+        limit_val_batches=val_samples,
+        log_every_n_steps=1,
+        val_check_interval=1000,
         callbacks=[
-            callbacks.EarlyStopping(
-                monitor="val_loss", min_delta=0.0001, patience=3, verbose=True
-            ),
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
-            callbacks.ModelSummary(max_depth=2),
+            # callbacks.EarlyStopping(monitor="val_loss", min_delta=0.0001, patience=5, verbose=True),
         ],
     )
     trainer.fit(
@@ -244,7 +241,7 @@ def main() -> None:
 
     for dataset in args.test_datasets:
         print(f"Testing the trained model on {dataset}...")
-        test_loader = dataset_to_dataloader(dataset, False)
+        test_loader = dataset_to_dataloader(dataset, 43)
         trainer.test(model=learned_avg_weights, dataloaders=test_loader)
 
     # TODO: save best model to transformers hub?
