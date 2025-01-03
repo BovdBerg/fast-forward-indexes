@@ -98,7 +98,12 @@ class WeightedAvgEncoder(Encoder):
         n_docs = len(d_reps)
         match self.w_method:
             case W_METHOD.LEARNED:
-                return self.learned_avg_weights(d_reps)
+                padding = max(0, self.k_avg - len(d_reps))
+                d_reps_pad = torch.cat(
+                    (d_reps, torch.zeros(padding, self.index.dim, device=self.device))
+                )
+                weights = self.learned_avg_weights(d_reps_pad)
+                return weights[:n_docs]
             case W_METHOD.UNIFORM:
                 return torch.ones(n_docs, device=self.device) / n_docs
             case W_METHOD.EXPONENTIAL:
@@ -171,8 +176,8 @@ class WeightedAvgEncoder(Encoder):
         q_reps = torch.zeros((len(queries), self.index.dim), device=self.device)
         for i, query in enumerate(queries):
             d_reps, top_docs_scores = self._get_top_docs(query, self.ranking_in)
-            if d_reps is None or len(d_reps) < self.k_avg:
-                continue  # TODO [discuss]: Check if I can create a model which accepts <k_avg docs. Padding?
+            if d_reps is None:
+                continue
             # Get the weights for the top docs using the selected method
             weights = self._get_weights(
                 d_reps, top_docs_scores.clone().detach()
