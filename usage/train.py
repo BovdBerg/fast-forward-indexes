@@ -39,6 +39,11 @@ def parse_args() -> argparse.Namespace:
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
+        "--with_query",
+        action="store_true",
+        help="Include the query in the model input.",
+    )
+    parser.add_argument(
         "--tct_index_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
@@ -142,7 +147,8 @@ def dataset_to_dataloader(
     """
     global setup_done, sys_bm25_cut, encoder_tct, encoder_avg
     print("\033[96m")  # Prints in this method are cyan
-    dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
+    suffix = "+query" if args.with_query else ""
+    dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}{suffix}"
     step = 1000
     samples_ub = ceil(samples / step) * step  # Ceil ub to nearest 10k
 
@@ -160,7 +166,6 @@ def dataset_to_dataloader(
         if (step_dataset_file).exists():  # Load dataset part
             new_data = torch.load(step_dataset_file)
         else:
-            # TODO: Add query to model input
             print(f"...Step {lb}-{ub}: Creating new data in {step_dataset_file}")
             if not setup_done:
                 print(
