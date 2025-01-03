@@ -160,6 +160,7 @@ def dataset_to_dataloader(
         if (step_dataset_file).exists():  # Load dataset part
             new_data = torch.load(step_dataset_file)
         else:
+            # TODO: Add query to model input
             print(f"...Step {lb}-{ub}: Creating new data in {step_dataset_file}")
             if not setup_done:
                 print(
