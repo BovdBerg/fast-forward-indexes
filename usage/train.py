@@ -226,8 +226,8 @@ def main() -> None:
         max_epochs=1,
         limit_train_batches=args.samples,
         limit_val_batches=val_samples,
-        log_every_n_steps=1,
-        val_check_interval=1000,
+        log_every_n_steps=250,
+        val_check_interval=0.05,
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             # callbacks.EarlyStopping(monitor="val_loss", min_delta=0.0001, patience=5, verbose=True),
