@@ -365,6 +365,7 @@ def main(args: argparse.Namespace) -> None:
         ckpt_path=args.ckpt_emb_path,
         device=args.device,
     )
+    # TODO [important]: Remove need for index_emb by Jurek's mail suggestions https://outlook.office.com/mail/inbox/id/AAQkADFmYjhkZDE5LTRkMjEtNGVhZS04MDg2LTc2NjBiODI5Y2IyNQAQAMyLvOU%2FcdZEhqfNqk48Cso%3D
     index_emb = OnDiskIndex.load(
         args.index_emb_path,
         query_encoder_emb,
