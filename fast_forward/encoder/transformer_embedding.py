@@ -49,7 +49,7 @@ class StandaloneEncoder(Encoder):
     def __init__(
         self,
         pretrained_model: Union[str, Path],
-        ckpt_path: Path,
+        ckpt_path: Path = None,
         device: str = "cpu",
     ) -> None:
         """Instantiate a standalone encoder.
@@ -67,13 +67,14 @@ class StandaloneEncoder(Encoder):
         self.encoder.to(device)
 
         # Load checkpoint and extract encoder weights
-        sd_enc = {}
-        prefix = "query_encoder."
-        ckpt = torch.load(ckpt_path, map_location=device)
-        for k, v in ckpt["state_dict"].items():
-            if k.startswith(prefix):
-                sd_enc[k[len(prefix) :]] = v  # remove prefix
-        self.encoder.load_state_dict(sd_enc)
+        if ckpt_path is not None:
+            sd_enc = {}
+            prefix = "query_encoder."
+            ckpt = torch.load(ckpt_path, map_location=device)
+            for k, v in ckpt["state_dict"].items():
+                if k.startswith(prefix):
+                    sd_enc[k[len(prefix) :]] = v  # remove prefix
+            self.encoder.load_state_dict(sd_enc)
         self.encoder.eval()
 
     def __call__(self, texts: Sequence[str]) -> np.ndarray:
