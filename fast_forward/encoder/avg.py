@@ -1,4 +1,5 @@
 import json
+import warnings
 from enum import Enum
 from pathlib import Path
 from typing import Sequence
@@ -11,6 +12,8 @@ import torch
 from fast_forward.encoder import Encoder
 from fast_forward.index import Index
 from fast_forward.ranking import Ranking
+
+warnings.filterwarnings("ignore", message="`training_step` returned `None`.*")
 
 
 class W_METHOD(Enum):
@@ -206,7 +209,11 @@ class LearnedAvgWeights(lightning.LightningModule):
 
     def forward(self, x):
         x = self.flatten(x)
-        x = self.linear_relu_stack(x)
+        try:
+            x = self.linear_relu_stack(x)
+        except Exception as e:
+            print(f"Batch skipped with exception: {e}")
+            return None
         x = self.softmax(x)
         return x
 
@@ -225,6 +232,8 @@ class LearnedAvgWeights(lightning.LightningModule):
     def step(self, batch, name):
         x, y = batch
         weights = self(x)  # shape (k_avg)
+        if weights is None:  # Skip batch
+            return None
         weights = weights.unsqueeze(0).unsqueeze(-1)
         q_rep = torch.sum(x * weights, dim=1)  # Weighted sum along the second dimension
         loss = self.loss_fn(q_rep, y)
