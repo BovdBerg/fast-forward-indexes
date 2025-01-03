@@ -102,8 +102,8 @@ class WeightedAvgEncoder(Encoder):
                 d_reps_pad = torch.cat(
                     (d_reps, torch.zeros(padding, self.index.dim, device=self.device))
                 )
-                weights = self.learned_avg_weights(d_reps_pad)
-                return weights[:n_docs]
+                weights = self.learned_avg_weights(d_reps_pad)[:n_docs]
+                return torch.nn.functional.softmax(weights, dim=0)
             case W_METHOD.UNIFORM:
                 return torch.ones(n_docs, device=self.device) / n_docs
             case W_METHOD.EXPONENTIAL:
