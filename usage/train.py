@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
-        "--with_query",
+        "--with_queries",
         action="store_true",
         help="Include the query in the model input.",
     )
@@ -147,7 +147,7 @@ def dataset_to_dataloader(
     """
     global setup_done, sys_bm25_cut, encoder_tct, encoder_avg
     print("\033[96m")  # Prints in this method are cyan
-    suffix = "+query" if args.with_query else ""
+    suffix = "+query" if args.with_queries else ""
     dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}{suffix}"
     step = 1000
     samples_ub = ceil(samples / step) * step  # Ceil ub to nearest 10k
@@ -197,8 +197,14 @@ def dataset_to_dataloader(
                 if len(d_reps) < args.k_avg:
                     continue  # skip sample: not enough top_docs
 
-                new_data.append((d_reps, q_rep_tct))  # (inputs, labels)
+                if args.with_queries:
+                    data = ((d_reps, query), q_rep_tct)
+                else:
+                    data = (d_reps, q_rep_tct)
+                new_data.append(data)  # (inputs, labels, [query])
+
             torch.save(new_data, step_dataset_file)
+
         dataset.extend(new_data)
 
     # Cut dataset to --samples and create DataLoader
