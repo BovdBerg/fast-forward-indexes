@@ -2,7 +2,7 @@ import json
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import Sequence
+from typing import Optional, Sequence
 
 import lightning
 import numpy as np
@@ -50,9 +50,8 @@ class WeightedAvgEncoder(Encoder):
         index: Index,
         w_method: W_METHOD = W_METHOD.SOFTMAX_SCORES,
         k_avg: int = 30,
-        ckpt_path: Path = None,
+        ckpt_path: Optional[Path] = None,
         device: str = "cpu",
-        **enc_args,
     ) -> None:
         """
         Initialize the WeightedAvgEncoder with the given sparse ranking, index, and number of top documents to average.
@@ -73,12 +72,10 @@ class WeightedAvgEncoder(Encoder):
         if w_method == W_METHOD.LEARNED:
             if ckpt_path is not None:
                 self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(
-                    ckpt_path, k_avg=k_avg, **enc_args
+                    ckpt_path, k_avg=k_avg
                 )
             else:
-                self.learned_avg_weights = LearnedAvgWeights(
-                    k_avg=self.k_avg, **enc_args
-                )
+                self.learned_avg_weights = LearnedAvgWeights(k_avg=self.k_avg)
             self.learned_avg_weights.to(device)
             self.learned_avg_weights.eval()
 
@@ -100,7 +97,10 @@ class WeightedAvgEncoder(Encoder):
             case W_METHOD.LEARNED:
                 padding = max(0, self.k_avg - len(d_reps))
                 d_reps_pad = torch.cat(
-                    (d_reps, torch.zeros(padding, self.index.dim, device=self.device))
+                    (
+                        d_reps,
+                        torch.zeros(padding, self.index.dim or 0, device=self.device),
+                    )
                 )
                 weights = self.learned_avg_weights(d_reps_pad)[:n_docs]
                 return torch.nn.functional.softmax(weights, dim=0)
@@ -114,8 +114,9 @@ class WeightedAvgEncoder(Encoder):
                     dims=[0],
                 )
             case W_METHOD.SOFTMAX_SCORES:
-                max_score = torch.max(scores)
-                exp_scores = torch.exp(scores - max_score)
+                scores_tensor = torch.tensor(scores, device=self.device)
+                max_score = torch.max(scores_tensor)
+                exp_scores = torch.exp(scores_tensor - max_score)
                 return exp_scores / torch.sum(exp_scores)
             case W_METHOD.LINEAR_DECAY_RANKS:
                 return torch.linspace(1, 0, n_docs, device=self.device)
@@ -126,13 +127,15 @@ class WeightedAvgEncoder(Encoder):
                     f"Unknown probability distribution type: {self.w_method}"
                 )
 
-    def _get_top_docs(self, query: str, top_ranking: Ranking) -> torch.Tensor:
+    def _get_top_docs(
+        self, query: str, top_ranking: Ranking
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         # Get the ids of the top-ranked documents for the query
         top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
         if len(top_docs) == 0:
-            return  # Remains encoded as zeros
-        top_docs_ids: Sequence[int] = top_docs["id"].values
-        top_docs_scores: Sequence[float] = top_docs["score"].values
+            return  # Remains encoded as zeros # type: ignore
+        top_docs_ids: Sequence[str] = top_docs["id"].astype(str).values.tolist()
+        top_docs_scores: Sequence[float] = top_docs["score"].values.tolist()
 
         # Get the embeddings of the top-ranked documents
         # TODO: Make sure d_reps is only retrieved once throughout full re-ranking pipeline.
@@ -171,6 +174,7 @@ class WeightedAvgEncoder(Encoder):
         assert (
             self.ranking_in is not None
         ), "Please set the ranking_in attribute before calling the encoder."
+        assert self.index.dim is not None, "Index dimension cannot be None"
 
         # TODO: could probably be rewritten to handle batches at a time.
         q_reps = torch.zeros((len(queries), self.index.dim), device=self.device)
@@ -180,7 +184,7 @@ class WeightedAvgEncoder(Encoder):
                 continue
             # Get the weights for the top docs using the selected method
             weights = self._get_weights(
-                d_reps, top_docs_scores.clone().detach()
+                d_reps, top_docs_scores.clone().detach().tolist()
             ).unsqueeze(-1)
 
             # Calculate the weighted sum of document representations
@@ -212,7 +216,7 @@ class LearnedAvgWeights(lightning.LightningModule):
             torch.nn.Linear(hidden_dim, k_avg),
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> Optional[torch.Tensor]:
         x = self.flatten(x)
         try:
             x = self.linear_relu_stack(x)
@@ -223,6 +227,9 @@ class LearnedAvgWeights(lightning.LightningModule):
         return x
 
     def on_train_start(self):
+        if self.trainer.log_dir is None:
+            raise ValueError("Trainer log directory is None")
+
         settings_file = Path(self.trainer.log_dir) / "settings.json"
         with open(settings_file, "w") as f:
             json.dump(
@@ -234,7 +241,9 @@ class LearnedAvgWeights(lightning.LightningModule):
                 indent=4,
             )
 
-    def step(self, batch, name):
+    def step(
+        self, batch: tuple[torch.Tensor, torch.Tensor], name: str
+    ) -> Optional[torch.Tensor]:
         x, y = batch
         weights = self(x)  # shape (k_avg)
         if weights is None:  # Skip batch
@@ -245,13 +254,13 @@ class LearnedAvgWeights(lightning.LightningModule):
         self.log(f"{name}_loss", loss)
         return loss
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         return self.step(batch, "train")
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         return self.step(batch, "val")
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         return self.step(batch, "test")
 
     def configure_optimizers(self):

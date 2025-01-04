@@ -51,6 +51,8 @@ ignore = ["tests"]
 typeCheckingMode = "standard"
 useLibraryCodeForTypes = true
 reportMissingParameterType = true
+reportAttributeAccessIssue = false
+reportPossiblyUnboundVariable = false
 
 [tool.ruff]
 extend-exclude = ["tests"]

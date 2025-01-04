@@ -10,7 +10,7 @@ import lightning
 import pyterrier as pt
 import torch
 from lightning.pytorch import callbacks
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from fast_forward.encoder.avg import LearnedAvgWeights, WeightedAvgEncoder
@@ -148,7 +148,9 @@ def dataset_to_dataloader(
     global setup_done, sys_bm25_cut, encoder_tct, encoder_avg
     print("\033[96m")  # Prints in this method are cyan
     suffix = "+query" if args.with_queries else ""
-    dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}{suffix}"
+    dataset_stem = (
+        args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}{suffix}"
+    )
     step = 1000
     samples_ub = ceil(samples / step) * step  # Ceil ub to nearest 10k
 
@@ -207,9 +209,15 @@ def dataset_to_dataloader(
 
         dataset.extend(new_data)
 
+    # Convert list to TensorDataset
+    inputs, labels = zip(*dataset)
+    inputs_tensor = torch.stack([torch.tensor(i) for i in inputs])
+    labels_tensor = torch.stack([torch.tensor(l) for l in labels])
+    tensor_dataset = TensorDataset(inputs_tensor, labels_tensor)
+
     # Cut dataset to --samples and create DataLoader
     dataloader = DataLoader(
-        dataset,
+        tensor_dataset,
         shuffle=False,
         num_workers=args.num_workers,
         drop_last=True,

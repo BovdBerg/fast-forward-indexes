@@ -1,7 +1,6 @@
 import pandas as pd
 import pyterrier as pt
 
-from fast_forward.encoder.avg import WeightedAvgEncoder
 from fast_forward.index import Index
 from fast_forward.ranking import Ranking
 

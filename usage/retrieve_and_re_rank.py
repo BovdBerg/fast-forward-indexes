@@ -20,6 +20,7 @@ from gspread_formatting import (
     TextFormat,
     format_cell_range,
 )
+from gspread.auth import service_account
 from ir_measures import measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
@@ -199,7 +200,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def print_settings() -> None:
+def print_settings() -> str:
     """
     Print general settings used for re-ranking.
 
@@ -232,7 +233,7 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         results (pd.DataFrame): Results of the experiment to append.
         settings_str (str): Settings used for the experiment
     """
-    service_acc = gspread.service_account(filename=args.gsheets_credentials)
+    service_acc = service_account(filename=args.gsheets_credentials)
     spreadsheet = service_acc.open("Thesis Results")
     worksheet = spreadsheet.sheet1
     print(f"Saving results to Google Sheets file...")
@@ -267,7 +268,7 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
     non_baselines = results.iloc[2:]
     if not non_baselines.empty:
         max_ndcg10_index = non_baselines["nDCG@10"].idxmax()
-        max_ndcg10_row = first_row + max_ndcg10_index
+        max_ndcg10_row = first_row + int(max_ndcg10_index)
         format_cell_range(
             worksheet,
             f"A{max_ndcg10_row}:G{max_ndcg10_row}",
