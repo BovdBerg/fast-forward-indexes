@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Sequence, Union
+from typing import Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -49,7 +49,7 @@ class StandaloneEncoder(Encoder):
     def __init__(
         self,
         pretrained_model: Union[str, Path],
-        ckpt_path: Path = None,
+        ckpt_path: Optional[Path] = None,
         device: str = "cpu",
     ) -> None:
         """Instantiate a standalone encoder.
@@ -63,7 +63,7 @@ class StandaloneEncoder(Encoder):
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
         self.device = device
 
-        self.encoder = TransformerEmbeddingEncoder(pretrained_model)
+        self.encoder = TransformerEmbeddingEncoder(str(pretrained_model))
         self.encoder.to(device)
 
         # Load checkpoint and extract encoder weights
@@ -79,7 +79,7 @@ class StandaloneEncoder(Encoder):
 
     def __call__(self, texts: Sequence[str]) -> np.ndarray:
         inputs = self.tokenizer(
-            texts,
+            list(texts),
             padding=True,
             truncation=True,
             return_tensors="pt",
