@@ -69,11 +69,12 @@ class StandaloneEncoder(Encoder):
         # Load checkpoint and extract encoder weights
         if ckpt_path is not None:
             sd_enc = {}
-            prefix = "query_encoder."
             ckpt = torch.load(ckpt_path, map_location=device)
-            for k, v in ckpt["state_dict"].items():
-                if k.startswith(prefix):
-                    sd_enc[k[len(prefix) :]] = v  # remove prefix
+            for k, v in ckpt["state_dict"].items():  # remove prefix
+                if k.startswith("query_encoder.embeddings.weight"):
+                    sd_enc["embeddings.weight"] = v
+                elif k == "query_encoder.model.embeddings.word_embeddings.weight":
+                    sd_enc["embeddings.weight"] = v
             self.encoder.load_state_dict(sd_enc)
         self.encoder.eval()
 

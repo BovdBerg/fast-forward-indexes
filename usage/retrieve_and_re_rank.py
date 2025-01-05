@@ -77,7 +77,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_emb_path",
         type=Path,
-        default="/home/bvdb9/models/emb_768.ckpt",
+        default="/home/bvdb9/models/tct_emb.ckpt",
         help="Path to the emb checkpoint file.",
     )
     parser.add_argument(
@@ -361,19 +361,12 @@ def main(args: argparse.Namespace) -> None:
         sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
-    query_encoder_emb = StandaloneEncoder(
-        "google/bert_uncased_L-12_H-768_A-12",
+    index_emb = copy(index_tct)
+    index_emb.query_encoder = StandaloneEncoder(
+        "castorini/tct_colbert-msmarco",
         ckpt_path=args.ckpt_emb_path,
         device=args.device,
     )
-    # TODO [important]: Remove need for index_emb by Jurek's mail suggestions https://outlook.office.com/mail/inbox/id/AAQkADFmYjhkZDE5LTRkMjEtNGVhZS04MDg2LTc2NjBiODI5Y2IyNQAQAMyLvOU%2FcdZEhqfNqk48Cso%3D
-    index_emb = OnDiskIndex.load(
-        args.index_emb_path,
-        query_encoder_emb,
-        verbose=args.verbose,
-    )
-    if args.storage == "mem":
-        index_emb = index_emb.to_memory(2**15)
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.1)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
@@ -381,7 +374,7 @@ def main(args: argparse.Namespace) -> None:
     int_tct_emb = FFInterpolate(alpha=0.6)
     sys_tct_emb = sys_tct >> ff_emb >> int_tct_emb
 
-    int_avg_emb = FFInterpolate(alpha=0.3)
+    int_avg_emb = FFInterpolate(alpha=0.1)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
     pipelines = [
