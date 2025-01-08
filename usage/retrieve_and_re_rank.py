@@ -336,6 +336,7 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(
         index_avg,
+        args.ckpt_emb_path,
         args.w_method,
         args.k_avg,
         ckpt_path=args.ckpt_avg_path,
@@ -371,12 +372,14 @@ def main(args: argparse.Namespace) -> None:
     int_tct_emb = FFInterpolate(alpha=0.6)
     sys_tct_emb = sys_tct >> ff_emb >> int_tct_emb
 
+    # TODO: With q_emb included in LearnedAvgWeights, this pipeline hopefully isn't needed anymore.
     int_avg_emb = FFInterpolate(alpha=0.3)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
     avg_on_emb_index = copy(index_emb)
     avg_on_emb_index.query_encoder = WeightedAvgEncoder(
         avg_on_emb_index,
+        args.ckpt_emb_path,
         args.w_method,
         args.k_avg,
         ckpt_path=args.ckpt_avg_path,

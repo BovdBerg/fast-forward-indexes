@@ -108,7 +108,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder, StandaloneEncoder]:
+def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     """Setup and initialize relevant objects.
 
     Returns:
@@ -133,16 +133,10 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder, Sta
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     encoder_avg = WeightedAvgEncoder(
-        index_tct, k_avg=args.k_avg, ckpt_path=args.ckpt_avg_path
+        index_tct, args.ckpt_emb_path, k_avg=args.k_avg, ckpt_path=args.ckpt_avg_path
     )
 
-    if args.with_queries:
-        query_encoder_emb = StandaloneEncoder(
-            "google/bert_uncased_L-12_H-768_A-12",
-            ckpt_path=args.ckpt_emb_path,
-        )
-
-    return sys_bm25_cut, encoder_tct, encoder_avg, query_encoder_emb
+    return sys_bm25_cut, encoder_tct, encoder_avg
 
 
 def dataset_to_dataloader(
@@ -157,7 +151,7 @@ def dataset_to_dataloader(
     Returns:
         DataLoader: A DataLoader for the given dataset.
     """
-    global setup_done, sys_bm25_cut, encoder_tct, encoder_avg, query_encoder_emb
+    global setup_done, sys_bm25_cut, encoder_tct, encoder_avg
     print("\033[96m")  # Prints in this method are cyan
     dataset_stem = (
         args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
@@ -184,7 +178,7 @@ def dataset_to_dataloader(
                 print(
                     f"Setting up BM25, TCT-ColBERT, and WeightedAvg for {dataset_name}"
                 )
-                sys_bm25_cut, encoder_tct, encoder_avg, query_encoder_emb = setup()
+                sys_bm25_cut, encoder_tct, encoder_avg = setup()
                 setup_done = True
             topics = pt.get_dataset(dataset_name).get_topics()
 
@@ -211,8 +205,8 @@ def dataset_to_dataloader(
                     continue  # skip sample: not enough top_docs
 
                 if args.with_queries:
-                    emb_query = torch.tensor(query_encoder_emb([query])[0]).unsqueeze(0)
-                    inputs = torch.cat((emb_query, d_reps), dim=0)
+                    q_emb = torch.tensor(encoder_avg.emb_encoder([query])[0]).unsqueeze(0)
+                    inputs = torch.cat((q_emb, d_reps), dim=0)
                 else:
                     inputs = d_reps
                 new_data.append((inputs, q_rep_tct))
@@ -248,7 +242,7 @@ def main() -> None:
     k_avg = args.k_avg
     if args.with_queries:
         k_avg += 1  # +1 for emb-encoded query
-    learned_avg_weights = LearnedAvgWeights(k_avg=k_avg)
+    learned_avg_weights = LearnedAvgWeights(k_avg)
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,

@@ -10,6 +10,7 @@ import pandas as pd
 import torch
 
 from fast_forward.encoder import Encoder
+from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index import Index
 from fast_forward.ranking import Ranking
 
@@ -48,6 +49,7 @@ class WeightedAvgEncoder(Encoder):
     def __init__(
         self,
         index: Index,
+        ckpt_emb_path: Path,
         w_method: W_METHOD = W_METHOD.LEARNED,
         k_avg: int = 30,
         ckpt_path: Optional[Path] = None,
@@ -58,6 +60,7 @@ class WeightedAvgEncoder(Encoder):
 
         Args:
             index (Index): The index containing document embeddings.
+            ckpt_emb_path (Path): The path to the checkpoint file to load the embedding encoder.
             w_method (W_METHOD): The probability distribution type used to assign weights to top-ranked documents.
             k_avg (int): The number of top-ranked documents to average.
             ckpt_path (Optional[Path]): The path to the checkpoint file to load.
@@ -67,39 +70,45 @@ class WeightedAvgEncoder(Encoder):
         self.index = index
         self.w_method = w_method
         self.k_avg = k_avg
+        self.n_weights = k_avg + 1  # +1 for q_emb
         self._ranking_in = None
         self.device = device
 
         if w_method == W_METHOD.LEARNED:
             if ckpt_path is not None:
                 self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(
-                    ckpt_path, k_avg=k_avg
+                    ckpt_path, n_weights=self.n_weights
                 )
             else:
-                self.learned_avg_weights = LearnedAvgWeights(k_avg=self.k_avg)
+                self.learned_avg_weights = LearnedAvgWeights(self.n_weights)
             self.learned_avg_weights.to(device)
             self.learned_avg_weights.eval()
 
+        self.emb_encoder = StandaloneEncoder(
+            "google/bert_uncased_L-12_H-768_A-12",
+            ckpt_path=ckpt_emb_path,
+        )
+
     def _get_weights(
-        self, d_reps: torch.Tensor, scores: Sequence[float]
+        self, reps: torch.Tensor, scores: Sequence[float]
     ) -> torch.Tensor:
         """
         Get the weights for the top-ranked documents based on the probability distribution type or learned weights.
 
         Args:
-            d_reps (torch.Tensor): The document representations.
+            reps (torch.Tensor): The q_emb + document representations.
             scores (Sequence[float]): The scores of the top-ranked documents.
 
         Returns:
             torch.Tensor: A tensor of interpolation parameters (weights).
         """
-        n_docs = len(d_reps)
+        n_docs = len(reps)
         match self.w_method:
             case W_METHOD.LEARNED:
-                padding = max(0, self.k_avg - len(d_reps))
+                padding = max(0, self.n_weights - len(reps))
                 d_reps_pad = torch.cat(
                     (
-                        d_reps,
+                        reps,
                         torch.zeros(padding, self.index.dim or 0, device=self.device),
                     )
                 )
@@ -183,13 +192,16 @@ class WeightedAvgEncoder(Encoder):
             d_reps, top_docs_scores = self._get_top_docs(query, self.ranking_in)
             if d_reps is None:
                 continue
+
+            q_emb = torch.tensor(self.emb_encoder([query])[0], device=self.device).unsqueeze(0)
+            reps = torch.cat((q_emb, d_reps), dim=0)
             # Get the weights for the top docs using the selected method
             weights = self._get_weights(
-                d_reps, top_docs_scores.clone().detach().tolist()
+                reps, top_docs_scores.clone().detach().tolist()
             ).unsqueeze(-1)
 
             # Calculate the weighted sum of document representations
-            weighted_sum = torch.sum(d_reps * weights, dim=0)
+            weighted_sum = torch.sum(reps * weights, dim=0)
             total_weight = torch.sum(weights)
             q_reps[i] = weighted_sum / total_weight
 
@@ -201,19 +213,19 @@ class LearnedAvgWeights(lightning.LightningModule):
     Watch this short video on PyTorch for this class to make sense: https://youtu.be/ORMx45xqWkA?si=Bvkm9SWi8Hz1n2Sh&t=147
     """
 
-    def __init__(self, k_avg: int = 10):
+    def __init__(self, n_weights: int = 10):
         super().__init__()
 
-        self.k_avg = k_avg
+        self.n_weights = n_weights
 
         self.loss_fn = torch.nn.MSELoss()
         self.flatten = torch.nn.Flatten(0)
 
         hidden_dim = 100
         self.linear_relu_stack = torch.nn.Sequential(
-            torch.nn.Linear(k_avg * 768, hidden_dim),
+            torch.nn.Linear(n_weights * 768, hidden_dim),
             torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim, k_avg),
+            torch.nn.Linear(hidden_dim, n_weights),
         )
 
     def forward(self, x: torch.Tensor) -> Optional[torch.Tensor]:
@@ -234,7 +246,7 @@ class LearnedAvgWeights(lightning.LightningModule):
             json.dump(
                 {
                     "Class": self.__class__.__name__,
-                    "k_avg": self.k_avg,
+                    "n_weights": self.n_weights,
                 },
                 f,
                 indent=4,
