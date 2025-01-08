@@ -384,12 +384,25 @@ def main(args: argparse.Namespace) -> None:
     int_avg_emb = FFInterpolate(alpha=0.3)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
+    avg_on_emb_index = copy(index_emb)
+    avg_on_emb_index.query_encoder = WeightedAvgEncoder(
+        avg_on_emb_index,
+        args.w_method,
+        args.k_avg,
+        ckpt_path=args.ckpt_avg_path,
+        device=args.device,
+    )
+    ff_avg_on_emb = FFScore(avg_on_emb_index)
+    int_avg_on_emb = FFInterpolate(alpha=0.9)
+    sys_avg_on_emb = sys_bm25_cut >> ff_avg_on_emb >> int_avg_on_emb
+
     pipelines = [
         ("bm25", ~sys_bm25, None),
         ("tct", sys_tct, int_tct),
         ("avg1", sys_avg[0], int_avg[0]),
         ("emb", sys_emb, int_emb),
         ("tct_emb", sys_tct_emb, int_tct_emb),
+        ("avg_on_emb", sys_avg_on_emb, int_avg_on_emb),
         ("avg_emb", sys_avg_emb, int_avg_emb),
     ] + [
         (f"avg{i+1}", system, int_avg[i])
