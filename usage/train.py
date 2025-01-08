@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     Returns:
         argparse.Namespace: Parsed command-line arguments.
     """
-    parser = argparse.ArgumentParser(description="Train a LearnedAvgWeights model.")
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--dataset_cache_path",
         type=Path,
@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
         help="Include the query in the model input.",
     )
     parser.add_argument(
-        "--tct_index_path",
+        "--index_tct_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the TCT index.",
@@ -123,7 +123,7 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     )
 
     # WeightedAvgEncoder
-    index_tct = OnDiskIndex.load(args.tct_index_path)
+    index_tct = OnDiskIndex.load(args.index_tct_path)
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     encoder_avg = WeightedAvgEncoder(
@@ -152,7 +152,7 @@ def dataset_to_dataloader(
         args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}{suffix}"
     )
     step = 1000
-    samples_ub = ceil(samples / step) * step  # Ceil ub to nearest 10k
+    samples_ub = ceil(samples / step) * step  # Ceil ub to nearest step
 
     dataset = []
     print(f"Creating/retrieving dataset for {samples_ub} samples from {dataset_name}")
@@ -209,15 +209,9 @@ def dataset_to_dataloader(
 
         dataset.extend(new_data)
 
-    # Convert list to TensorDataset
-    inputs, labels = zip(*dataset)
-    inputs_tensor = torch.stack([torch.tensor(i) for i in inputs])
-    labels_tensor = torch.stack([torch.tensor(l) for l in labels])
-    tensor_dataset = TensorDataset(inputs_tensor, labels_tensor)
-
     # Cut dataset to --samples and create DataLoader
     dataloader = DataLoader(
-        tensor_dataset,
+        dataset,  # type: ignore
         shuffle=False,
         num_workers=args.num_workers,
         drop_last=True,
