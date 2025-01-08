@@ -245,7 +245,10 @@ def main() -> None:
     val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", val_samples)
 
     # Train the model
-    learned_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
+    k_avg = args.k_avg
+    if args.with_queries:
+        k_avg += 1  # +1 for emb-encoded query
+    learned_avg_weights = LearnedAvgWeights(k_avg=k_avg)
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,
