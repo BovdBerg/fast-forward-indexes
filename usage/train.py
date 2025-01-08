@@ -237,11 +237,11 @@ def main() -> None:
     learned_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
     trainer = lightning.Trainer(
         deterministic="warn",
-        max_epochs=10,
+        max_epochs=50,
         limit_train_batches=args.samples,
         limit_val_batches=val_samples,
         log_every_n_steps=250,
-        val_check_interval=0.05,
+        val_check_interval=0.1,
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.EarlyStopping(
