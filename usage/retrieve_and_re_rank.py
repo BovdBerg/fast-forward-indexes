@@ -361,15 +361,13 @@ def main(args: argparse.Namespace) -> None:
         sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
-    query_encoder_emb = StandaloneEncoder(
-        "google/bert_uncased_L-12_H-768_A-12",
-        ckpt_path=args.ckpt_emb_path,
-        device=args.device,
-    )
-    # TODO [important]: Remove need for index_emb by Jurek's mail suggestions https://outlook.office.com/mail/inbox/id/AAQkADFmYjhkZDE5LTRkMjEtNGVhZS04MDg2LTc2NjBiODI5Y2IyNQAQAMyLvOU%2FcdZEhqfNqk48Cso%3D
     index_emb = OnDiskIndex.load(
         args.index_emb_path,
-        query_encoder_emb,
+        StandaloneEncoder(
+            "google/bert_uncased_L-12_H-768_A-12",
+            ckpt_path=args.ckpt_emb_path,
+            device=args.device,
+        ),
         verbose=args.verbose,
     )
     if args.storage == "mem":
