@@ -60,7 +60,8 @@ class WeightedAvgEncoder(Encoder):
             index (Index): The index containing document embeddings.
             w_method (W_METHOD): The probability distribution type used to assign weights to top-ranked documents.
             k_avg (int): The number of top-ranked documents to average.
-            ranking_in (Ranking): The initial sparse ranking of documents.
+            ckpt_path (Optional[Path]): The path to the checkpoint file to load.
+            device (str): The device to run the encoder on.
         """
         super().__init__()
         self.index = index
