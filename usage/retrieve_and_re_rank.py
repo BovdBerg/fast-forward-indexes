@@ -159,10 +159,10 @@ def parse_args():
         help="List of pipelines to validate, based on exact pipeline names.",
     )
     parser.add_argument(
-        "--alphas",
+        "--alphas_step",
         type=float,
         nargs="+",
-        default=[round(x, 2) for x in np.arange(0, 1.0001, 0.1)],
+        default=0.1,
         help="List of interpolation parameters for evaluation.",
     )
     # EVALUATION
@@ -218,7 +218,7 @@ def print_settings() -> str:
     # Validation settings
     if args.val_pipelines:
         settings_description.append(
-            f"Val: {args.val_pipelines}, '{args.dev_dataset}', samples={args.dev_sample_size}, α=[{','.join(map(str, args.alphas))}]"
+            f"Val: {args.val_pipelines}, '{args.dev_dataset}', samples={args.dev_sample_size}, α_step={args.alphas_step}"
         )
 
     print("Settings:\n\t" + "\n\t".join(settings_description))
@@ -423,6 +423,7 @@ def main(args: argparse.Namespace) -> None:
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines
+        alphas = [round(x, 2) for x in np.arange(0, 1.0001, 0.1)]
         for name, system, tunable in pipelines:
             if tunable is None or (
                 args.val_pipelines != ["all"] and name not in args.val_pipelines
@@ -432,7 +433,7 @@ def main(args: argparse.Namespace) -> None:
             print(f"\nValidating pipeline: {name}...")
             pt.GridSearch(
                 system,
-                {tunable: {"alpha": args.alphas}},
+                {tunable: {"alpha": alphas}},
                 dev_queries,
                 dev_qrels,
                 metric=args.dev_eval_metric,
