@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 from fast_forward.encoder.avg import LearnedAvgWeights, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder, TransformerEncoder
+from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 
@@ -48,6 +49,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the TCT index.",
+    )
+    parser.add_argument(
+        "--ckpt_emb_path",
+        type=Path,
+        help="Path to the BERT checkpoint file to load.",
     )
     parser.add_argument(
         "--k_avg",
@@ -102,7 +108,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
+def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder, StandaloneEncoder]:
     """Setup and initialize relevant objects.
 
     Returns:
@@ -130,7 +136,13 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
         index_tct, k_avg=args.k_avg, ckpt_path=args.ckpt_avg_path
     )
 
-    return sys_bm25_cut, encoder_tct, encoder_avg
+    if args.with_queries:
+        query_encoder_emb = StandaloneEncoder(
+            "google/bert_uncased_L-12_H-768_A-12",
+            ckpt_path=args.ckpt_emb_path,
+        )
+
+    return sys_bm25_cut, encoder_tct, encoder_avg, query_encoder_emb
 
 
 def dataset_to_dataloader(
@@ -145,7 +157,7 @@ def dataset_to_dataloader(
     Returns:
         DataLoader: A DataLoader for the given dataset.
     """
-    global setup_done, sys_bm25_cut, encoder_tct, encoder_avg
+    global setup_done, sys_bm25_cut, encoder_tct, encoder_avg, query_encoder_emb
     print("\033[96m")  # Prints in this method are cyan
     dataset_stem = (
         args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
@@ -172,7 +184,7 @@ def dataset_to_dataloader(
                 print(
                     f"Setting up BM25, TCT-ColBERT, and WeightedAvg for {dataset_name}"
                 )
-                sys_bm25_cut, encoder_tct, encoder_avg = setup()
+                sys_bm25_cut, encoder_tct, encoder_avg, query_encoder_emb = setup()
                 setup_done = True
             topics = pt.get_dataset(dataset_name).get_topics()
 
@@ -199,10 +211,11 @@ def dataset_to_dataloader(
                     continue  # skip sample: not enough top_docs
 
                 if args.with_queries:
-                    data = ((d_reps, query), q_rep_tct)
+                    emb_query = torch.tensor(query_encoder_emb([query])[0]).unsqueeze(0)
+                    inputs = torch.cat((emb_query, d_reps), dim=0)
                 else:
-                    data = (d_reps, q_rep_tct)
-                new_data.append(data)  # (inputs, labels, [query])
+                    inputs = d_reps
+                new_data.append((inputs, q_rep_tct))
 
             torch.save(new_data, step_dataset_file)
 
