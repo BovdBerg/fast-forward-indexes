@@ -51,6 +51,12 @@ def parse_args() -> argparse.Namespace:
         help="Path to the TCT index.",
     )
     parser.add_argument(
+        "--emb_pretrained_model",
+        type=str,
+        default="google/bert_uncased_L-12_H-768_A-12",
+        help="Pretrained model to use for the embedding encoder.",
+    )
+    parser.add_argument(
         "--ckpt_emb_path",
         type=Path,
         default="/home/bvdb9/models/emb_tct.ckpt",
@@ -134,7 +140,7 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     encoder_avg = WeightedAvgEncoder(
-        index_tct, args.ckpt_emb_path, k_avg=args.k_avg, ckpt_path=args.ckpt_avg_path
+        index_tct, args.emb_pretrained_model, args.ckpt_emb_path, k_avg=args.k_avg, ckpt_path=args.ckpt_avg_path
     )
 
     return sys_bm25_cut, encoder_tct, encoder_avg

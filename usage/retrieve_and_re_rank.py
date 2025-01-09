@@ -75,6 +75,12 @@ def parse_args():
         help="Path to the index file.",
     )
     parser.add_argument(
+        "--emb_pretrained_model",
+        type=str,
+        default="google/bert_uncased_L-12_H-768_A-12",
+        help="Pretrained model to use for the StandaloneEncoder.",
+    )
+    parser.add_argument(
         "--ckpt_emb_path",
         type=Path,
         default="/home/bvdb9/models/emb_bert.ckpt",
@@ -336,6 +342,7 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(
         index_avg,
+        args.emb_pretrained_model,
         args.ckpt_emb_path,
         args.w_method,
         args.k_avg,
@@ -357,7 +364,7 @@ def main(args: argparse.Namespace) -> None:
     index_emb = OnDiskIndex.load(
         args.index_emb_path,
         StandaloneEncoder(
-            "google/bert_uncased_L-12_H-768_A-12",
+            args.emb_pretrained_model,
             ckpt_path=args.ckpt_emb_path,
             device=args.device,
         ),
@@ -379,6 +386,7 @@ def main(args: argparse.Namespace) -> None:
     avg_on_emb_index = copy(index_emb)
     avg_on_emb_index.query_encoder = WeightedAvgEncoder(
         avg_on_emb_index,
+        args.emb_pretrained_model,
         args.ckpt_emb_path,
         args.w_method,
         args.k_avg,
