@@ -71,13 +71,13 @@ def parse_args():
     parser.add_argument(
         "--index_emb_path",
         type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_L-0_opq.h5",
+        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
         help="Path to the index file.",
     )
     parser.add_argument(
         "--ckpt_emb_path",
         type=Path,
-        default="/home/bvdb9/models/emb_768.ckpt",
+        default="/home/bvdb9/models/emb_bert.ckpt",
         help="Path to the emb checkpoint file.",
     )
     parser.add_argument(

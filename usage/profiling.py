@@ -72,7 +72,7 @@ def parse_args():
     parser.add_argument(
         "--index_emb_path",
         type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_L-0_opq.h5",
+        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
         help="The path to the TransformerEmbedding index.",
     )
     parser.add_argument(
