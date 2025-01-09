@@ -74,7 +74,7 @@ def parse_args() -> argparse.Namespace:
         """,
     )
     parser.add_argument(
-        "--ckpt_path",
+        "--ckpt_avg_path",
         type=Path,
         help="Path to the checkpoint file to load. If not provided, the model is trained from scratch.",
     )
@@ -127,7 +127,7 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     encoder_avg = WeightedAvgEncoder(
-        index_tct, k_avg=args.k_avg, ckpt_path=args.ckpt_path
+        index_tct, k_avg=args.k_avg, ckpt_path=args.ckpt_avg_path
     )
 
     return sys_bm25_cut, encoder_tct, encoder_avg
