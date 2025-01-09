@@ -196,7 +196,10 @@ class WeightedAvgEncoder(Encoder):
                 continue
 
             q_emb = torch.tensor(self.emb_encoder([query])[0], device=self.device).unsqueeze(0)
-            reps = torch.cat((q_emb, d_reps), dim=0)
+            reps = d_reps
+            if self.w_method == W_METHOD.LEARNED:
+                reps = torch.cat((q_emb, d_reps), dim=0)
+
             # Get the weights for the top docs using the selected method
             weights = self._get_weights(
                 reps, top_docs_scores.clone().detach().tolist()
