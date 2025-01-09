@@ -221,7 +221,7 @@ def print_settings() -> str:
             f"Val: {args.val_pipelines}, '{args.dev_dataset}', samples={args.dev_sample_size}, α_step={args.alphas_step}"
         )
 
-    print("Settings:\n\t" + "\n\t".join(settings_description))
+    print("\nSettings:\n\t" + "\n\t".join(settings_description))
     return "\n".join(settings_description)
 
 
