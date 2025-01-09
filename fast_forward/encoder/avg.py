@@ -208,7 +208,6 @@ class LearnedAvgWeights(lightning.LightningModule):
 
         self.loss_fn = torch.nn.MSELoss()
         self.flatten = torch.nn.Flatten(0)
-        self.softmax = torch.nn.Softmax(dim=0)
 
         hidden_dim = 100
         self.linear_relu_stack = torch.nn.Sequential(
@@ -224,7 +223,6 @@ class LearnedAvgWeights(lightning.LightningModule):
         except Exception as e:
             print(f"Batch skipped with exception: {e}")
             return None
-        x = self.softmax(x)
         return x
 
     def on_train_start(self):
