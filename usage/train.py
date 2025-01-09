@@ -151,7 +151,7 @@ def dataset_to_dataloader(
     dataset_stem = (
         args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}{suffix}"
     )
-    step = 1000
+    step = min(args.samples, 1000)
     samples_ub = ceil(samples / step) * step  # Ceil ub to nearest step
 
     dataset = []
@@ -229,7 +229,7 @@ def main() -> None:
 
     # Create data loaders for our datasets; shuffle for training, not for validation
     train_loader = dataset_to_dataloader("irds:msmarco-passage/train", args.samples)
-    val_samples = 1000
+    val_samples = min(args.samples, 1000)
     val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", val_samples)
 
     # Train the model
@@ -241,7 +241,7 @@ def main() -> None:
         limit_train_batches=args.samples,
         limit_val_batches=val_samples,
         log_every_n_steps=250,
-        val_check_interval=0.1,
+        val_check_interval=1.0 if args.samples <= 1000 else 0.1,
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.EarlyStopping(
