@@ -233,7 +233,6 @@ def main() -> None:
     val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", val_samples)
 
     # Train the model
-    # TODO: inspect Trainer class in detail: https://lightning.ai/docs/pytorch/stable/common/trainer.html
     learned_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
     trainer = lightning.Trainer(
         deterministic="warn",
