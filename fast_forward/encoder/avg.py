@@ -48,7 +48,7 @@ class WeightedAvgEncoder(Encoder):
     def __init__(
         self,
         index: Index,
-        w_method: W_METHOD = W_METHOD.SOFTMAX_SCORES,
+        w_method: W_METHOD = W_METHOD.LEARNED,
         k_avg: int = 30,
         ckpt_path: Optional[Path] = None,
         device: str = "cpu",
