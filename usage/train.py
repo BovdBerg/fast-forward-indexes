@@ -95,7 +95,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         nargs="*",
         default=[
-            "irds:msmarco-passage/trec-dl-2019/judged",
+            # "irds:msmarco-passage/trec-dl-2019/judged",
         ],
         help="List of test datasets to evaluate the model on.",
     )
