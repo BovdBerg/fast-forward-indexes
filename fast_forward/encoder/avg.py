@@ -79,13 +79,13 @@ class WeightedAvgEncoder(Encoder):
             self.n_weights = k_avg + 1  # +1 for q_emb
 
             if ckpt_path is not None:
-                self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(
+                self.learned_weights = LearnedAvgWeights.load_from_checkpoint(
                     ckpt_path, n_weights=self.n_weights
                 )
             else:
-                self.learned_avg_weights = LearnedAvgWeights(self.n_weights)
-            self.learned_avg_weights.to(device)
-            self.learned_avg_weights.eval()
+                self.learned_weights = LearnedAvgWeights(self.n_weights)
+            self.learned_weights.to(device)
+            self.learned_weights.eval()
 
         self.emb_encoder = StandaloneEncoder(
             emb_pretrained_model,
@@ -115,7 +115,7 @@ class WeightedAvgEncoder(Encoder):
                         torch.zeros(padding, self.index.dim or 0, device=self.device),
                     )
                 )
-                weights = self.learned_avg_weights(d_reps_pad)[:n_docs]
+                weights = self.learned_weights(d_reps_pad)[:n_docs]
                 return torch.nn.functional.softmax(weights, dim=0)
             case W_METHOD.UNIFORM:
                 return torch.ones(n_docs, device=self.device) / n_docs
