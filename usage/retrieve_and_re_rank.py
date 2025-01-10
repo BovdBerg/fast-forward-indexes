@@ -75,6 +75,12 @@ def parse_args():
         help="Path to the index file.",
     )
     parser.add_argument(
+        "--emb_pretrained_model",
+        type=str,
+        default="google/bert_uncased_L-12_H-768_A-12",
+        help="Pretrained model to use for the StandaloneEncoder.",
+    )
+    parser.add_argument(
         "--ckpt_emb_path",
         type=Path,
         default="/home/bvdb9/models/emb_bert.ckpt",
@@ -83,7 +89,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_avg_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/k_avg=10.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/k_avg=30+queryBERT.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
@@ -123,7 +129,7 @@ def parse_args():
     parser.add_argument(
         "--k_avg",
         type=int,
-        default=10,
+        default=30,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     # Chained WeightedAvgEncoder
@@ -336,6 +342,8 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(
         index_avg,
+        args.emb_pretrained_model,
+        args.ckpt_emb_path,
         args.w_method,
         args.k_avg,
         ckpt_path=args.ckpt_avg_path,
@@ -356,7 +364,7 @@ def main(args: argparse.Namespace) -> None:
     index_emb = OnDiskIndex.load(
         args.index_emb_path,
         StandaloneEncoder(
-            "google/bert_uncased_L-12_H-768_A-12",
+            args.emb_pretrained_model,
             ckpt_path=args.ckpt_emb_path,
             device=args.device,
         ),
@@ -371,12 +379,15 @@ def main(args: argparse.Namespace) -> None:
     int_tct_emb = FFInterpolate(alpha=0.6)
     sys_tct_emb = sys_tct >> ff_emb >> int_tct_emb
 
-    int_avg_emb = FFInterpolate(alpha=0.3)
+    # TODO: With q_emb included in LearnedAvgWeights, this pipeline hopefully isn't needed anymore.
+    int_avg_emb = FFInterpolate(alpha=0.1)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
     avg_on_emb_index = copy(index_emb)
     avg_on_emb_index.query_encoder = WeightedAvgEncoder(
         avg_on_emb_index,
+        args.emb_pretrained_model,
+        args.ckpt_emb_path,
         args.w_method,
         args.k_avg,
         ckpt_path=args.ckpt_avg_path,

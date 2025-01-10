@@ -96,11 +96,11 @@ def print_settings(prof_dir: Path) -> None:
 
 
 class JsonProfiler:
-    def __init__(self, runtime_baseline, n_queries):
+    def __init__(self, runtime_baseline: float, n_queries: int):
         self.runtime_baseline = runtime_baseline
         self.n_queries = n_queries
 
-    def create(self, name, runtime):
+    def create(self, name: str, runtime: float):
         return {
             "name": name,
             "runtime": runtime,
@@ -136,6 +136,7 @@ def main(args: argparse.Namespace) -> None:
     print_settings(prof_dir)
 
     print("Creating BM25 retriever via PyTerrier index...")
+    k_avg = 30
     sys_bm25 = pt.BatchRetrieve.from_dataset(
         "msmarco_passage", "terrier_stemmed", wmodel="BM25", verbose=True, memory=True
     )

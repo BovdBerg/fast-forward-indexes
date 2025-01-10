@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 from fast_forward.encoder.avg import LearnedAvgWeights, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder, TransformerEncoder
+from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 
@@ -48,6 +49,18 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the TCT index.",
+    )
+    parser.add_argument(
+        "--emb_pretrained_model",
+        type=str,
+        default="google/bert_uncased_L-12_H-768_A-12",
+        help="Pretrained model to use for the embedding encoder.",
+    )
+    parser.add_argument(
+        "--ckpt_emb_path",
+        type=Path,
+        default="/home/bvdb9/models/emb_tct.ckpt",
+        help="Path to the BERT checkpoint file to load.",
     )
     parser.add_argument(
         "--k_avg",
@@ -127,7 +140,7 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     encoder_avg = WeightedAvgEncoder(
-        index_tct, k_avg=args.k_avg, ckpt_path=args.ckpt_avg_path
+        index_tct, args.emb_pretrained_model, args.ckpt_emb_path, k_avg=args.k_avg, ckpt_path=args.ckpt_avg_path
     )
 
     return sys_bm25_cut, encoder_tct, encoder_avg
@@ -199,10 +212,11 @@ def dataset_to_dataloader(
                     continue  # skip sample: not enough top_docs
 
                 if args.with_queries:
-                    data = ((d_reps, query), q_rep_tct)
+                    q_emb = torch.tensor(encoder_avg.emb_encoder([query])[0]).unsqueeze(0)
+                    inputs = torch.cat((q_emb, d_reps), dim=0)
                 else:
-                    data = (d_reps, q_rep_tct)
-                new_data.append(data)  # (inputs, labels, [query])
+                    inputs = d_reps
+                new_data.append((inputs, q_rep_tct))
 
             torch.save(new_data, step_dataset_file)
 
@@ -232,7 +246,10 @@ def main() -> None:
     val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", val_samples)
 
     # Train the model
-    learned_avg_weights = LearnedAvgWeights(k_avg=args.k_avg)
+    k_avg = args.k_avg
+    if args.with_queries:
+        k_avg += 1  # +1 for emb-encoded query
+    learned_avg_weights = LearnedAvgWeights(k_avg)
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,
