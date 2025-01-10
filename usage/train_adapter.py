@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset_cache_path",
         type=Path,
-        default="data/rep-to-rep/tct-to-emb",
+        default="data/rep-to-rep/tct-to-emb/",
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
@@ -45,9 +45,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--samples",
         type=int,
-        default=1_000,
-        help="""Number of queries to sample from the dataset.
-        Traditional (too simplistic) rule of thumb: at least 10 * |features|""",
+        help="""Number of docs to sample from the dataset.
+        Traditional (too simplistic) rule of thumb: at least 10 * |features|.
+        If not provided, all docs are used.""",
     )
     parser.add_argument(
         "--index_tct_path",
@@ -100,7 +100,8 @@ def create_data() -> Sequence[Tuple[torch.Tensor, torch.Tensor]]:
     print("\033[96m")  # Prints in this method are cyan
 
     dataset_name = "irds:msmarco-passage"
-    dataset_file = args.dataset_cache_path / dataset_name / f"0-{args.samples}"
+    name = f"{args.samples}_samples" if args.samples else "all"
+    dataset_file = args.dataset_cache_path / dataset_name / f"{name}.pt"
     dataset_file.parent.mkdir(parents=True, exist_ok=True)
 
     index_tct, index_emb = setup()
@@ -110,8 +111,8 @@ def create_data() -> Sequence[Tuple[torch.Tensor, torch.Tensor]]:
         print(f"Loading dataset from {dataset_file}")
         dataset = torch.load(dataset_file)
     else:
-        # TODO: Remove --samples and use all documents in the dataset -- index_tct.doc_ids()
-        for docno in tqdm(range(args.samples), desc="Creating dataset", total=args.samples):
+        doc_ids = range(args.samples) if args.samples else index_tct.doc_ids
+        for docno in tqdm(doc_ids, desc="Creating dataset", total=len(doc_ids)):
             input = index_tct._get_vectors([str(docno)])
             target = index_emb._get_vectors([str(docno)])
             dataset.append((input, target))
@@ -131,7 +132,7 @@ def main() -> None:
     dataset = create_data()
 
     # TODO: Split dataset into train and val
-    # TODO: Create DataLoaders for train and val. Shuffle for training, not for validation.
+    # TODO: Create DataLoaders for train and val.
     # dataloader = DataLoader(
     #     dataset,  # type: ignore
     #     shuffle=False,
@@ -141,17 +142,13 @@ def main() -> None:
 
     return
     # Train the model
-    k_avg = args.k_avg
-    if args.with_queries:
-        k_avg += 1  # +1 for emb-encoded query
     adapter = MODEL()
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,
-        limit_train_batches=args.samples,
         limit_val_batches=val_samples,
         log_every_n_steps=250,
-        val_check_interval=1.0 if args.samples <= 1000 else 0.1,
+        val_check_interval=0.1,
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.EarlyStopping(
