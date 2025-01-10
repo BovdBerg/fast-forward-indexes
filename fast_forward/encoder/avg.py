@@ -13,6 +13,7 @@ from fast_forward.encoder import Encoder
 from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index import Index
 from fast_forward.ranking import Ranking
+from fast_forward.util.lightning import GeneralModule
 
 warnings.filterwarnings("ignore", message="`training_step` returned `None`.*")
 
@@ -214,17 +215,12 @@ class WeightedAvgEncoder(Encoder):
         return q_reps.cpu().detach().numpy()
 
 
-class LearnedAvgWeights(lightning.LightningModule):
-    """
-    Watch this short video on PyTorch for this class to make sense: https://youtu.be/ORMx45xqWkA?si=Bvkm9SWi8Hz1n2Sh&t=147
-    """
-
+class LearnedAvgWeights(GeneralModule):
     def __init__(self, n_weights: int = 10):
         super().__init__()
 
         self.n_weights = n_weights
 
-        self.loss_fn = torch.nn.MSELoss()
         self.flatten = torch.nn.Flatten(0)
 
         hidden_dim = 100
@@ -243,21 +239,6 @@ class LearnedAvgWeights(lightning.LightningModule):
             return None
         return x
 
-    def on_train_start(self):
-        if self.trainer.log_dir is None:
-            raise ValueError("Trainer log directory is None")
-
-        settings_file = Path(self.trainer.log_dir) / "settings.json"
-        with open(settings_file, "w") as f:
-            json.dump(
-                {
-                    "Class": self.__class__.__name__,
-                    "n_weights": self.n_weights,
-                },
-                f,
-                indent=4,
-            )
-
     def step(
         self, batch: tuple[torch.Tensor, torch.Tensor], name: str
     ) -> Optional[torch.Tensor]:
@@ -270,15 +251,6 @@ class LearnedAvgWeights(lightning.LightningModule):
         loss = self.loss_fn(q_rep, y)
         self.log(f"{name}_loss", loss)
         return loss
-
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self.step(batch, "train")
-
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self.step(batch, "val")
-
-    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self.step(batch, "test")
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=1e-3)
