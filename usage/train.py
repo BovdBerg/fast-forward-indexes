@@ -10,12 +10,10 @@ import lightning
 import pyterrier as pt
 import torch
 from lightning.pytorch import callbacks
-from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from fast_forward.encoder.avg import LearnedAvgWeights, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder, TransformerEncoder
-from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
 
