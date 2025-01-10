@@ -72,11 +72,12 @@ class WeightedAvgEncoder(Encoder):
         self.index = index
         self.w_method = w_method
         self.k_avg = k_avg
-        self.n_weights = k_avg + 1  # +1 for q_emb
         self._ranking_in = None
         self.device = device
 
         if w_method == W_METHOD.LEARNED:
+            self.n_weights = k_avg + 1  # +1 for q_emb
+
             if ckpt_path is not None:
                 self.learned_avg_weights = LearnedAvgWeights.load_from_checkpoint(
                     ckpt_path, n_weights=self.n_weights
