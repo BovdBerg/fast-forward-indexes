@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset_cache_path",
         type=Path,
-        default="data/",
+        default="data/reps-to-weights/bert-queries-attached/",
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
@@ -147,15 +147,14 @@ def dataset_to_dataloader(
     """
     global setup_done, sys_bm25_cut, encoder_tct, encoder_avg
     print("\033[96m")  # Prints in this method are cyan
-    suffix = "+query" if args.with_queries else ""
     dataset_stem = (
-        args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}{suffix}"
+        args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
     )
     step = min(args.samples, 1000)
     samples_ub = ceil(samples / step) * step  # Ceil ub to nearest step
 
     dataset = []
-    print(f"Creating/retrieving dataset for {samples_ub} samples from {dataset_name}")
+    print(f"Creating/retrieving dataset for {samples_ub} samples for {dataset_stem}")
     for lb in tqdm(
         range(0, samples_ub, step),
         desc="Processing dataset steps",
