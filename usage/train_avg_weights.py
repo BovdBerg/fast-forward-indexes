@@ -10,6 +10,7 @@ import lightning
 import pyterrier as pt
 import torch
 from lightning.pytorch import callbacks
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from fast_forward.encoder.avg import LearnedAvgWeights, WeightedAvgEncoder
@@ -138,7 +139,11 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     encoder_avg = WeightedAvgEncoder(
-        index_tct, args.emb_pretrained_model, args.ckpt_emb_path, k_avg=args.k_avg, ckpt_path=args.ckpt_avg_path
+        index_tct,
+        args.emb_pretrained_model,
+        args.ckpt_emb_path,
+        k_avg=args.k_avg,
+        ckpt_path=args.ckpt_avg_path,
     )
 
     return sys_bm25_cut, encoder_tct, encoder_avg
@@ -158,9 +163,7 @@ def dataset_to_dataloader(
     """
     global setup_done, sys_bm25_cut, encoder_tct, encoder_avg
     print("\033[96m")  # Prints in this method are cyan
-    dataset_stem = (
-        args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
-    )
+    dataset_stem = args.dataset_cache_path / dataset_name / f"k_avg-{args.k_avg}"
     step = min(args.samples, 1000)
     samples_ub = ceil(samples / step) * step  # Ceil ub to nearest step
 
@@ -210,7 +213,9 @@ def dataset_to_dataloader(
                     continue  # skip sample: not enough top_docs
 
                 if args.with_queries:
-                    q_emb = torch.tensor(encoder_avg.emb_encoder([query])[0]).unsqueeze(0)
+                    q_emb = torch.tensor(encoder_avg.emb_encoder([query])[0]).unsqueeze(
+                        0
+                    )
                     inputs = torch.cat((q_emb, d_reps), dim=0)
                 else:
                     inputs = d_reps
