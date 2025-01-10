@@ -402,7 +402,9 @@ def main(args: argparse.Namespace) -> None:
         ("tct_emb", sys_tct_emb, int_tct_emb),
         ("avg_on_emb", sys_avg_on_emb, int_avg_on_emb),
         ("avg_emb", sys_avg_emb, int_avg_emb),
-        [(f"avg{i+1}", system, int_avg[i]) for i, system in enumerate(sys_avg[1:], start=1)]
+    ] + [
+        (f"avg{i+1}", system, int_avg[i])
+        for i, system in enumerate(sys_avg[1:], start=1)
     ]
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
