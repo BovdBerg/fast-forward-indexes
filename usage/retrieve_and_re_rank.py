@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pyterrier as pt
 import torch
+from gspread.auth import service_account
 from gspread_dataframe import set_with_dataframe
 from gspread_formatting import (
     Border,
@@ -20,7 +21,6 @@ from gspread_formatting import (
     TextFormat,
     format_cell_range,
 )
-from gspread.auth import service_account
 from ir_measures import measures
 
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
@@ -155,7 +155,7 @@ def parse_args():
         "--val_pipelines",
         type=str,
         nargs="*",
-        default=['all'],
+        default=["all"],
         help="List of pipelines to validate, based on exact pipeline names.",
     )
     parser.add_argument(
@@ -190,12 +190,6 @@ def parse_args():
         type=Path,
         default="/home/bvdb9/thesis-gsheets-credentials.json",
         help="Path to the Google Sheets credentials file.",
-    )
-    # PROFILING
-    parser.add_argument(
-        "--profiling",
-        action="store_true",
-        help="Profile the re-ranking step.",
     )
     return parser.parse_args()
 
@@ -351,9 +345,7 @@ def main(args: argparse.Namespace) -> None:
     # Create int_avg array of length 4 with each alpha value
     avg_chains = max([1, args.avg_chains])
     int_avg_alphas = [0.2]
-    int_avg_alphas = int_avg_alphas + [0.5] * (
-        avg_chains - len(int_avg_alphas)
-    )
+    int_avg_alphas = int_avg_alphas + [0.5] * (avg_chains - len(int_avg_alphas))
     int_avg = [FFInterpolate(alpha=a) for a in int_avg_alphas[:avg_chains]]
     ff_avg = FFScore(index_avg)
     sys_avg = [sys_bm25_cut]
