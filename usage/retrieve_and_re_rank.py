@@ -89,7 +89,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_avg_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/k_avg=10.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/k_avg=30+queryBERT.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
@@ -129,7 +129,7 @@ def parse_args():
     parser.add_argument(
         "--k_avg",
         type=int,
-        default=10,
+        default=30,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     # Chained WeightedAvgEncoder
@@ -380,7 +380,7 @@ def main(args: argparse.Namespace) -> None:
     sys_tct_emb = sys_tct >> ff_emb >> int_tct_emb
 
     # TODO: With q_emb included in LearnedAvgWeights, this pipeline hopefully isn't needed anymore.
-    int_avg_emb = FFInterpolate(alpha=0.3)
+    int_avg_emb = FFInterpolate(alpha=0.1)
     sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
 
     avg_on_emb_index = copy(index_emb)
