@@ -134,7 +134,7 @@ def create_data() -> Tuple[DataLoader, DataLoader]:
         dataset = [(y, x) for x, y in dataset]
 
     print("Splitting dataset into train and validation sets...")
-    val_samples = int(len(dataset) * 0.2)
+    val_samples = min(int(len(dataset) * 0.2), 1_000)
     train_samples = len(dataset) - val_samples
 
     train_dataset = dataset[:train_samples]
