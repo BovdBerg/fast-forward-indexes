@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Optional
 import torch
 
@@ -5,7 +6,7 @@ from fast_forward.lightning import GeneralModule
 
 
 class Adapter(GeneralModule):
-    def __init__(self, ckpt_path: Optional[str] = None, device: str = "cpu") -> None:
+    def __init__(self, ckpt_path: Optional[Path] = None, device: str = "cpu") -> None:
         super().__init__()
 
         encoding_dim = 768

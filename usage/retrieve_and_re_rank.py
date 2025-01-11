@@ -90,7 +90,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_adapter_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/adapter.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/adapter_tct2emb.ckpt",
         help="Path to the adapter checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(

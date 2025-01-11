@@ -167,7 +167,7 @@ def main() -> None:
     train_loader, val_loader = create_data()
 
     # Train the model
-    adapter = Adapter()
+    adapter = Adapter(device="cuda")
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,

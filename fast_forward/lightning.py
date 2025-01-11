@@ -32,7 +32,7 @@ class GeneralModule(lightning.LightningModule):
 
     def step(
         self, batch: tuple[torch.Tensor, torch.Tensor], name: str
-    ) -> Optional[torch.Tensor]:
+    ) -> torch.Tensor:
         x, y = batch
         logits = self(x)
         loss = self.loss_fn(logits, y)
