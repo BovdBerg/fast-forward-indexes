@@ -11,6 +11,7 @@ from lightning.pytorch import callbacks
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from fast_forward.adapter import Adapter
 from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
 
@@ -96,7 +97,7 @@ def setup() -> Tuple[Index, Index]:
     return index_tct, index_emb
 
 
-def create_data() -> Sequence[Tuple[torch.Tensor, torch.Tensor]]:
+def create_data() -> Tuple[DataLoader, DataLoader]:
     print("\033[96m")  # Prints in this method are cyan
 
     dataset_name = "irds:msmarco-passage"
@@ -104,13 +105,13 @@ def create_data() -> Sequence[Tuple[torch.Tensor, torch.Tensor]]:
     dataset_file = args.dataset_cache_path / dataset_name / f"{name}.pt"
     dataset_file.parent.mkdir(parents=True, exist_ok=True)
 
-    index_tct, index_emb = setup()
-
     dataset = []
     if (dataset_file).exists():
         print(f"Loading dataset from {dataset_file}")
         dataset = torch.load(dataset_file)
     else:
+        index_tct, index_emb = setup()
+
         doc_ids = range(args.samples) if args.samples else index_tct.doc_ids
         for docno in tqdm(doc_ids, desc="Creating dataset", total=len(doc_ids)):
             input = index_tct._get_vectors([str(docno)])
@@ -119,8 +120,29 @@ def create_data() -> Sequence[Tuple[torch.Tensor, torch.Tensor]]:
             
         torch.save(dataset, dataset_file)
 
+    print("Splitting dataset into train and validation sets...")
+    val_samples = int(len(dataset) * 0.2)
+    train_samples = len(dataset) - val_samples
+
+    train_dataset = dataset[:train_samples]
+    val_dataset = dataset[train_samples:]
+
+    train_loader = DataLoader(
+        train_dataset, # type: ignore
+        shuffle=True,
+        num_workers=args.num_workers,
+        drop_last=True,
+    )
+    val_loader = DataLoader(
+        val_dataset, # type: ignore
+        shuffle=False,
+        num_workers=args.num_workers,
+        drop_last=True,
+    )
+    print("Created train and validation dataloaders.")
+
     print("\033[0m")  # Reset print color
-    return dataset
+    return train_loader, val_loader
 
 
 def main() -> None:
@@ -129,24 +151,13 @@ def main() -> None:
     """
     start_time = time.time()
 
-    dataset = create_data()
+    train_loader, val_loader = create_data()
 
-    # TODO: Split dataset into train and val
-    # TODO: Create DataLoaders for train and val.
-    # dataloader = DataLoader(
-    #     dataset,  # type: ignore
-    #     shuffle=False,
-    #     num_workers=args.num_workers,
-    #     drop_last=True,
-    # )
-
-    return
     # Train the model
-    adapter = MODEL()
+    adapter = Adapter()
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,
-        limit_val_batches=val_samples,
         log_every_n_steps=250,
         val_check_interval=0.1,
         callbacks=[
