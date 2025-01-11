@@ -13,7 +13,7 @@ from fast_forward.encoder import Encoder
 from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index import Index
 from fast_forward.ranking import Ranking
-from fast_forward.util.lightning import GeneralModule
+from fast_forward.lightning import GeneralModule
 
 warnings.filterwarnings("ignore", message="`training_step` returned `None`.*")
 

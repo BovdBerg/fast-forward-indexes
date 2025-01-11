@@ -1,6 +1,6 @@
 import torch
 
-from fast_forward.util.lightning import GeneralModule
+from fast_forward.lightning import GeneralModule
 
 
 class Adapter(GeneralModule):
