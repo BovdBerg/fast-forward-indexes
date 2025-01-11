@@ -46,6 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--samples",
         type=int,
+        default=100_000,
         help="""Number of docs to sample from the dataset.
         Traditional (too simplistic) rule of thumb: at least 10 * |features|.
         If not provided, all docs are used.""",
@@ -162,7 +163,7 @@ def main() -> None:
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,
-        log_every_n_steps=50,
+        log_every_n_steps=1 if args.samples <= 1000 else args.samples // 100,
         val_check_interval=1.0 if args.samples <= 1000 else 0.1,
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
