@@ -114,8 +114,12 @@ def create_data() -> Tuple[DataLoader, DataLoader]:
 
         doc_ids = range(args.samples) if args.samples else index_tct.doc_ids
         for docno in tqdm(doc_ids, desc="Creating dataset", total=len(doc_ids)):
-            input = index_tct._get_vectors([str(docno)])
-            target = index_emb._get_vectors([str(docno)])
+            input, _ = index_tct._get_vectors([str(docno)])
+            if index_tct.quantizer is not None:
+                input = index_tct.quantizer.decode(input)
+            target, _ = index_emb._get_vectors([str(docno)])
+            if index_emb.quantizer is not None:
+                target = index_emb.quantizer.decode(target)
             dataset.append((input, target))
             
         torch.save(dataset, dataset_file)
