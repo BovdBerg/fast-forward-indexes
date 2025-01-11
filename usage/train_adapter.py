@@ -64,6 +64,11 @@ def parse_args() -> argparse.Namespace:
         help="Path to the target index.",
     )
     parser.add_argument(
+        "--flip_direction",
+        action="store_true",
+        help="If True, the adapter will be trained to map from target index embeddings to input index embeddings instead of the other way around.",
+    )
+    parser.add_argument(
         "--num_workers",
         type=int,
         default=11,
@@ -124,6 +129,9 @@ def create_data() -> Tuple[DataLoader, DataLoader]:
             dataset.append((input, target))
             
         torch.save(dataset, dataset_file)
+
+    if args.flip_direction:
+        dataset = [(y, x) for x, y in dataset]
 
     print("Splitting dataset into train and validation sets...")
     val_samples = int(len(dataset) * 0.2)
