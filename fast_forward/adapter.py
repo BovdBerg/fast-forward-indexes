@@ -18,6 +18,3 @@ class Adapter(GeneralModule):
         x = self.flatten(x)
         x = self.linear_relu_stack(x)
         return x
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)

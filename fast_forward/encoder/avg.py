@@ -251,6 +251,3 @@ class LearnedAvgWeights(GeneralModule):
         loss = self.loss_fn(q_rep, y)
         self.log(f"{name}_loss", loss)
         return loss
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)

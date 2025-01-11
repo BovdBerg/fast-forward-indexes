@@ -47,3 +47,6 @@ class GeneralModule(lightning.LightningModule):
 
     def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         return self.step(batch, "test")
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
