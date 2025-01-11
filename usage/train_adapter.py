@@ -162,8 +162,8 @@ def main() -> None:
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,
-        log_every_n_steps=250,
-        val_check_interval=0.1,
+        log_every_n_steps=50,
+        val_check_interval=1.0 if args.samples <= 1000 else 0.1,
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.EarlyStopping(
