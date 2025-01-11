@@ -52,16 +52,16 @@ def parse_args() -> argparse.Namespace:
         If not provided, all docs are used.""",
     )
     parser.add_argument(
-        "--index_tct_path",
+        "--index_input_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
-        help="Path to the TCT index.",
+        help="Path to the input index.",
     )
     parser.add_argument(
-        "--index_emb_path",
+        "--index_target_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
-        help="Path to the TCT index.",
+        help="Path to the target index.",
     )
     parser.add_argument(
         "--num_workers",
@@ -87,11 +87,11 @@ def setup() -> Tuple[Index, Index]:
     Returns:
         Tuple[pd.DataFrame, Index, Index]: Dataset, TCT index, and embedding index.
     """
-    index_tct = OnDiskIndex.load(args.index_tct_path)
+    index_tct = OnDiskIndex.load(args.index_input_path)
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
 
-    index_emb = OnDiskIndex.load(args.index_emb_path)
+    index_emb = OnDiskIndex.load(args.index_target_path)
     if args.storage == "mem":
         index_emb = index_emb.to_memory(2**15)
 
