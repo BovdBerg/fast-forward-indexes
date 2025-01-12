@@ -26,18 +26,18 @@ class TransformerEmbeddingEncoder(torch.nn.Module):
 
     def forward(self, batch: BatchEncoding) -> torch.Tensor:
         input_ids = batch["input_ids"]
-        lengths = (input_ids != 0).sum(dim=1)
+        lengths = (input_ids != 0).sum(dim=1).unsqueeze(-1)
         sequences_emb = self.embeddings(input_ids)
 
         # create a mask corresponding to sequence lengths
         _, max_len, emb_dim = sequences_emb.shape
         mask = torch.arange(max_len, device=lengths.device).unsqueeze(
             0
-        ) < lengths.unsqueeze(-1)
+        ) < lengths
         mask = mask.unsqueeze(-1).expand(-1, -1, emb_dim)
 
         # compute the mean for each sequence
-        rep = torch.sum(mask * sequences_emb, dim=1) / lengths.unsqueeze(-1)
+        rep = torch.sum(mask * sequences_emb, dim=1) / lengths
         return rep
 
 
