@@ -241,7 +241,7 @@ class LearnedAvgWeights(GeneralModule):
             return None
         return x
 
-    def step(
+    def step( # type: ignore
         self, batch: tuple[torch.Tensor, torch.Tensor], name: str
     ) -> Optional[torch.Tensor]:
         x, y = batch
