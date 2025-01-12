@@ -15,7 +15,6 @@ from tqdm import tqdm
 
 from fast_forward.encoder import Encoder
 from fast_forward.quantizer import Quantizer
-from fast_forward.adapter import Adapter
 from fast_forward.ranking import Ranking
 
 LOGGER = logging.getLogger(__name__)
@@ -39,14 +38,12 @@ class Index(abc.ABC):
 
     _query_encoder: Encoder = None
     _quantizer: Quantizer = None
-    _adapter: Adapter = None
     _verbose: bool = False
 
     def __init__(
         self,
         query_encoder: Encoder = None,
         quantizer: Quantizer = None,
-        adapter: Adapter = None,
         mode: Mode = Mode.MAXP,
         encoder_batch_size: int = 32,
         verbose: bool = False,
@@ -66,8 +63,6 @@ class Index(abc.ABC):
         self.mode = mode
         if quantizer is not None:
             self.quantizer = quantizer
-        if adapter is not None:
-            self._adapter = adapter
         self._encoder_batch_size = encoder_batch_size
         self._verbose = verbose
         warnings.filterwarnings("ignore", category=FutureWarning, message="`resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.")
@@ -152,28 +147,6 @@ class Index(abc.ABC):
             raise RuntimeError("Quantizers can only be attached to empty indexes.")
         self._quantizer = quantizer
         quantizer.set_attached()
-
-    @property
-    def adapter(self) -> Optional[Adapter]:
-        """Return the adapter if it exists.
-
-        Returns:
-            Optional[Adapter]: The adapter (if any).
-        """
-        return self._adapter
-
-    @adapter.setter
-    def adapter(self, adapter: Adapter) -> None:
-        """Set the adapter. This is only possible before any vectors are added to the index.
-
-        Raises:
-            RuntimeError: When the index is not empty.
-
-        Args:
-            adapter (Adapter): The new adapter.
-        """
-        assert isinstance(adapter, Adapter)
-        self._adapter = adapter
 
     @property
     def mode(self) -> Mode:
@@ -361,8 +334,6 @@ class Index(abc.ABC):
         vectors, id_to_vec_idxs = self._get_vectors(id_df["id"].to_list())
         if self.quantizer is not None:
             vectors = self.quantizer.decode(vectors)
-        if self.adapter is not None:
-            vectors = self.adapter(vectors)
 
         # compute indices for query vectors and doc/passage vectors in current arrays
         select_query_vectors = []
@@ -587,7 +558,6 @@ class Index(abc.ABC):
         Yields:
             Tuple[np.ndarray, IDSequence, IDSequence]: Batches of vectors, document IDs (if any), passage IDs (if any).
         """
-        # TODO: Should adapter be considered here too?
         if self._quantizer is None:
             yield from self._batch_iter(batch_size)
 

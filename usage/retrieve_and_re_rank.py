@@ -23,13 +23,10 @@ from gspread_formatting import (
 )
 from ir_measures import measures
 
-from fast_forward.adapter import Adapter
 from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.encoder.transformer_embedding import StandaloneEncoder
-from fast_forward.index import Index
 from fast_forward.index.disk import OnDiskIndex
-from fast_forward.ranking import Ranking
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
 PREV_RESULTS = Path("results.json")
@@ -90,7 +87,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_adapter_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/adapter_tct2emb.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/adapter_emb2tct.ckpt",
         help="Path to the adapter checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
@@ -345,6 +342,7 @@ def main(args: argparse.Namespace) -> None:
         index_avg,
         args.emb_pretrained_model,
         args.ckpt_emb_path,
+        args.ckpt_adapter_path,
         args.w_method,
         args.k_avg,
         ckpt_path=args.ckpt_avg_path,
@@ -368,7 +366,6 @@ def main(args: argparse.Namespace) -> None:
         ckpt_path=args.ckpt_emb_path,
         device=args.device,
     )
-    index_emb.adapter = Adapter(args.ckpt_adapter_path, device=args.device)
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.1)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
@@ -385,6 +382,7 @@ def main(args: argparse.Namespace) -> None:
         avg_on_emb_index,
         args.emb_pretrained_model,
         args.ckpt_emb_path,
+        args.ckpt_adapter_path,
         args.w_method,
         args.k_avg,
         ckpt_path=args.ckpt_avg_path,
