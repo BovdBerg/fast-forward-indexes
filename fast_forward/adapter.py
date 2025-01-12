@@ -25,7 +25,9 @@ class Adapter(GeneralModule):
                 if k.startswith(prefix):
                     sd_enc[k[len(prefix) :]] = v  # remove prefix
             self.linear_relu_stack.load_state_dict(sd_enc)
-        self.linear_relu_stack.eval()
+
+        self.to(device)
+        self.eval()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.linear_relu_stack(x)
