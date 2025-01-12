@@ -201,9 +201,6 @@ def dataset_to_dataloader(
             for query in tqdm(
                 step_topics["query"], desc="Processing queries", total=len(step_topics)
             ):
-                # Label: query encoded by TCT-ColBERT
-                q_rep_tct = encoder_tct([query])[0]  # [0]: only one query
-
                 # Inputs: top-ranked document vectors for the query
                 top_docs = encoder_avg._get_top_docs(query, top_ranking)
                 if top_docs is None:
@@ -219,6 +216,10 @@ def dataset_to_dataloader(
                     inputs = torch.cat((q_emb, d_reps), dim=0)
                 else:
                     inputs = d_reps
+
+                # Label: query encoded by TCT-ColBERT
+                q_rep_tct = encoder_tct([query])[0]  # [0]: only one query
+
                 new_data.append((inputs, q_rep_tct))
 
             torch.save(new_data, step_dataset_file)
