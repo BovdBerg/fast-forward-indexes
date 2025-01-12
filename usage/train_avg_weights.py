@@ -58,7 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ckpt_emb_path",
         type=Path,
-        default="/home/bvdb9/models/emb_tct.ckpt",
+        default="/home/bvdb9/models/emb_bert.ckpt",
         help="Path to the BERT checkpoint file to load.",
     )
     parser.add_argument(
