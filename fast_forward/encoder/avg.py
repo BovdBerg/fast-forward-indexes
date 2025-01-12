@@ -245,6 +245,7 @@ class LearnedAvgWeights(GeneralModule):
         self, batch: tuple[torch.Tensor, torch.Tensor], name: str
     ) -> Optional[torch.Tensor]:
         x, y = batch
+        print(f"tct-like x[0]: {x[0]}, tct y: {y}")
         weights = self(x)  # shape (k_avg)
         if weights is None:  # Skip batch
             return None
