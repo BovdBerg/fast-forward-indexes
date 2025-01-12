@@ -13,15 +13,35 @@ class TransformerEmbeddingEncoder(torch.nn.Module):
     Static token embeddings are obtained from a pre-trained Transformer model.
     """
 
-    def __init__(self, pretrained_model: str) -> None:
+    def __init__(
+        self,
+        pretrained_model: str,
+        ckpt_path: Optional[Path] = None,
+        device: str = "cpu",
+    ) -> None:
         """Constuctor.
 
         Args:
             pretrained_model (str): Pre-trained model on the HuggingFace Hub to get the token embeddings from.
+            ckpt_path (Path, optional): Path to a checkpoint to load. Defaults to None.
+            device (str, optional): Device to use. Defaults to "cpu".
         """
         super().__init__()
         model = AutoModel.from_pretrained(pretrained_model, return_dict=True)
         self.embeddings = model.get_input_embeddings()
+
+        # Load checkpoint and extract encoder weights
+        if ckpt_path is not None:
+            sd_enc = {}
+            prefix = "query_encoder."
+            ckpt = torch.load(ckpt_path, map_location=device)
+            for k, v in ckpt["state_dict"].items():
+                if k.startswith(prefix):
+                    sd_enc[k[len(prefix) :]] = v  # remove prefix
+            self.load_state_dict(sd_enc)
+
+        self.to(device)
+        self.eval()
 
     def forward(self, batch: BatchEncoding) -> torch.Tensor:
         input_ids = batch["input_ids"]
@@ -58,21 +78,10 @@ class StandaloneEncoder(Encoder):
         """
         super().__init__()
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
+        self.encoder = TransformerEmbeddingEncoder(
+            str(pretrained_model), ckpt_path, device
+        )
         self.device = device
-
-        self.encoder = TransformerEmbeddingEncoder(str(pretrained_model))
-        self.encoder.to(device)
-
-        # Load checkpoint and extract encoder weights
-        if ckpt_path is not None:
-            sd_enc = {}
-            prefix = "query_encoder."
-            ckpt = torch.load(ckpt_path, map_location=device)
-            for k, v in ckpt["state_dict"].items():
-                if k.startswith(prefix):
-                    sd_enc[k[len(prefix) :]] = v  # remove prefix
-            self.encoder.load_state_dict(sd_enc)
-        self.encoder.eval()
 
     def __call__(self, texts: Sequence[str]) -> np.ndarray:
         inputs = self.tokenizer(
