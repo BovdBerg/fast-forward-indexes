@@ -1,10 +1,8 @@
-import json
 import warnings
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Sequence
 
-import lightning
 import numpy as np
 import pandas as pd
 import torch
@@ -193,14 +191,13 @@ class WeightedAvgEncoder(Encoder):
         # TODO: could probably be rewritten to handle batches at a time.
         q_reps = torch.zeros((len(queries), self.index.dim), device=self.device)
         for i, query in enumerate(queries):
-            d_reps, top_docs_scores = self._get_top_docs(query, self.ranking_in)
-            if d_reps is None:
+            reps, top_docs_scores = self._get_top_docs(query, self.ranking_in)
+            if reps is None:
                 continue
 
-            q_emb = torch.tensor(self.emb_encoder([query])[0], device=self.device).unsqueeze(0)
-            reps = d_reps
             if self.w_method == W_METHOD.LEARNED:
-                reps = torch.cat((q_emb, d_reps), dim=0)
+                q_emb = torch.tensor(self.emb_encoder([query])[0], device=self.device).unsqueeze(0)
+                reps = torch.cat((q_emb, reps), dim=0)
 
             # Get the weights for the top docs using the selected method
             weights = self._get_weights(
