@@ -18,7 +18,6 @@ class TransformerEmbeddingEncoder(torch.nn.Module):
 
         Args:
             pretrained_model (str): Pre-trained model on the HuggingFace Hub to get the token embeddings from.
-            dense_layer_dim (int, optional): Add a dense layer to adjust the embedding dimension. Defaults to None.
         """
         super().__init__()
         model = AutoModel.from_pretrained(pretrained_model, return_dict=True)
@@ -31,9 +30,7 @@ class TransformerEmbeddingEncoder(torch.nn.Module):
 
         # create a mask corresponding to sequence lengths
         _, max_len, emb_dim = sequences_emb.shape
-        mask = torch.arange(max_len, device=lengths.device).unsqueeze(
-            0
-        ) < lengths
+        mask = torch.arange(max_len, device=lengths.device).unsqueeze(0) < lengths
         mask = mask.unsqueeze(-1).expand(-1, -1, emb_dim)
 
         # compute the mean for each sequence
