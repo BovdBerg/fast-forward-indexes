@@ -55,6 +55,11 @@ def parse_args():
         help="Print more information during re-ranking.",
     )
     parser.add_argument(
+        "--profiling",
+        action="store_true",
+        help="Profile the re-ranking process.",
+    )
+    parser.add_argument(
         "--dataset",
         type=str,
         default="msmarco_passage",
@@ -329,6 +334,7 @@ def main(args: argparse.Namespace) -> None:
         args.index_tct_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
         verbose=args.verbose,
+        profiling=args.profiling,
     )
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
@@ -362,6 +368,7 @@ def main(args: argparse.Namespace) -> None:
     index_emb = OnDiskIndex.load(
         args.index_emb_path,
         verbose=args.verbose,
+        profiling=args.profiling,
     )
     if args.storage == "mem":
         index_emb = index_emb.to_memory(2**15)

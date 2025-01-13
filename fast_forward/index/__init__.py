@@ -47,6 +47,7 @@ class Index(abc.ABC):
         mode: Mode = Mode.MAXP,
         encoder_batch_size: int = 32,
         verbose: bool = False,
+        profiling: bool = False,
     ) -> None:
         """Create an index.
 
@@ -56,6 +57,7 @@ class Index(abc.ABC):
             mode (Mode, optional): Ranking mode. Defaults to Mode.MAXP.
             encoder_batch_size (int, optional): Encoder batch size. Defaults to 32.
             verbose (bool, optional): Print progress. Defaults to True.
+            profiling (bool, optional): Log performance metrics. Defaults to False.
         """
         super().__init__()
         if query_encoder is not None:
@@ -65,6 +67,7 @@ class Index(abc.ABC):
             self.quantizer = quantizer
         self._encoder_batch_size = encoder_batch_size
         self._verbose = verbose
+        self._profiling = profiling
         warnings.filterwarnings("ignore", category=FutureWarning, message="`resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.")
 
     def encode_queries(
@@ -83,6 +86,7 @@ class Index(abc.ABC):
         Returns:
             np.ndarray: The query representations.
         """
+        t0 = perf_counter()
         if self.query_encoder is None:
             raise RuntimeError("Index does not have a query encoder.")
 
@@ -101,6 +105,8 @@ class Index(abc.ABC):
             batch = queries[i : i + self._encoder_batch_size]
             result.append(self.query_encoder(batch))
 
+        if self._profiling:
+            LOGGER.info(f"encode_queries took {perf_counter() - t0:.2f} seconds for {len(queries)} queries")
         return np.concatenate(result)
 
     @property
@@ -323,6 +329,7 @@ class Index(abc.ABC):
         Returns:
             pd.DataFrame: Data frame with computed scores.
         """
+        t0 = perf_counter()
         # map doc/passage IDs to unique numbers (0 to n)
         id_df = df[["id"]].drop_duplicates().reset_index(drop=True)
         id_df["id_no"] = id_df.index
@@ -340,8 +347,6 @@ class Index(abc.ABC):
         select_vectors = []
         select_scores = []
         c = 0
-        if self._verbose:
-            LOGGER.info("Computing scores...")
         for id_no, q_no in zip(df["id_no"], df["q_no"]):
             vec_idxs = id_to_vec_idxs[id_no]
             select_vectors.extend(vec_idxs)
@@ -370,6 +375,8 @@ class Index(abc.ABC):
 
         # insert FF scores in the correct rows
         df["ff_score"] = df.index.map(_mapfunc)
+        if self._profiling:
+            LOGGER.info(f"_compute_scores took {perf_counter() - t0:.2f} seconds")
         return df
 
     def _early_stopping(
@@ -519,15 +526,16 @@ class Index(abc.ABC):
             result = pd.concat(chunks)
 
         result["score"] = result["ff_score"]
-        if self._verbose:
-            LOGGER.info("computed scores in %s seconds", perf_counter() - t0)
-        return Ranking(
+        ranking = Ranking(
             result,
             name="fast-forward",
             dtype=ranking._df.dtypes["score"],
             copy=False,
             is_sorted=False,
         )
+        if self._profiling:
+            LOGGER.info("Index.call in %s seconds", perf_counter() - t0)
+        return ranking
 
     @abc.abstractmethod
     def _batch_iter(

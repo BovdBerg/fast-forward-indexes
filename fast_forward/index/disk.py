@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
+from time import perf_counter
 from typing import Iterable, Iterator, List, Optional, Set, Tuple
 
 import h5py
@@ -161,6 +162,7 @@ class OnDiskIndex(Index):
             encoder_batch_size=self._encoder_batch_size,
             init_size=len(self),
             verbose=self._verbose,
+            profiling=self._profiling,
         )
         with h5py.File(self._index_file, "r") as fp:
             batch_size = batch_size or fp.attrs["num_vectors"]
@@ -252,6 +254,7 @@ class OnDiskIndex(Index):
         return set(self._psg_id_to_idx.keys())
 
     def _get_vectors(self, ids: Iterable[str]) -> Tuple[np.ndarray, List[List[int]]]:
+        t0 = perf_counter()
         idx_pairs = []
         with h5py.File(self._index_file, "r") as fp:
             for id in ids:
@@ -289,7 +292,10 @@ class OnDiskIndex(Index):
                     )
                 ]
             )
-            return vectors, [id_to_idxs[id] for id in ids]
+            res = vectors, [id_to_idxs[id] for id in ids]
+            if self._profiling:
+                LOGGER.info(f"_get_vectors took {perf_counter() - t0:.2f} seconds for {len(res[0])} vectors")
+            return res
 
     def _batch_iter(
         self, batch_size: int
@@ -318,6 +324,7 @@ class OnDiskIndex(Index):
         resize_min_val: int = 2**10,
         max_indexing_size: int = 2**10,
         verbose: bool = False,
+        profiling: bool = False,
     ) -> "OnDiskIndex":
         """Open an existing index on disk.
 
@@ -329,6 +336,7 @@ class OnDiskIndex(Index):
             resize_min_val (int, optional): Minimum value to increase index size by. Defaults to 2**10.
             max_indexing_size (int, optional): Maximum number of vectors to retrieve from the HDF5 dataset at once. Defaults to 2**10.
             verbose (bool, optional): Log progress. Defaults to False.
+            profiling (bool, optional): Log performance. Defaults to False.
 
         Returns:
             OnDiskIndex: The index.
@@ -342,6 +350,7 @@ class OnDiskIndex(Index):
             mode=mode,
             encoder_batch_size=encoder_batch_size,
             verbose=verbose,
+            profiling=profiling,
         )
         index._index_file = index_file.absolute()
         index._resize_min_val = resize_min_val

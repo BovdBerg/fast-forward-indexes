@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from time import perf_counter
 from typing import Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
@@ -24,6 +25,7 @@ class InMemoryIndex(Index):
         init_size: int = 2**14,
         alloc_size: int = 2**14,
         verbose: bool = False,
+        profiling: bool = False,
     ) -> None:
         """Create an index.
 
@@ -35,6 +37,7 @@ class InMemoryIndex(Index):
             init_size (int, optional): Initial index size. Defaults to 2**14.
             alloc_size (int, optional): Size of shard allocated when index is full. Defaults to 2**14.
             verbose (bool, optional): Whether to log progress. Defaults to False.
+            profiling (bool, optional): Whether to log performance metrics. Defaults to False.
         """
         self._shards = []
         self._init_size = init_size
@@ -49,6 +52,7 @@ class InMemoryIndex(Index):
             mode=mode,
             encoder_batch_size=encoder_batch_size,
             verbose=verbose,
+            profiling=profiling,
         )
 
     def __len__(self) -> int:
@@ -154,6 +158,7 @@ class InMemoryIndex(Index):
         return shard_idx, idx_in_shard
 
     def _get_vectors(self, ids: Iterable[str]) -> Tuple[np.ndarray, List[List[int]]]:
+        t0 = perf_counter()
         items_by_shard = defaultdict(list)
         for id in ids:
             if self.mode in (Mode.MAXP, Mode.AVEP) and id in self._doc_id_to_idx:
@@ -182,7 +187,11 @@ class InMemoryIndex(Index):
 
         if len(result_vectors) == 0:
             return np.array([]), []
-        return np.concatenate(result_vectors), [result_ids[id] for id in ids]
+        res = np.concatenate(result_vectors), [result_ids[id] for id in ids]
+
+        if self._profiling:
+            LOGGER.info(f"_get_vectors took {perf_counter() - t0:.2f} seconds for {len(res[0])} vectors")
+        return res
 
     def _batch_iter(
         self, batch_size: int
