@@ -72,13 +72,13 @@ def parse_args():
         help="Path to the index file.",
     )
     parser.add_argument(
-        "--index_emb_path",
+        "--index_emb_path", # TODO: find a way to remove need for 2nd index
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
         help="Path to the index file.",
     )
     parser.add_argument(
-        "--emb_pretrained_model",
+        "--emb_pretrained_model",  # TODO: move to transformer_embedding.py
         type=str,
         default="google/bert_uncased_L-12_H-768_A-12",
         help="Pretrained model to use for the StandaloneEncoder.",
