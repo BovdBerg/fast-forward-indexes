@@ -135,12 +135,6 @@ def parse_args():
         default=30,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
-    # Chained WeightedAvgEncoder
-    parser.add_argument(
-        "--avg_chains",
-        type=int,
-        default=1,
-    )
     # VALIDATION
     parser.add_argument(
         "--dev_dataset",
@@ -353,17 +347,9 @@ def main(args: argparse.Namespace) -> None:
         ckpt_path=args.ckpt_avg_path,
         device=args.device,
     )
-
-    # Create int_avg array of length 4 with each alpha value
-    avg_chains = max([1, args.avg_chains])
-    int_avg_alphas = [0.2]
-    int_avg_alphas = int_avg_alphas + [0.5] * (avg_chains - len(int_avg_alphas))
-    int_avg = [FFInterpolate(alpha=a) for a in int_avg_alphas[:avg_chains]]
     ff_avg = FFScore(index_avg)
-    sys_avg = [sys_bm25_cut]
-    for i in range(len(int_avg)):
-        sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
-    sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
+    int_avg = FFInterpolate(alpha=0.2)
+    sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
     index_emb = OnDiskIndex.load(
         args.index_emb_path,
@@ -386,7 +372,7 @@ def main(args: argparse.Namespace) -> None:
 
     # TODO: With q_emb included in LearnedAvgWeights, this pipeline hopefully isn't needed anymore.
     int_avg_emb = FFInterpolate(alpha=0.1)
-    sys_avg_emb = sys_avg[0] >> ff_emb >> int_avg_emb
+    sys_avg_emb = sys_avg >> ff_emb >> int_avg_emb
 
     avg_on_emb_index = copy(index_emb)
     avg_on_emb_index.query_encoder = WeightedAvgEncoder(
@@ -405,14 +391,11 @@ def main(args: argparse.Namespace) -> None:
     pipelines = [
         ("bm25", ~sys_bm25, None),
         ("tct", sys_tct, int_tct),
-        ("avg1", sys_avg[0], int_avg[0]),
+        ("avg", sys_avg, int_avg),
         ("emb", sys_emb, int_emb),
         ("tct_emb", sys_tct_emb, int_tct_emb),
         ("avg_on_emb", sys_avg_on_emb, int_avg_on_emb),
         ("avg_emb", sys_avg_emb, int_avg_emb),
-    ] + [
-        (f"avg{i+1}", system, int_avg[i])
-        for i, system in enumerate(sys_avg[1:], start=1)
     ]
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
