@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import torch
 
-from fast_forward.adapter import Adapter
 from fast_forward.encoder import Encoder
 from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index import Index
@@ -51,7 +50,6 @@ class WeightedAvgEncoder(Encoder):
         index: Index,
         emb_pretrained_model: str,
         ckpt_emb_path: Path,
-        ckpt_adapter_path: Path,
         w_method: W_METHOD = W_METHOD.LEARNED,
         k_avg: int = 30,
         ckpt_path: Optional[Path] = None,
@@ -64,7 +62,6 @@ class WeightedAvgEncoder(Encoder):
             index (Index): The index containing document embeddings.
             emb_pretrained_model (str): The pretrained model to use for the embedding encoder.
             ckpt_emb_path (Path): The path to the checkpoint file to load the embedding encoder.
-            ckpt_adapter_path (Path): The path to the checkpoint file to load the adapter.
             w_method (W_METHOD): The probability distribution type used to assign weights to top-ranked documents.
             k_avg (int): The number of top-ranked documents to average.
             ckpt_path (Optional[Path]): The path to the checkpoint file to load.
@@ -93,7 +90,6 @@ class WeightedAvgEncoder(Encoder):
             emb_pretrained_model,
             ckpt_path=ckpt_emb_path,
         )
-        self.adapter = Adapter(ckpt_path=ckpt_adapter_path, device=device)
 
     def _get_weights(
         self, reps: torch.Tensor, scores: Sequence[float]
@@ -201,7 +197,6 @@ class WeightedAvgEncoder(Encoder):
 
             if self.w_method == W_METHOD.LEARNED:
                 q_emb = torch.tensor(self.emb_encoder([query])[0], device=self.device).unsqueeze(0)
-                q_emb = self.adapter(q_emb)
                 reps = torch.cat((q_emb, reps), dim=0)
 
             # Get the weights for the top docs using the selected method

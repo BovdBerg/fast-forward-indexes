@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset_cache_path",
         type=Path,
-        default="data/reps-to-weights/adapted-tct-queries-attached/",
+        default="data/reps-to-weights/bert-queries-attached/",
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
@@ -59,12 +59,6 @@ def parse_args() -> argparse.Namespace:
         "--ckpt_emb_path",
         type=Path,
         default="/home/bvdb9/models/emb_bert.ckpt",
-        help="Path to the BERT checkpoint file to load.",
-    )
-    parser.add_argument(
-        "--ckpt_adapter_path",
-        type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/adapter_emb2tct.ckpt",
         help="Path to the BERT checkpoint file to load.",
     )
     parser.add_argument(
@@ -145,10 +139,9 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     encoder_avg = WeightedAvgEncoder(
-        index_tct,
-        args.emb_pretrained_model,
-        args.ckpt_emb_path,
-        args.ckpt_adapter_path,
+        index=index_tct,
+        emb_pretrained_model=args.emb_pretrained_model,
+        ckpt_emb_path=args.ckpt_emb_path,
         k_avg=args.k_avg,
         ckpt_path=args.ckpt_avg_path,
     )
@@ -220,7 +213,6 @@ def dataset_to_dataloader(
                     q_emb = torch.tensor(encoder_avg.emb_encoder([query])[0]).unsqueeze(
                         0
                     )
-                    q_emb = encoder_avg.adapter(q_emb)
                     inputs = torch.cat((q_emb, d_reps), dim=0).detach()
                 else:
                     inputs = d_reps

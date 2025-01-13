@@ -85,12 +85,6 @@ def parse_args():
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
-        "--ckpt_adapter_path",
-        type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/adapter_emb2tct.ckpt",
-        help="Path to the adapter checkpoint file. Create it by running usage/train.py",
-    )
-    parser.add_argument(
         "--storage",
         type=str,
         choices=["disk", "mem"],
@@ -342,7 +336,6 @@ def main(args: argparse.Namespace) -> None:
         index_avg,
         args.emb_pretrained_model,
         args.ckpt_emb_path,
-        args.ckpt_adapter_path,
         args.w_method,
         args.k_avg,
         ckpt_path=args.ckpt_avg_path,
