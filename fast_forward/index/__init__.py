@@ -106,7 +106,7 @@ class Index(abc.ABC):
             result.append(self.query_encoder(batch))
 
         if self._profiling:
-            LOGGER.info(f"encode_queries took {perf_counter() - t0:.2f} seconds for {len(queries)} queries")
+            LOGGER.info(f"encode_queries took {perf_counter() - t0:.5f} seconds for {len(queries)} queries")
         return np.concatenate(result)
 
     @property
@@ -338,9 +338,16 @@ class Index(abc.ABC):
         df = df.merge(id_df, on="id", suffixes=[None, "_"]).reset_index(drop=True)
 
         # get all required vectors from the FF index
+        t1 = perf_counter()
         vectors, id_to_vec_idxs = self._get_vectors(id_df["id"].to_list())
+        t2 = perf_counter()
+        if self._profiling:
+            LOGGER.info(f"_get_vectors took {t2 - t1:.5f} seconds for {len(vectors)} vectors")
         if self.quantizer is not None:
             vectors = self.quantizer.decode(vectors)
+        t3 = perf_counter()
+        if self._profiling:
+            LOGGER.info(f"decoding took {t3 - t2:.5f} seconds for {len(vectors)} vectors")
 
         # compute indices for query vectors and doc/passage vectors in current arrays
         select_query_vectors = []
@@ -376,7 +383,7 @@ class Index(abc.ABC):
         # insert FF scores in the correct rows
         df["ff_score"] = df.index.map(_mapfunc)
         if self._profiling:
-            LOGGER.info(f"_compute_scores took {perf_counter() - t0:.2f} seconds")
+            LOGGER.info(f"_compute_scores took {perf_counter() - t3:.5f} seconds")
         return df
 
     def _early_stopping(

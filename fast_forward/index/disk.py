@@ -292,10 +292,7 @@ class OnDiskIndex(Index):
                     )
                 ]
             )
-            res = vectors, [id_to_idxs[id] for id in ids]
-            if self._profiling:
-                LOGGER.info(f"_get_vectors took {perf_counter() - t0:.2f} seconds for {len(res[0])} vectors")
-            return res
+            return vectors, [id_to_idxs[id] for id in ids]
 
     def _batch_iter(
         self, batch_size: int

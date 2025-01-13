@@ -187,11 +187,7 @@ class InMemoryIndex(Index):
 
         if len(result_vectors) == 0:
             return np.array([]), []
-        res = np.concatenate(result_vectors), [result_ids[id] for id in ids]
-
-        if self._profiling:
-            LOGGER.info(f"_get_vectors took {perf_counter() - t0:.2f} seconds for {len(res[0])} vectors")
-        return res
+        return np.concatenate(result_vectors), [result_ids[id] for id in ids]
 
     def _batch_iter(
         self, batch_size: int
