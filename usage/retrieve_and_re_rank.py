@@ -383,12 +383,11 @@ def main(args: argparse.Namespace) -> None:
 
     avg_on_emb_index = copy(index_emb)
     avg_on_emb_index.query_encoder = WeightedAvgEncoder(
-        avg_on_emb_index,
-        args.emb_pretrained_model,
-        args.ckpt_emb_path,
-        args.ckpt_adapter_path,
-        args.w_method,
-        args.k_avg,
+        index=avg_on_emb_index,
+        emb_pretrained_model=args.emb_pretrained_model,
+        ckpt_emb_path=args.ckpt_emb_path,
+        w_method=args.w_method,
+        k_avg=args.k_avg,
         ckpt_path=args.ckpt_avg_path,
         device=args.device,
     )
