@@ -67,6 +67,12 @@ def parse_args():
         help="Path to the index file.",
     )
     parser.add_argument(
+        "--index_emb_path",
+        type=Path,
+        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
+        help="Path to the index file.",
+    )
+    parser.add_argument(
         "--emb_pretrained_model",
         type=str,
         default="google/bert_uncased_L-12_H-768_A-12",
@@ -353,7 +359,12 @@ def main(args: argparse.Namespace) -> None:
         sys_avg.append(sys_avg[-1] >> ff_avg >> int_avg[i])
     sys_avg = sys_avg[1:]  # Remove 1st pipeline (bm25) from avg_pipelines
 
-    index_emb = copy(index_tct)
+    index_emb = OnDiskIndex.load(
+        args.index_emb_path,
+        verbose=args.verbose,
+    )
+    if args.storage == "mem":
+        index_emb = index_emb.to_memory(2**15)
     index_emb.query_encoder = StandaloneEncoder(
         args.emb_pretrained_model,
         ckpt_path=args.ckpt_emb_path,
