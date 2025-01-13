@@ -541,7 +541,7 @@ class Index(abc.ABC):
             is_sorted=False,
         )
         if self._profiling:
-            LOGGER.info("Index.call in %s seconds", perf_counter() - t0)
+            LOGGER.info(f"__call__ in {perf_counter() - t0:.5f} seconds")
         return ranking
 
     @abc.abstractmethod
