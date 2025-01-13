@@ -371,7 +371,7 @@ def main(args: argparse.Namespace) -> None:
     sys_tct_emb = sys_tct >> ff_emb >> int_tct_emb
 
     # TODO: With q_emb included in LearnedAvgWeights, this pipeline hopefully isn't needed anymore.
-    int_avg_emb = FFInterpolate(alpha=0.2)
+    int_avg_emb = FFInterpolate(alpha=0.4)
     sys_avg_emb = sys_avg >> ff_emb >> int_avg_emb
 
     avg_on_emb_index = copy(index_emb)
