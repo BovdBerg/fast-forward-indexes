@@ -115,4 +115,4 @@ profiles/
 data/
 runs/
 outputs/
-lightning_logs/
+lightning_logs/version*/
