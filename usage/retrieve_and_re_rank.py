@@ -348,7 +348,7 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
     )
     ff_avg = FFScore(index_avg)
-    int_avg = FFInterpolate(alpha=0.2)
+    int_avg = FFInterpolate(alpha=0.1)
     sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
     index_emb = OnDiskIndex.load(
@@ -364,7 +364,7 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
     )
     ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.1)
+    int_emb = FFInterpolate(alpha=0.2)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
     int_tct_emb = FFInterpolate(alpha=0.6)
