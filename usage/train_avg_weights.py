@@ -270,7 +270,7 @@ def main() -> None:
         max_epochs=50,
         limit_train_batches=args.samples,
         limit_val_batches=val_samples,
-        log_every_n_steps=250,
+        log_every_n_steps=1 if args.samples <= 1000 else args.samples // 100,
         val_check_interval=1.0 if args.samples <= 1000 else 0.1,
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
