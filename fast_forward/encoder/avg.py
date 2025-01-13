@@ -215,6 +215,7 @@ class WeightedAvgEncoder(Encoder):
 class LearnedAvgWeights(GeneralModule):
     def __init__(self, n_weights: int = 10):
         super().__init__()
+        # TODO: Experiment with different encoders, e.g. dropout, normalization, attention, activation functions, etc.
 
         self.n_weights = n_weights
 
