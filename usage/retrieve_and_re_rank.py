@@ -339,11 +339,11 @@ def main(args: argparse.Namespace) -> None:
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(
-        index_avg,
-        args.emb_pretrained_model,
-        args.ckpt_emb_path,
-        args.w_method,
-        args.k_avg,
+        index=index_avg,
+        emb_pretrained_model=args.emb_pretrained_model,
+        ckpt_emb_path=args.ckpt_emb_path,
+        w_method=args.w_method,
+        k_avg=args.k_avg,
         ckpt_path=args.ckpt_avg_path,
         device=args.device,
     )
@@ -393,8 +393,8 @@ def main(args: argparse.Namespace) -> None:
         ("tct", sys_tct, int_tct),
         ("avg", sys_avg, int_avg),
         ("emb", sys_emb, int_emb),
-        ("tct_emb", sys_tct_emb, int_tct_emb),
-        ("avg_on_emb", sys_avg_on_emb, int_avg_on_emb),
+        # ("tct_emb", sys_tct_emb, int_tct_emb),
+        # ("avg_on_emb", sys_avg_on_emb, int_avg_on_emb),
         ("avg_emb", sys_avg_emb, int_avg_emb),
     ]
 
