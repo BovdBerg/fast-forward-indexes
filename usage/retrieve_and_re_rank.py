@@ -71,12 +71,12 @@ def parse_args():
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the index file.",
     )
-    parser.add_argument(
-        "--index_emb_path", # TODO: find a way to remove need for 2nd index
-        type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
-        help="Path to the index file.",
-    )
+    # parser.add_argument(
+    #     "--index_emb_path", # TODO: find a way to remove need for 2nd index
+    #     type=Path,
+    #     default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
+    #     help="Path to the index file.",
+    # )
     parser.add_argument(
         "--ckpt_emb_path",
         type=Path,
