@@ -87,6 +87,7 @@ class WeightedAvgEncoder(Encoder):
             # TODO: Can I get the weights without feeding mock_embeddings?
             mocked_reps = torch.zeros((self.n_weights, 768), device=device)
             self.learned_weights = learned_weights_model(mocked_reps)
+            print(f"WeightedAvgEncoder.learned_weights: {self.learned_weights}")
 
         self.emb_encoder = StandaloneEncoder(
             ckpt_path=ckpt_emb_path,
