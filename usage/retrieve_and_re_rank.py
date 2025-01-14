@@ -78,12 +78,6 @@ def parse_args():
         help="Path to the index file.",
     )
     parser.add_argument(
-        "--emb_pretrained_model",  # TODO: move to transformer_embedding.py
-        type=str,
-        default="google/bert_uncased_L-12_H-768_A-12",
-        help="Pretrained model to use for the StandaloneEncoder.",
-    )
-    parser.add_argument(
         "--ckpt_emb_path",
         type=Path,
         default="/home/bvdb9/models/emb_bert.ckpt",
@@ -340,7 +334,6 @@ def main(args: argparse.Namespace) -> None:
     index_avg = copy(index_tct)
     index_avg.query_encoder = WeightedAvgEncoder(
         index=index_avg,
-        emb_pretrained_model=args.emb_pretrained_model,
         ckpt_emb_path=args.ckpt_emb_path,
         w_method=args.w_method,
         k_avg=args.k_avg,
@@ -359,7 +352,6 @@ def main(args: argparse.Namespace) -> None:
     # if args.storage == "mem":
     #     index_emb = index_emb.to_memory(2**15)
     # index_emb.query_encoder = StandaloneEncoder(
-    #     args.emb_pretrained_model,
     #     ckpt_path=args.ckpt_emb_path,
     #     device=args.device,
     # )
@@ -377,7 +369,6 @@ def main(args: argparse.Namespace) -> None:
     # avg_on_emb_index = copy(index_emb)
     # avg_on_emb_index.query_encoder = WeightedAvgEncoder(
     #     index=avg_on_emb_index,
-    #     emb_pretrained_model=args.emb_pretrained_model,
     #     ckpt_emb_path=args.ckpt_emb_path,
     #     w_method=args.w_method,
     #     k_avg=args.k_avg,

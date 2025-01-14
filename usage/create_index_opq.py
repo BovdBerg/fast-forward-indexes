@@ -81,7 +81,6 @@ def main(args: argparse.Namespace) -> None:
 
     print("Creating query encoder...")
     query_encoder = StandaloneEncoder(
-        "google/bert_uncased_L-12_H-768_A-12",
         ckpt_path=args.ckpt_path,
         device="cuda" if torch.cuda.is_available() else "cpu",
     )

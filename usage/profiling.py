@@ -157,7 +157,6 @@ def main(args: argparse.Namespace) -> None:
     index_avg.query_encoder = WeightedAvgEncoder(index_avg)
 
     query_encoder_emb = StandaloneEncoder(
-        "google/bert_uncased_L-12_H-768_A-12",
         ckpt_path=args.ckpt_path,
         device=args.device,
     )

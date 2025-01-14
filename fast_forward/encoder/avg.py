@@ -48,7 +48,6 @@ class WeightedAvgEncoder(Encoder):
     def __init__(
         self,
         index: Index,
-        emb_pretrained_model: str,
         ckpt_emb_path: Path,
         w_method: W_METHOD = W_METHOD.LEARNED,
         k_avg: int = 30,
@@ -60,7 +59,6 @@ class WeightedAvgEncoder(Encoder):
 
         Args:
             index (Index): The index containing document embeddings.
-            emb_pretrained_model (str): The pretrained model to use for the embedding encoder.
             ckpt_emb_path (Path): The path to the checkpoint file to load the embedding encoder.
             w_method (W_METHOD): The probability distribution type used to assign weights to top-ranked documents.
             k_avg (int): The number of top-ranked documents to average.
@@ -87,8 +85,8 @@ class WeightedAvgEncoder(Encoder):
             self.learned_weights.eval()
 
         self.emb_encoder = StandaloneEncoder(
-            emb_pretrained_model,
             ckpt_path=ckpt_emb_path,
+            device=device,
         )
 
     def _get_weights(
