@@ -75,7 +75,8 @@ class StandaloneEncoder(Encoder):
             device (str, optional): Device to use. Defaults to "cpu".
         """
         super().__init__()
-        self.tokenizer = AutoTokenizer.from_pretrained("google/bert_uncased_L-12_H-768_A-12")
+        pretrained_model = "google/bert_uncased_L-12_H-768_A-12"
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
         self.encoder = TransformerEmbeddingEncoder(
             str(pretrained_model), ckpt_path, device
         )
