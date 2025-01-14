@@ -327,8 +327,9 @@ def main(args: argparse.Namespace) -> None:
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     ff_tct = FFScore(index_tct)
+    sys_tct_only = sys_bm25_cut >> ff_tct
     int_tct = FFInterpolate(alpha=0.1)
-    sys_tct = sys_bm25_cut >> ff_tct >> int_tct
+    sys_tct_int = sys_tct_only >> int_tct
 
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index_tct)
@@ -360,7 +361,7 @@ def main(args: argparse.Namespace) -> None:
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
     int_tct_emb = FFInterpolate(alpha=0.6)
-    sys_tct_emb = sys_tct >> ff_emb >> int_tct_emb
+    sys_tct_emb = sys_tct_int >> ff_emb >> int_tct_emb
 
     # TODO: With q_emb included in LearnedAvgWeights, this pipeline hopefully isn't needed anymore.
     int_avg_emb = FFInterpolate(alpha=0.4)
@@ -381,7 +382,8 @@ def main(args: argparse.Namespace) -> None:
 
     pipelines = [
         ("bm25", ~sys_bm25, None),
-        ("tct", sys_tct, int_tct),
+        ("tct_only", sys_tct_only, None),
+        ("tct_int", sys_tct_int, int_tct),
         ("avg", sys_avg, int_avg),
         ("emb", sys_emb, int_emb),
         # ("tct_emb", sys_tct_emb, int_tct_emb),
