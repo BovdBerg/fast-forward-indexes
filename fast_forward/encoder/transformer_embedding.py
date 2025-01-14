@@ -8,6 +8,7 @@ from transformers import AutoModel, AutoTokenizer, BatchEncoding
 from fast_forward.encoder import Encoder
 
 
+# TODO: Rename to Encoder names used in ppt.
 class TransformerEmbeddingEncoder(torch.nn.Module):
     """Encodes a string using the average of the embedded tokens.
     Static token embeddings are obtained from a pre-trained Transformer model.

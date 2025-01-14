@@ -38,8 +38,7 @@ class W_METHOD(Enum):
     LEARNED = "LEARNED"
 
 
-# TODO: Train model with query --> TCT-ColBERT query (KD) with custom shape
-# TODO: Train model with query + top_docs as input
+# TODO: Rename to Encoder names used in ppt.
 class WeightedAvgEncoder(Encoder):
     """
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.
