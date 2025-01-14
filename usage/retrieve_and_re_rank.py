@@ -357,7 +357,7 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
     )
     ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.2)
+    int_emb = FFInterpolate(alpha=0.1)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
     int_tct_emb = FFInterpolate(alpha=0.6)
@@ -381,14 +381,14 @@ def main(args: argparse.Namespace) -> None:
     sys_avg_on_emb = sys_bm25_cut >> ff_avg_on_emb >> int_avg_on_emb
 
     pipelines = [
-        ("bm25", ~sys_bm25, None),
-        ("tct_only", sys_tct_only, None),
-        ("tct_int", sys_tct_int, int_tct),
-        ("avg", sys_avg, int_avg),
-        ("emb", sys_emb, int_emb),
+        ("BM25", ~sys_bm25, None),
+        ("TCT-ColBERT", sys_tct_only, None),
+        ("BM25 + TCT-ColBERT", sys_tct_int, int_tct),
+        ("BM25 + Avg", sys_avg, int_avg),
+        ("BM25 + Emb", sys_emb, int_emb),
         # ("tct_emb", sys_tct_emb, int_tct_emb),
         # ("avg_on_emb", sys_avg_on_emb, int_avg_on_emb),
-        ("avg_emb", sys_avg_emb, int_avg_emb),
+        ("BM25 + Avg + Emb", sys_avg_emb, int_avg_emb),
     ]
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
