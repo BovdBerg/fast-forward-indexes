@@ -76,13 +76,17 @@ class WeightedAvgEncoder(Encoder):
             self.n_weights = k_avg + 1  # +1 for q_emb
 
             if ckpt_path is not None:
-                self.learned_weights = LearnedAvgWeights.load_from_checkpoint(
+                learned_weights_model = LearnedAvgWeights.load_from_checkpoint(
                     ckpt_path, n_weights=self.n_weights
                 )
             else:
-                self.learned_weights = LearnedAvgWeights(self.n_weights)
-            self.learned_weights.to(device)
-            self.learned_weights.eval()
+                learned_weights_model = LearnedAvgWeights(self.n_weights)
+            learned_weights_model.to(device)
+            learned_weights_model.eval()
+
+            # TODO: Can I get the weights without feeding mock_embeddings?
+            mocked_reps = torch.zeros((self.n_weights, 768), device=device)
+            self.learned_weights = learned_weights_model(mocked_reps)
 
         self.emb_encoder = StandaloneEncoder(
             ckpt_path=ckpt_emb_path,
@@ -105,15 +109,7 @@ class WeightedAvgEncoder(Encoder):
         n_docs = len(reps)
         match self.w_method:
             case W_METHOD.LEARNED:
-                padding = max(0, self.n_weights - len(reps))
-                d_reps_pad = torch.cat(
-                    (
-                        reps,
-                        torch.zeros(padding, self.index.dim or 0, device=self.device),
-                    )
-                )
-                # TODO [important]: Why does d_reps need to be passed? Shouldn't this just be output weights? Try with mock weights in init to see speedup
-                weights = self.learned_weights(d_reps_pad)[:n_docs]
+                weights = self.learned_weights[:n_docs]
                 return torch.nn.functional.softmax(weights, dim=0)
             case W_METHOD.UNIFORM:
                 return torch.ones(n_docs, device=self.device) / n_docs
