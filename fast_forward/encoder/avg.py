@@ -114,6 +114,7 @@ class WeightedAvgEncoder(Encoder):
                         torch.zeros(padding, self.index.dim or 0, device=self.device),
                     )
                 )
+                # TODO [important]: Why does d_reps need to be passed? Shouldn't this just be output weights? Try with mock weights in init to see speedup
                 weights = self.learned_weights(d_reps_pad)[:n_docs]
                 return torch.nn.functional.softmax(weights, dim=0)
             case W_METHOD.UNIFORM:
@@ -212,6 +213,14 @@ class WeightedAvgEncoder(Encoder):
         return q_reps.cpu().detach().numpy()
 
 
+# TODO: Should be similar to BERT Embedding layer, but Should have q_emb and d_reps as input. 
+# BertEmbeddings(
+#   (word_embeddings): Embedding(30522, 768, padding_idx=0) <-- Embedding()
+#   (position_embeddings): Embedding(512, 768)
+#   (token_type_embeddings): Embedding(2, 768)
+#   (LayerNorm): LayerNorm((768,), eps=1e-12, elementwise_affine=True)
+#   (dropout): Dropout(p=0.1, inplace=False)
+# )
 class LearnedAvgWeights(GeneralModule):
     def __init__(self, n_weights: int = 10):
         super().__init__()
