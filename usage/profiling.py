@@ -2,6 +2,7 @@ import argparse
 import cProfile
 import pstats
 import time
+from time import perf_counter
 from copy import copy
 from pathlib import Path
 
@@ -122,7 +123,7 @@ def main(args: argparse.Namespace) -> None:
     start_time = time.time()
 
     pt.init()
-    dataset = pt.get_dataset("irds:msmarco-passage/dev")
+    dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
     topics = dataset.get_topics()
     if args.batches:
         samples = args.batches * args.batch_size
@@ -141,9 +142,12 @@ def main(args: argparse.Namespace) -> None:
         "msmarco_passage", "terrier_stemmed", wmodel="BM25", verbose=True, memory=True
     )
     sys_bm25_cut = ~sys_bm25 % k_avg
+    t0 = perf_counter()
     sparse_df = sys_bm25_cut(topics)
+    print(f"BM25 retrieval time: {perf_counter() - t0:.5f} seconds.")
     sparse_ranking = Ranking(sparse_df.rename(columns={"qid": "q_id", "docno": "id"}))
 
+    return
     index_tct = OnDiskIndex.load(
         args.index_tct_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
