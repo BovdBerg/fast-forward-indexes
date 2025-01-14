@@ -6,6 +6,7 @@ from pathlib import Path
 import torch
 
 from fast_forward import Indexer, OnDiskIndex
+from fast_forward.encoder.transformer import TransformerEncoder
 from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.quantizer.nanopq import NanoOPQ
 
@@ -26,6 +27,13 @@ def parse_args():
         description="Create an OPQ index from an existing Fast-Forward index."
     )
     parser.add_argument(
+        "--encoder",
+        type=str,
+        required=True,
+        choices=["transformer", "transformer_embedding"],
+        help="Encoder to use.",
+    )
+    parser.add_argument(
         "--src_path",
         type=Path,
         required=True,
@@ -34,7 +42,6 @@ def parse_args():
     parser.add_argument(
         "--ckpt_path",
         type=Path,
-        required=True,
         default="/home/bvdb9/models/emb_768.ckpt",
         help="Path to the encoder checkpoint.",
     )
@@ -80,10 +87,13 @@ def main(args: argparse.Namespace) -> None:
         ff_index_source.to_memory(2**14)
 
     print("Creating query encoder...")
-    query_encoder = StandaloneEncoder(
-        ckpt_path=args.ckpt_path,
-        device="cuda" if torch.cuda.is_available() else "cpu",
-    )
+    device = args.device
+    encoder_mapping = {
+        "transformer": TransformerEncoder(model="google/bert_uncased_L-12_H-768_A-12", device=device),
+        "transformer_embedding": StandaloneEncoder(ckpt_path=args.ckpt_path, device=device),
+    }
+    query_encoder = encoder_mapping[args.encoder]
+
     print("Creating target index...")
     ff_index_des = OnDiskIndex(
         Path(str(args.src_path.absolute()).replace(".h5", "_opq.h5")),
