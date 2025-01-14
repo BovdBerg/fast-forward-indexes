@@ -381,12 +381,10 @@ def main(args: argparse.Namespace) -> None:
 
     pipelines = [
         ("BM25", ~sys_bm25, None),
-        ("BM25 + TCT-ColBERT", sys_tct_int, int_tct),
-        ("BM25 + Avg", sys_avg, int_avg),
-        ("BM25 + Emb", sys_emb, int_emb),
-        # ("tct_emb", sys_tct_emb, int_tct_emb),
-        # ("avg_on_emb", sys_avg_on_emb, int_avg_on_emb),
-        ("BM25 + Avg + Emb", sys_avg_emb, int_avg_emb),
+        ("TCT-ColBERT", sys_tct_int, int_tct),
+        ("AvgTokenEmb(BERT)", sys_emb, int_emb),
+        ("AvgEmb(TCT)", sys_avg, int_avg),
+        ("AvgEmb(TCT) + AvgTokenEmb(BERT)", sys_avg_emb, int_avg_emb),
     ]
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
