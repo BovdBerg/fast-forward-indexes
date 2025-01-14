@@ -39,8 +39,9 @@ def parse_args() -> argparse.Namespace:
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
-        "--with_queries",
-        action="store_true",
+        "--add_query",
+        type=bool,
+        default=True,
         help="Include the query in the model input.",
     )
     parser.add_argument(
@@ -48,12 +49,6 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the TCT index.",
-    )
-    parser.add_argument(
-        "--emb_pretrained_model",
-        type=str,
-        default="google/bert_uncased_L-12_H-768_A-12",
-        help="Pretrained model to use for the embedding encoder.",
     )
     parser.add_argument(
         "--ckpt_emb_path",
@@ -64,7 +59,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--k_avg",
         type=int,
-        default=10,
+        default=30,
         help="Number of top-ranked documents to average.",
     )
     parser.add_argument(
@@ -140,7 +135,6 @@ def setup() -> Tuple[pt.Transformer, TransformerEncoder, WeightedAvgEncoder]:
         index_tct = index_tct.to_memory(2**15)
     encoder_avg = WeightedAvgEncoder(
         index=index_tct,
-        emb_pretrained_model=args.emb_pretrained_model,
         ckpt_emb_path=args.ckpt_emb_path,
         k_avg=args.k_avg,
         ckpt_path=args.ckpt_avg_path,
@@ -209,7 +203,7 @@ def dataset_to_dataloader(
                 if len(d_reps) < args.k_avg:
                     continue  # skip sample: not enough top_docs
 
-                if args.with_queries:
+                if args.add_query:
                     q_emb = torch.tensor(encoder_avg.emb_encoder([query])[0]).unsqueeze(
                         0
                     )
@@ -254,7 +248,7 @@ def main() -> None:
 
     # Train the model
     k_avg = args.k_avg
-    if args.with_queries:
+    if args.add_query:
         k_avg += 1  # +1 for emb-encoded query
     learned_avg_weights = LearnedAvgWeights(k_avg)
     trainer = lightning.Trainer(
