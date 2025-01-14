@@ -44,18 +44,18 @@ class TransformerEmbeddingEncoder(torch.nn.Module):
         self.eval()
 
     def forward(self, batch: BatchEncoding) -> torch.Tensor:
-        input_ids = batch["input_ids"]
-        lengths = (input_ids != 0).sum(dim=1).unsqueeze(-1)
-        sequences_emb = self.embeddings(input_ids)
+        # Get token embeddings
+        tokens_emb = self.embeddings(batch["input_ids"])
 
-        # create a mask corresponding to sequence lengths
-        _, max_len, emb_dim = sequences_emb.shape
-        mask = torch.arange(max_len, device=lengths.device).unsqueeze(0) < lengths
-        mask = mask.unsqueeze(-1).expand(-1, -1, emb_dim)
+        # Apply attention mask to remove padding tokens
+        attention_mask = batch["attention_mask"]
+        masked_emb = tokens_emb * attention_mask.unsqueeze(-1)
 
-        # compute the mean for each sequence
-        rep = torch.sum(mask * sequences_emb, dim=1) / lengths
-        return rep
+        # Compute the mean of the masked embeddings
+        lengths = attention_mask.sum(dim=1, keepdim=True)
+        mean_emb = masked_emb.sum(dim=1) / lengths
+
+        return mean_emb
 
 
 class StandaloneEncoder(Encoder):
