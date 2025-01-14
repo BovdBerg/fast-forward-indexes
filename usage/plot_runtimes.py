@@ -1,7 +1,7 @@
 import argparse
-import pstats
-from pathlib import Path
+from typing import Any, Dict, List
 
+import numpy as np
 from matplotlib import pyplot as plt
 
 
@@ -15,47 +15,75 @@ def parse_args():
     Arguments:
         Run the script with --help or -h to see the full list of arguments.
     """
-    parser = argparse.ArgumentParser(description="Plot the re-ranking profiles.")
-    parser.add_argument(
-        "--profiles",
-        type=str,
-        nargs="*",
-        default=["avg1"],
-        help="The names of the profiles to plot.",
-    )
-    parser.add_argument(
-        "--storage",
-        type=str,
-        default="mem",
-        choices=["disk", "mem"],
-        help="The storage type of the index.",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cpu",
-        choices=["cpu", "cuda"],
-        help="The device used for re-ranking.",
-    )
-    parser.add_argument(
-        "--print_stats",
-        type=int,
-        default=0,
-        help="The number of stats to print.",
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="msmarco-passage",
-        help="The name of the dataset.",
-    )
-    parser.add_argument(
-        "--dense_approach",
-        type=str,
-        default="TCT-ColBERT",
-        help="The name of the lexical retrieval method.",
-    )
+    parser = argparse.ArgumentParser()
     return parser.parse_args()
+
+
+def plot_runtimes(profiles: List[Dict[str, Any]]):
+    def extract_runtimes(key: str) -> List[Any]:
+        return [profile[key] for profile in profiles]
+
+    names = extract_runtimes("name")
+    index_call = extract_runtimes("total")
+    encode_queries = extract_runtimes("encode_queries")
+    get_vectors = extract_runtimes("_get_vectors")
+    compute_scores = extract_runtimes("_compute_scores")
+    other = extract_runtimes("other")
+
+    fig, ax = plt.subplots()
+
+    bar_width = 0.8
+    bars = [
+        ax.bar(names, encode_queries, color="darkviolet", label="encode queries", width=bar_width),
+        ax.bar(names, get_vectors, bottom=encode_queries, label="get vectors", width=bar_width),
+        ax.bar(names, compute_scores, bottom=np.array(encode_queries) + np.array(get_vectors), label="compute scores", width=bar_width),
+        ax.bar(names, other, bottom=np.array(encode_queries) + np.array(get_vectors) + np.array(compute_scores), label="other", width=bar_width),
+    ]
+
+    # Ensure all legend entries are included
+    handles, labels = ax.get_legend_handles_labels()
+    unique_handles_labels = dict(zip(labels, handles))  # Remove duplicates
+    ax.legend(unique_handles_labels.values(), unique_handles_labels.keys())
+
+    # Add percentage text for the first bar of "encode_queries"
+    bar = bars[0][0]
+    runtime = encode_queries[0]
+    total = index_call[0]
+    height = bar.get_height()
+    percentage = (runtime / total) * 100
+    ax.text(
+        bar.get_x() + bar.get_width() / 2,
+        bar.get_y() + height / 2,
+        f'{percentage:.1f}%',
+        ha='center',
+        va='center',
+        color='white',
+        fontsize=12,
+        fontweight='bold',
+    )
+
+    # Add speedup text for bars except the first
+    for i in range(1, len(names)):
+        speedup = index_call[0] / index_call[i]
+        bar = bars[0][i]
+        height = 2.25
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_y() + height + 0.1,
+            f'{speedup:.1f}X',
+            ha='center',
+            va='bottom',
+            color='black',
+            fontsize=12,
+            fontweight='bold',
+        )
+
+    ax.set_xlabel('Pipelines')
+    ax.set_ylabel('Re-ranking runtime (in seconds)')
+    ax.legend()
+
+    fig.savefig("reranking_runtimes.png")  # Save plot as a PNG file
+    plt.show()
 
 
 def main(args: argparse.Namespace) -> None:
@@ -67,182 +95,42 @@ def main(args: argparse.Namespace) -> None:
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
     """
-    profile_dir = Path(__file__).parent.parent / "profiles" / f"{args.storage}_{args.device}"
-    profile_data = {}
+    profiles = [
+        {
+            "name": "TCT-ColBERT",
+            "total": 22.92713,
+            "encode_queries": 20.70111,
+            "_get_vectors": 0.8245,
+            "_compute_scores": 1.18664,
+            "other": 0.21488,
+        },
+        {
+            "name": "AvgTokenEmb",
+            "total": 2.04237,
+            "encode_queries": 0.09653,
+            "_get_vectors": 0.67664,
+            "_compute_scores": 1.074,
+            "other": 0.1952,
+        },
+        {
+            "name": "AvgEmb",
+            "total": 1.87285,
+            "encode_queries": 0.20171,
+            "_get_vectors": 0.56513,
+            "_compute_scores": 0.91053,
+            "other": 0.19548,
+        },
+        {
+            "name": "AvgEmb + AvgTokEmb",
+            "total": 2.16339,
+            "encode_queries": 0.23985,
+            "_get_vectors": 0.69988,
+            "_compute_scores": 1.03983,
+            "other": 0.18383,
+        },
+    ]
 
-    for title in args.profiles:
-        ps = pstats.Stats(str(profile_dir / f"{title}.prof")).sort_stats("cumtime")
-        ps.print_stats(args.print_stats)
-
-        # Get the total runtime of the profile
-        total_time = round(ps.total_tt, 2)
-        print(f"\t{total_time}s (100%) re-ranking runtime")
-        print("\t" + "-" * 50) # Separator
-
-        def runtime(s: str) -> tuple[float, float]:
-            """
-            Returns rounded runtime of first class + method match.
-            """
-            cumtime = next((stat[3] for key, stat in ps.stats.items() if f"{key[0]}:{key[1]}({key[2]})" == s), 0)
-            rounded = round(cumtime, 2)
-            pct = round(cumtime / total_time * 100, 1)
-            return rounded, pct
-
-        # Get the runtime (and re-ranking %) of the 'encode_queries' method
-        q_encoder_s = "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py:70(encode_queries)"
-        q_encoder_time, q_encoder_p = runtime(
-            q_encoder_s
-        )
-        if q_encoder_time == 0:
-            q_encoder_s = "/home/bvdb9/miniconda3/envs/ff/lib/python3.12/site-packages/transformers/models/bert/modeling_bert.py:996(forward)"
-            q_encoder_time, q_encoder_p = runtime(q_encoder_s)
-        print(f"\t{q_encoder_time}s ({q_encoder_p}%) {q_encoder_s}")
-        
-        # Get the runtime (and re-ranking %) of the 'compute_scores' method
-        compute_scores_s = "/home/bvdb9/fast-forward-indexes/fast_forward/index/__init__.py:304(_compute_scores)"
-        compute_scores_time, compute_scores_p = runtime(compute_scores_s)
-        print(f"\t{compute_scores_time}s ({compute_scores_p}%) {compute_scores_s}")
-
-        other_time = round(
-            total_time - q_encoder_time - compute_scores_time, 2
-        )
-        other_p = round(other_time / total_time * 100, 1)
-        print(f"\t{other_time}s ({other_p}%) other")
-        print("=" * 150) # Separator
-
-        # Save a dict of total_time, q_encoder_time and q_encoder_percentage
-        profile_data[title] = {
-            "total_time": total_time,
-            "q_encoder_time": q_encoder_time,
-            "q_encoder_p": q_encoder_p,
-            "compute_scores_time": compute_scores_time,
-            "compute_scores_p": compute_scores_p,
-            "other_time": other_time,
-            "other_p": other_p,
-        }
-
-    return
-    # Create a figure and axis
-    fig, ax = plt.subplots()
-    ax.set_title(
-        f"{args.dataset} with {args.dense_approach}: Re-ranking runtime spent on 'encode_queries' (in %)"
-    )
-
-    # Create a bar chart
-    ax.bar(
-        range(len(profile_data)),
-        [data["q_encoder_p"] for data in profile_data.values()],
-    )
-    # Show percentage above each bar
-    for i, data in enumerate(profile_data.values()):
-        ax.text(
-            i,
-            data["q_encoder_p"] + 2,
-            f"{data['q_encoder_p']}%\nof {data['total_time']}s",
-            ha="center",
-        )
-
-    # Set the x-axis
-    ax.set_xticks(range(len(profile_data)))
-    ax.set_xticklabels(profile_data.keys(), rotation=45, ha="right")
-
-    # Set the y-axis
-    ax.set_yticks(range(0, 101, 10))
-    ax.set_ylabel("Percentage of encode_queries")
-
-    plt.show()
-
-    # Categorize the data into 4 bins: q_encoder, compute_scores, other
-    # Create a bar plot of the 4 bins, with the reranking time as the height
-    # Show the percentage of the total reranking time in the middle of each bar
-
-    # Create a figure and axis
-    fig, ax = plt.subplots()
-    ax.set_title(
-        f"{args.dataset} with {args.dense_approach}: Re-ranking runtime breakdown"
-    )
-
-    # Create a bar chart
-    bar_width = 0.7
-    x = range(len(profile_data))
-    data = list(profile_data.values())
-    ax.bar(
-        x,
-        [data["q_encoder_time"] for data in profile_data.values()],
-        bar_width,
-        label="encode_queries",
-        color="darkviolet",
-    )
-    ax.bar(
-        x,
-        [data["compute_scores_time"] for data in profile_data.values()],
-        bar_width,
-        label="compute_scores",
-        color="seagreen",
-        bottom=[
-            data["q_encoder_time"]
-            for data in profile_data.values()
-        ],
-    )
-    ax.bar(
-        x,
-        [data["other_time"] for data in profile_data.values()],
-        bar_width,
-        label="other",
-        color="lightgrey",
-        bottom=[
-            data["q_encoder_time"] + data["compute_scores_time"]
-            for data in profile_data.values()
-        ],
-    )
-
-    # Show amount of seconds for each segment in its middle, except for values < 3
-    for i, data in enumerate(profile_data.values()):
-        if data["q_encoder_time"] > 3:
-            ax.text(
-                i,
-                data["q_encoder_time"] / 2,
-                f"{data['q_encoder_time']}\n({data['q_encoder_p']}%)",
-                ha="center",
-                va="center",
-                color="white",
-            )
-        if data["compute_scores_time"] > 3:
-            ax.text(
-                i,
-                data["q_encoder_time"]
-                + data["compute_scores_time"] / 2,
-                f"{data['compute_scores_time']}",
-                ha="center",
-                va="center",
-                color="white",
-            )
-        if data["other_time"] > 3:
-            ax.text(
-                i,
-                data["q_encoder_time"]
-                + data["compute_scores_time"]
-                + data["other_time"] / 2,
-                f"{data['other_time']}",
-                ha="center",
-                va="center",
-                color="black",
-            )
-
-    # Set the x-axis
-    ax.set_xticks(range(len(profile_data)))
-    ax.set_xticklabels(profile_data.keys(), rotation=45, ha="right")
-
-    # Set the y-axis
-    ax.set_yticks(range(0, 101, 10))
-    ax.set_ylabel("Distribution of re-ranking time (in s)")
-    ax.legend()
-
-    # Give it a transparent background
-    fig.patch.set_alpha(0)
-    ax.patch.set_alpha(0)
-
-    plt.show()
+    plot_runtimes(profiles)
 
 
 if __name__ == "__main__":
