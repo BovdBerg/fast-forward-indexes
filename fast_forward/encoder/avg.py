@@ -72,7 +72,8 @@ class WeightedAvgEncoder(Encoder):
         self.device = device
 
         if w_method == W_METHOD.LEARNED:
-            self.n_weights = k_avg + 1  # +1 for q_emb
+            # TODO [important]: add +1 to n_weights again after -q_rep measurement
+            self.n_weights = k_avg #+ 1  # +1 for q_emb
 
             if ckpt_path is not None:
                 learned_weights_model = LearnedAvgWeights.load_from_checkpoint(
@@ -190,9 +191,9 @@ class WeightedAvgEncoder(Encoder):
             if reps is None:
                 continue
 
-            if self.w_method == W_METHOD.LEARNED:
-                q_emb = torch.tensor(self.emb_encoder([query])[0], device=self.device).unsqueeze(0)
-                reps = torch.cat((q_emb, reps), dim=0)
+            # if self.w_method == W_METHOD.LEARNED:
+            #     q_emb = torch.tensor(self.emb_encoder([query])[0], device=self.device).unsqueeze(0)
+            #     reps = torch.cat((q_emb, reps), dim=0)
 
             # Get the weights for the top docs using the selected method
             weights = self._get_weights(
