@@ -32,7 +32,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
 
     fig, ax = plt.subplots()
 
-    bar_width = 0.8
+    bar_width = 0.7
     bars = [
         ax.bar(names, encode_queries, color="darkviolet", label="encode queries", width=bar_width),
         ax.bar(names, get_vectors, bottom=encode_queries, label="get vectors", width=bar_width),
@@ -40,21 +40,13 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
         ax.bar(names, other, bottom=np.array(encode_queries) + np.array(get_vectors) + np.array(compute_scores), label="other", width=bar_width),
     ]
 
-    # Ensure all legend entries are included
-    handles, labels = ax.get_legend_handles_labels()
-    unique_handles_labels = dict(zip(labels, handles))  # Remove duplicates
-    ax.legend(unique_handles_labels.values(), unique_handles_labels.keys())
-
     # Add percentage text for the first bar of "encode_queries"
     bar = bars[0][0]
     runtime = encode_queries[0]
-    total = index_call[0]
-    height = bar.get_height()
-    percentage = (runtime / total) * 100
     ax.text(
         bar.get_x() + bar.get_width() / 2,
-        bar.get_y() + height / 2,
-        f'{percentage:.1f}%',
+        bar.get_y() + bar.get_height() / 2,
+        f'{(runtime / index_call[0]) * 100:.1f}%\n{runtime / 128:.2f} s/q',
         ha='center',
         va='center',
         color='white',
@@ -64,13 +56,11 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
 
     # Add speedup text for bars except the first
     for i in range(1, len(names)):
-        speedup = index_call[0] / index_call[i]
         bar = bars[0][i]
-        height = 2.25
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_y() + height + 0.1,
-            f'{speedup:.1f}X',
+            bar.get_y() + 2.5,
+            f'{index_call[0] / index_call[i]:.1f}X',
             ha='center',
             va='bottom',
             color='black',
@@ -82,8 +72,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     ax.set_ylabel('Re-ranking runtime (in seconds)')
     ax.legend()
 
-    fig.savefig("reranking_runtimes.png")  # Save plot as a PNG file
-    plt.show()
+    fig.savefig("reranking_runtimes.png", transparent=True)
 
 
 def main(args: argparse.Namespace) -> None:
