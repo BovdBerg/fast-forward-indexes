@@ -6,12 +6,13 @@ from typing import Optional, Sequence
 import numpy as np
 import pandas as pd
 import torch
+from transformers import AutoModel, AutoTokenizer
 
 from fast_forward.encoder import Encoder
 from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index import Index
-from fast_forward.ranking import Ranking
 from fast_forward.lightning import GeneralModule
+from fast_forward.ranking import Ranking
 
 warnings.filterwarnings("ignore", message="`training_step` returned `None`.*")
 
@@ -73,7 +74,7 @@ class WeightedAvgEncoder(Encoder):
 
         if w_method == W_METHOD.LEARNED:
             # TODO [important]: add +1 to n_weights again after -q_rep measurement
-            self.n_weights = k_avg #+ 1  # +1 for q_emb
+            self.n_weights = k_avg  # + 1  # +1 for q_emb
 
             if ckpt_path is not None:
                 learned_weights_model = LearnedAvgWeights.load_from_checkpoint(
@@ -94,9 +95,7 @@ class WeightedAvgEncoder(Encoder):
             device=device,
         )
 
-    def _get_weights(
-        self, reps: torch.Tensor, scores: Sequence[float]
-    ) -> torch.Tensor:
+    def _get_weights(self, reps: torch.Tensor, scores: Sequence[float]) -> torch.Tensor:
         """
         Get the weights for the top-ranked documents based on the probability distribution type or learned weights.
 
@@ -208,7 +207,7 @@ class WeightedAvgEncoder(Encoder):
         return q_reps.cpu().detach().numpy()
 
 
-# TODO: Should be similar to BERT Embedding layer, but Should have q_emb and d_reps as input. 
+# TODO: Should be similar to BERT Embedding layer, but Should have q_emb and d_reps as input.
 # BertEmbeddings(
 #   (word_embeddings): Embedding(30522, 768, padding_idx=0) <-- Embedding()
 #   (position_embeddings): Embedding(512, 768)
@@ -241,7 +240,7 @@ class LearnedAvgWeights(GeneralModule):
             return None
         return x
 
-    def step( # type: ignore
+    def step(  # type: ignore
         self, batch: tuple[torch.Tensor, torch.Tensor], name: str
     ) -> Optional[torch.Tensor]:
         x, y = batch
@@ -253,3 +252,124 @@ class LearnedAvgWeights(GeneralModule):
         loss = self.loss_fn(q_rep, y)
         self.log(f"{name}_loss", loss)
         return loss
+
+
+class AvgEmbQueryEstimator(GeneralModule):
+    def __init__(
+        self,
+        index: Index,
+        n_docs: int,
+        device: str,
+    ) -> None:
+        """
+        Estimate query embeddings as the weighted average of:
+        - its top-ranked document embeddings.
+        - lightweight semantic query estimation.
+            - based on the weighted average of query's (fine-tuned) token embeddings.
+
+        Note that the optimal values for these values are learned during fine-tuning:
+        - `self.tok_embs`: the token embeddings
+        - `self.tok_embs_avg_weights`: token embedding weighted averages
+        - `self.embs_avg_weights`: embedding weighted averages
+
+        Args:
+            index (Index): The index containing document embeddings.
+            n_docs (int): The number of top-ranked documents to average.
+            device (str): The device to run the encoder on.
+        """
+        super().__init__()
+        self.index = index
+        self.device = device
+
+        doc_encoder_pretrained = "bert-base-uncased"
+        self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
+
+        doc_encoder = AutoModel.from_pretrained(doc_encoder_pretrained)
+        self.tok_embs = doc_encoder.get_input_embeddings()  # Embedding()
+
+        self.tok_embs_avg_weights = torch.nn.Parameter(
+            torch.randn((self.tokenizer.vocab_size,), device=device)
+        )
+
+        n_embs = n_docs + 1
+        self.embs_avg_weights = torch.nn.Parameter(
+            torch.randn((n_embs,), device=device)
+        )
+
+        # TODO: add different w_methods
+        # TODO: load ckpt_path
+
+    @property
+    def lexical_ranking(self) -> Ranking:
+        return self._ranking_in
+
+    @lexical_ranking.setter
+    def lexical_ranking(self, ranking: Ranking):
+        self._ranking_in = ranking.cut(self.k_avg)
+
+    def _get_top_docs(
+        self, query: str, top_ranking: Ranking
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        # TODO: see if this can be rewritten.
+        # Get the ids of the top-ranked documents for the query
+        top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
+        if len(top_docs) == 0:
+            return  # Remains encoded as zeros # type: ignore
+        top_docs_ids: Sequence[str] = top_docs["id"].astype(str).values.tolist()
+        top_docs_scores: Sequence[float] = top_docs["score"].values.tolist()
+
+        # Get the embeddings of the top-ranked documents
+        # TODO: Make sure d_reps is only retrieved once throughout full re-ranking pipeline.
+        d_reps, d_idxs = self.index._get_vectors(top_docs_ids)
+        if self.index.quantizer is not None:
+            d_reps = self.index.quantizer.decode(d_reps)
+
+        # TODO: not just flatten, but use mode (e.g. MaxP). Compare to _compute_scores in index. For non-psg datasets.
+        order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
+        d_reps = d_reps[order]  # sort d_reps on d_ids order
+
+        # Convert d_reps and top_docs_scores to tensors
+        d_reps_tensor = torch.tensor(d_reps, device=self.device)
+        top_docs_scores_tensor = torch.tensor(top_docs_scores, device=self.device)
+
+        return d_reps_tensor, top_docs_scores_tensor
+
+    def forward(self, queries: Sequence[str]):
+        assert (
+            self.lexical_ranking is not None
+        ), "Please set the ranking_in attribute before calling the encoder."
+        assert self.index.dim is not None, "Index dimension cannot be None"
+
+        # TODO [important speed-up]: handle in batches.
+        q_embs = torch.zeros((len(queries), self.index.dim), device=self.device)
+        for i, query in enumerate(queries):
+            q_emb = self.forward_one_query(query)
+            q_embs[i] = q_emb
+
+        return q_embs
+
+    def forward_one_query(self, query: str) -> torch.Tensor:
+        # Tokenizer queries using the doc_encoder_pretrained tokenizer
+        q_tokens = self.tokenizer(list(query), return_tensors="pt", padding=True)
+
+        # lookup q_tokens in self.tok_embs
+        q_tok_embs = self.tok_embs(q_tokens["input_ids"].to(self.device))
+
+        # estimate lightweight query as weighted average of q_tok_embs
+        # TODO: verify that padding is masked properly before softmax and averaging
+        q_tok_weights = torch.nn.functional.softmax(
+            self.tok_embs_avg_weights[torch.tensor(q_tokens["input_ids"])], dim=-1
+        )
+        q_emb_1 = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), dim=1)
+
+        # lookup embeddings of top-ranked documents in (in-memory) self.index
+        d_embs = (
+            self.index.get_vectors()
+        )  # TODO: use a lexical_ranking cutoff at n_docs for this
+
+        # estimate query embedding as weighted average of q_emb and d_embs
+        embs = torch.cat((q_emb_1, d_embs), dim=0)
+        embs_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=0)
+        q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), dim=0)
+
+        return q_emb_2
