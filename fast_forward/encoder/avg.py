@@ -69,7 +69,7 @@ class WeightedAvgEncoder(Encoder):
         self.index = index
         self.w_method = w_method
         self.k_avg = k_avg
-        self._ranking_in = None
+        self._ranking = None
         self.device = device
 
         if w_method == W_METHOD.LEARNED:
@@ -161,12 +161,12 @@ class WeightedAvgEncoder(Encoder):
         return d_reps_tensor, top_docs_scores_tensor
 
     @property
-    def ranking_in(self):
-        return self._ranking_in
+    def ranking(self) -> Optional[Ranking]:
+        return self._ranking
 
-    @ranking_in.setter
-    def ranking_in(self, ranking: Ranking):
-        self._ranking_in = ranking.cut(self.k_avg)
+    @ranking.setter
+    def ranking(self, ranking: Ranking):
+        self._ranking = ranking.cut(self.k_avg)
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
         """
@@ -254,12 +254,13 @@ class LearnedAvgWeights(GeneralModule):
         return loss
 
 
-class AvgEmbQueryEstimator(GeneralModule):
+class AvgEmbQueryEstimator(Encoder, GeneralModule):
     def __init__(
         self,
         index: Index,
         n_docs: int,
         device: str,
+        ranking: Optional[Ranking] = None,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -276,68 +277,44 @@ class AvgEmbQueryEstimator(GeneralModule):
             index (Index): The index containing document embeddings.
             n_docs (int): The number of top-ranked documents to average.
             device (str): The device to run the encoder on.
+            ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
         """
         super().__init__()
         self.index = index
-        self.device = device
+        self._ranking = ranking
 
         doc_encoder_pretrained = "bert-base-uncased"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
 
         doc_encoder = AutoModel.from_pretrained(doc_encoder_pretrained)
-        self.tok_embs = doc_encoder.get_input_embeddings()  # Embedding()
+        self.tok_embs = (
+            doc_encoder.get_input_embeddings()
+        )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
 
         self.tok_embs_avg_weights = torch.nn.Parameter(
-            torch.randn((self.tokenizer.vocab_size,), device=device)
-        )
+            torch.randn(self.tokenizer.vocab_size)
+        )  # weights for averaging over q's token embedding, shape (vocab_size,)
 
         n_embs = n_docs + 1
         self.embs_avg_weights = torch.nn.Parameter(
-            torch.randn((n_embs,), device=device)
-        )
+            torch.randn(n_embs)
+        )  # weights for averaging over q_emb1 ++ d_embs, shape (n_embs,)
 
         # TODO: add different w_methods
         # TODO: load ckpt_path
 
+        self.to(device)
+
     @property
-    def lexical_ranking(self) -> Ranking:
-        return self._ranking_in
+    def ranking(self) -> Optional[Ranking]:
+        return self._ranking
 
-    @lexical_ranking.setter
-    def lexical_ranking(self, ranking: Ranking):
-        self._ranking_in = ranking.cut(self.k_avg)
+    @ranking.setter
+    def ranking(self, ranking: Ranking):
+        self._ranking = ranking.cut(self.k_avg)
 
-    def _get_top_docs(
-        self, query: str, top_ranking: Ranking
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        # TODO: see if this can be rewritten.
-        # Get the ids of the top-ranked documents for the query
-        top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
-        if len(top_docs) == 0:
-            return  # Remains encoded as zeros # type: ignore
-        top_docs_ids: Sequence[str] = top_docs["id"].astype(str).values.tolist()
-        top_docs_scores: Sequence[float] = top_docs["score"].values.tolist()
-
-        # Get the embeddings of the top-ranked documents
-        # TODO: Make sure d_reps is only retrieved once throughout full re-ranking pipeline.
-        d_reps, d_idxs = self.index._get_vectors(top_docs_ids)
-        if self.index.quantizer is not None:
-            d_reps = self.index.quantizer.decode(d_reps)
-
-        # TODO: not just flatten, but use mode (e.g. MaxP). Compare to _compute_scores in index. For non-psg datasets.
-        order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
-        d_reps = d_reps[order]  # sort d_reps on d_ids order
-
-        # Convert d_reps and top_docs_scores to tensors
-        d_reps_tensor = torch.tensor(d_reps, device=self.device)
-        top_docs_scores_tensor = torch.tensor(top_docs_scores, device=self.device)
-
-        return d_reps_tensor, top_docs_scores_tensor
-
-    def forward(self, queries: Sequence[str]):
-        assert (
-            self.lexical_ranking is not None
-        ), "Please set the ranking_in attribute before calling the encoder."
+    def forward(self, queries: Sequence[str]) -> torch.Tensor:
+        assert self._ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None"
 
         # TODO [important speed-up]: handle in batches.
@@ -357,9 +334,9 @@ class AvgEmbQueryEstimator(GeneralModule):
 
         # estimate lightweight query as weighted average of q_tok_embs
         # TODO: verify that padding is masked properly before softmax and averaging
-        q_tok_weights = torch.nn.functional.softmax(
-            self.tok_embs_avg_weights[torch.tensor(q_tokens["input_ids"])], dim=-1
-        )
+        # TODO: try excluding [CLS] and [SEP] token embeddings too, might improve fine-tuning for query tokens
+        avg_tok_embs = self.tok_embs_avg_weights[torch.tensor(q_tokens["input_ids"])]
+        q_tok_weights = torch.nn.functional.softmax(avg_tok_embs, dim=-1)
         q_emb_1 = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), dim=1)
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
@@ -373,3 +350,6 @@ class AvgEmbQueryEstimator(GeneralModule):
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), dim=0)
 
         return q_emb_2
+
+    def __call__(self, queries: Sequence[str]) -> np.ndarray:
+        return self.forward(queries).cpu().detach().numpy()
