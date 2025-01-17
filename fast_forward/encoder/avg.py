@@ -179,13 +179,13 @@ class WeightedAvgEncoder(Encoder):
         """
         assert (
             self.ranking is not None
-        ), "Please set the ranking_in attribute before calling the encoder."
+        ), "Please set the ranking attribute before calling the encoder."
         assert self.index.dim is not None, "Index dimension cannot be None"
 
         # TODO [important]: handle in batches.
         q_reps = torch.zeros((len(queries), self.index.dim), device=self.device)
         for i, query in enumerate(queries):
-            reps, top_docs_scores = self._get_top_docs(query, self.ranking_in)
+            reps, top_docs_scores = self._get_top_docs(query, self.ranking)
             if reps is None:
                 continue
 
