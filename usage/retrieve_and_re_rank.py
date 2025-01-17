@@ -380,11 +380,11 @@ def main(args: argparse.Namespace) -> None:
     # sys_avg_on_emb = sys_bm25_cut >> ff_avg_on_emb >> int_avg_on_emb
 
     pipelines = [
-        ("BM25", ~sys_bm25, None),
-        ("TCT-ColBERT", sys_tct_int, int_tct),
-        # ("AvgTokenEmb(BERT)", sys_emb, int_emb),
-        ("AvgEmb(TCT)", sys_avg, int_avg),
-        # ("AvgEmb(TCT) + AvgTokenEmb(BERT)", sys_avg_emb, int_avg_emb),
+        ("bm25", "BM25", ~sys_bm25, None),
+        ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
+        # ("emb", "AvgTokenEmb(BERT)", sys_emb, int_emb),
+        ("avg", "AvgEmb(TCT)", sys_avg, int_avg),
+        # ("avg_emb", "AvgEmb(TCT) + AvgTokenEmb(BERT)", sys_avg_emb, int_avg_emb),
     ]
 
     # TODO [maybe]: Improve validation by local optimum search for best alpha
@@ -404,9 +404,9 @@ def main(args: argparse.Namespace) -> None:
 
         # Validate pipelines in args.val_pipelines
         alphas = [round(x, 2) for x in np.arange(0, 1.0001, 0.1)]
-        for name, system, tunable in pipelines:
+        for abbrev, name, system, tunable in pipelines:
             if tunable is None or (
-                args.val_pipelines != ["all"] and name not in args.val_pipelines
+                args.val_pipelines != ["all"] and (abbrev not in args.val_pipelines and name not in args.val_pipelines)
             ):
                 continue
 
@@ -430,13 +430,13 @@ def main(args: argparse.Namespace) -> None:
             print(f"\nRunning final tests on {test_dataset_name}...")
             decimals = 5
             results = pt.Experiment(
-                [pipeline for _, pipeline, _ in pipelines],
+                [pipeline for _, _, pipeline, _ in pipelines],
                 test_dataset.get_topics(),
                 test_dataset.get_qrels(),
                 eval_metrics=eval_metrics,
                 names=[
                     name if not tunable else f"{name}, α=[{tunable.alpha}]"
-                    for name, _, tunable in pipelines
+                    for _, name, _, tunable in pipelines
                 ],
                 round=decimals,
                 verbose=True,
