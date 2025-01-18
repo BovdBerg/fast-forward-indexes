@@ -134,10 +134,14 @@ class WeightedAvgEncoder(Encoder):
                 )
 
     def _get_top_docs(
-        self, query: str, top_ranking: Ranking
+        self, query: str
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        assert (
+            self.ranking is not None
+        ), "Please set the ranking attribute before calling the encoder."
+
         # Get the ids of the top-ranked documents for the query
-        top_docs: pd.DataFrame = top_ranking._df.query("query == @query")
+        top_docs: pd.DataFrame = self.ranking._df.query("query == @query")
         if len(top_docs) == 0:
             return  # Remains encoded as zeros # type: ignore
         top_docs_ids: Sequence[str] = top_docs["id"].astype(str).values.tolist()
@@ -177,15 +181,12 @@ class WeightedAvgEncoder(Encoder):
         Returns:
             np.ndarray: An array of query embeddings.
         """
-        assert (
-            self.ranking is not None
-        ), "Please set the ranking attribute before calling the encoder."
         assert self.index.dim is not None, "Index dimension cannot be None"
 
         # TODO [important]: handle in batches.
         q_reps = torch.zeros((len(queries), self.index.dim), device=self.device)
         for i, query in enumerate(queries):
-            reps, top_docs_scores = self._get_top_docs(query, self.ranking)
+            reps, top_docs_scores = self._get_top_docs(query)
             if reps is None:
                 continue
 
