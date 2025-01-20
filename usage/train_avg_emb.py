@@ -1,8 +1,10 @@
 import argparse
+import os
+import pickle
 import time
 import warnings
 from pathlib import Path
-from typing import Sequence, Tuple
+from typing import Tuple
 
 import lightning
 import pandas as pd
@@ -20,6 +22,10 @@ from fast_forward.ranking import Ranking
 warnings.filterwarnings(
     "ignore", category=FutureWarning, message=".*weights_only=False.*"
 )
+warnings.filterwarnings(
+    "ignore", category=FutureWarning, message=".*`resume_download` is deprecated.*"
+)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,7 +56,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--n_docs",
         type=int,
-        default=30,
+        default=3,  # TODO: Train and evaluate with different n_docs
         help="Number of top-ranked documents to average.",
     )
     parser.add_argument(
@@ -68,7 +74,7 @@ def parse_args() -> argparse.Namespace:
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
-        "--samples",
+        "--samples",  # TODO: Train with all samples
         type=int,
         default=10_000,
         help="Number of queries to sample from the dataset.",
@@ -76,7 +82,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num_workers",
         type=int,
-        default=11,
+        default=4,
         help="Number of workers for the DataLoader.",
     )
 
@@ -102,6 +108,7 @@ def create_data(
     )
 
     dataset = []
+    # TODO: Create and load data per 10_000 samples (see train_avg_weights.py)
     if (dataset_file).exists():
         print(f"Loading dataset from {dataset_file}")
         dataset = torch.load(dataset_file)
@@ -117,9 +124,37 @@ def create_data(
         shuffle=shuffle,
         num_workers=args.num_workers,
         drop_last=True,
+        batch_size=32,  # 32 = default encoder_batch_size in FF Index
     )
 
     return dataloader, topics
+
+
+def create_lexical_ranking(queries: pd.DataFrame):
+    cache_file = args.dataset_cache_path / f"ranking_cache_{args.samples}samples.pt"
+
+    if Path(cache_file).exists():
+        with open(cache_file, "rb") as f:
+            return pickle.load(f)
+
+    sys_bm25 = (
+        pt.BatchRetrieve.from_dataset(
+            "msmarco_passage",
+            "terrier_stemmed",
+            wmodel="BM25",
+            memory=True,
+            verbose=True,
+            num_results=args.n_docs,
+        )
+        % args.n_docs
+    )
+    lexical_df = sys_bm25.transform(queries)
+    ranking = Ranking(lexical_df.rename(columns={"qid": "q_id", "docno": "id"}))
+
+    with open(cache_file, "wb") as f:
+        pickle.dump(ranking, f)
+    
+    return ranking
 
 
 def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
@@ -130,24 +165,18 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         dataset_name="irds:msmarco-passage/train", samples=args.samples, shuffle=True
     )
     val_dataloader, val_topics = create_data(
-        dataset_name="irds:msmarco-passage/eval", samples=1_000, shuffle=False
+        dataset_name="irds:msmarco-passage/eval",
+        samples=min(1_000, args.samples),
+        shuffle=False,
     )
 
-
     # Create model pre-requisites
+    all_topics = pd.concat([train_topics, val_topics])
+    lexical_ranking = create_lexical_ranking(all_topics)
+
     index = OnDiskIndex.load(args.index_tct_path)
     if args.storage == "mem":
         index = index.to_memory(2**15)
-
-    sys_bm25 = pt.BatchRetrieve.from_dataset(
-        "msmarco_passage", "terrier_stemmed", wmodel="BM25", memory=True, verbose=True
-    )
-    all_topics = train_topics + val_topics
-    # TODO: why is all_topics NaN for qid and query
-    print(f"all_topics:\n{all_topics}")
-    lexical_ranking = Ranking(
-        sys_bm25.transform(all_topics).rename(columns={"qid": "q_id", "docno": "id"})
-    )
 
     # Create model instance
     query_estimator = AvgEmbQueryEstimator(
@@ -170,13 +199,12 @@ def main() -> None:
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,
-        limit_train_batches=args.samples,
-        log_every_n_steps=1 if args.samples <= 1000 else args.samples // 100,
-        val_check_interval=1.0 if args.samples <= 1000 else 0.1,
+        log_every_n_steps=1 if len(train_dataloader) <= 1000 else len(train_dataloader) // 100,
+        val_check_interval=1.0 if len(train_dataloader) <= 1_000 else 0.25 if len(train_dataloader) <= 10_000 else 0.1,
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.EarlyStopping(
-                monitor="val_loss", min_delta=1e-4, patience=5, verbose=True
+                monitor="val_loss", min_delta=1e-3, patience=5, verbose=True
             ),
         ],
     )

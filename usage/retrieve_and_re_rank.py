@@ -1,13 +1,10 @@
 import argparse
-import cProfile
-import pstats
 import time
 import warnings
 from copy import copy
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
-import gspread
 import numpy as np
 import pandas as pd
 import pyterrier as pt
@@ -23,9 +20,8 @@ from gspread_formatting import (
 )
 from ir_measures import measures
 
-from fast_forward.encoder.avg import W_METHOD, WeightedAvgEncoder
+from fast_forward.encoder.avg import W_METHOD, AvgEmbQueryEstimator
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
-from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
@@ -86,7 +82,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_avg_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/k_avg=30+queryBERT.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=3.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
@@ -124,9 +120,9 @@ def parse_args():
         help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     parser.add_argument(
-        "--k_avg",
+        "--n_docs",
         type=int,
-        default=30,
+        default=3,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     # VALIDATION
@@ -204,7 +200,7 @@ def print_settings() -> str:
     # General settings
     settings_description: List[str] = [
         f"sparse_cutoff={args.sparse_cutoff}, storage={args.storage}, device={args.device}",
-        f"WeightedAvgEncoder: w_method={args.w_method.name}, k_avg={args.k_avg}",
+        f"WeightedAvgEncoder: w_method={args.w_method.name}, n_docs={args.n_docs}",
     ]
     # Validation settings
     if args.val_pipelines:
@@ -332,12 +328,9 @@ def main(args: argparse.Namespace) -> None:
 
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avg = copy(index_tct)
-    index_avg.query_encoder = WeightedAvgEncoder(
+    index_avg.query_encoder = AvgEmbQueryEstimator(
         index=index_avg,
-        ckpt_emb_path=args.ckpt_emb_path,
-        w_method=args.w_method,
-        k_avg=args.k_avg,
-        ckpt_path=args.ckpt_avg_path,
+        n_docs=args.n_docs,
         device=args.device,
     )
     ff_avg = FFScore(index_avg)
@@ -371,7 +364,7 @@ def main(args: argparse.Namespace) -> None:
     #     index=avg_on_emb_index,
     #     ckpt_emb_path=args.ckpt_emb_path,
     #     w_method=args.w_method,
-    #     k_avg=args.k_avg,
+    #     k_avg=args.n_docs,
     #     ckpt_path=args.ckpt_avg_path,
     #     device=args.device,
     # )
@@ -380,8 +373,8 @@ def main(args: argparse.Namespace) -> None:
     # sys_avg_on_emb = sys_bm25_cut >> ff_avg_on_emb >> int_avg_on_emb
 
     pipelines = [
-        ("bm25", "BM25", ~sys_bm25, None),
-        ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
+        # ("bm25", "BM25", ~sys_bm25, None),
+        # ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
         # ("emb", "AvgTokenEmb(BERT)", sys_emb, int_emb),
         ("avg", "AvgEmb(TCT)", sys_avg, int_avg),
         # ("avg_emb", "AvgEmb(TCT) + AvgTokenEmb(BERT)", sys_avg_emb, int_avg_emb),

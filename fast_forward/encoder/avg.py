@@ -312,38 +312,30 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
     @ranking.setter
     def ranking(self, ranking: Ranking):
-        self._ranking = ranking.cut(self.k_avg)
+        self._ranking = ranking.cut(self.n_docs)
 
-    def _get_top_docs(
-        self, queries: List[str]
-    ) -> torch.Tensor:
+    def _get_top_docs(self, queries: Sequence[str]) -> Optional[torch.Tensor]:
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
 
-        # Get the ids of the top-ranked documents for the query
-        top_docs: pd.DataFrame = self.ranking._df.query("query == @queries")
-        top_docs_ids: Sequence[str] = top_docs["id"].astype(str).values.tolist()
+        # Get the embeddings of queries' top-ranked documents
+        top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
+        # TODO: top_docs should be mapped (queries * n_docs, dim) --> (queries, n_docs, dim). If any queries have no top_docs, return + catch something for that entry (e.g. -1 for all values).
+        if len(top_docs) == 0:
+            return None
 
-        # Get the embeddings of the top-ranked documents
-        # TODO: Make sure d_reps is only retrieved once throughout full re-ranking pipeline.
+        top_docs_ids = top_docs["id"].astype(str).values.tolist()
         d_embs, d_idxs = self.index._get_vectors(top_docs_ids)
         if self.index.quantizer is not None:
             d_embs = self.index.quantizer.decode(d_embs)
 
-        # TODO: not just flatten, but use mode (e.g. MaxP). Compare to _compute_scores in index. For non-psg datasets.
-        order = [x[0] for x in d_idxs]  # [[0], [2], [1]] --> [0, 2, 1]
-        d_embs = d_embs[order]  # sort d_reps on d_ids order
+        # Sort and convert embeddings to tensor
+        d_embs = torch.tensor(d_embs[[x[0] for x in d_idxs]], device=self.device)
+        return d_embs.view(len(queries), self.n_docs, self.index.dim)
 
-        # Convert d_reps to tensors and reshape to (batch_size, n_docs, emb_dim)
-        # TODO: Add more sophisticated approach as d_embs < n_docs would not be matched to the right q_id.
-        d_embs = torch.tensor(d_embs, device=self.device)
-        d_embs = d_embs.view(len(queries), self.n_docs, self.index.dim)
-
-        return d_embs
-
-    def forward(self, queries: List[str]) -> torch.Tensor:
+    def forward(self, queries: Sequence[str]) -> torch.Tensor:
         # Tokenizer queries using the doc_encoder_pretrained tokenizer
-        q_tokens = self.tokenizer(queries, return_tensors="pt", padding=True)
+        q_tokens = self.tokenizer(list(queries), return_tensors="pt", padding=True)
         input_ids = q_tokens["input_ids"].to(self.device)
 
         # lookup q_tokens in self.tok_embs
@@ -351,20 +343,21 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         # estimate lightweight query as weighted average of q_tok_embs
         # TODO: verify that padding is masked properly before softmax and averaging
-        # TODO: try excluding [CLS] and [SEP] token embeddings too, might improve fine-tuning for query tokens
+        # TODO: try excluding [CLS] and [SEP] token embeddings too (when tokenizing), might improve fine-tuning for query tokens
         q_tok_weights = self.tok_embs_avg_weights[input_ids]  # get weights for q tokens
-        q_tok_weights = torch.nn.functional.softmax(q_tok_weights, dim=-1)  # softmax over weights
-        q_emb_1 = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), dim=1).unsqueeze(1)  # weighted average
+        q_tok_weights = torch.nn.functional.softmax(q_tok_weights, dim=-1).unsqueeze(-1)  # softmax over weights
+        q_emb_1 = torch.sum(q_tok_embs * q_tok_weights, dim=1).unsqueeze(1)  # weighted average
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs = self._get_top_docs(queries)
+        if d_embs is None:
+            return q_emb_1.squeeze(1)  # return q_emb_1 directly
 
         # estimate query embedding as weighted average of q_emb and d_embs
-        embs = torch.cat((q_emb_1, d_embs), dim=1)
-        embs_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=-1)
-        q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), dim=1)
+        embs = torch.cat((q_emb_1, d_embs), dim=-2)
+        embs_weights = torch.nn.functional.softmax(self.embs_avg_weights[:embs.shape[-2]], dim=-1).unsqueeze(-1)
+        # print(f"embs_weights: {embs_weights.squeeze(-1)}")
+        return torch.sum(embs * embs_weights, dim=-2)
 
-        return q_emb_2
-
-    def __call__(self, queries: Sequence[str]) -> np.ndarray:
-        return self.forward(list(queries)).cpu().detach().numpy()
+    def __call__(self, queries: Sequence[str]) -> torch.Tensor:
+        return self.forward(queries)
