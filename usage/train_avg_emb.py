@@ -220,7 +220,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
     )
 
     # Create model pre-requisites
-    all_topics = pd.concat([train_topics, val_topics])
+    all_topics = pd.concat([val_topics, train_topics])  # Important that val_topics is first, because len(train_topics) may vary.
     queries_path = args.dataset_cache_path / f"{len(all_topics)}_topics.csv"
     all_topics.to_csv(queries_path, index=False)
     lexical_ranking = create_lexical_ranking(queries_path)
