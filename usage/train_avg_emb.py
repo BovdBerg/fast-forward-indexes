@@ -204,7 +204,7 @@ def main() -> None:
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.EarlyStopping(
-                monitor="val_loss", min_delta=1e-3, patience=5, verbose=True
+                monitor="val_loss", min_delta=1e-4, patience=5, verbose=True
             ),
         ],
     )
