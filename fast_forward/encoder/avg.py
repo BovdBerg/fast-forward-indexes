@@ -386,5 +386,5 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), dim=-2)
         return q_emb_2
 
-    def __call__(self, queries: Sequence[str]) -> torch.Tensor:
-        return self.forward(queries)
+    def __call__(self, queries: Sequence[str]) -> np.ndarray:
+        return self.forward(queries).cpu().detach().numpy()
