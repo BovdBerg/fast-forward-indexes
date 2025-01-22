@@ -354,7 +354,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         input_ids = q_tokens["input_ids"].to(self.device)
 
         # lookup q_tokens in self.tok_embs
-        q_tok_embs = self.tok_embs(q_tokens["input_ids"].to(self.device))
+        q_tok_embs = self.tok_embs(input_ids)
 
         # estimate lightweight query as weighted average of q_tok_embs
         # TODO: verify that padding is masked properly before softmax and averaging
