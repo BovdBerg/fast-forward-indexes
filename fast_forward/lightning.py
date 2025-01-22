@@ -34,7 +34,7 @@ class GeneralModule(lightning.LightningModule):
         self, batch: tuple[torch.Tensor, torch.Tensor], name: str
     ) -> torch.Tensor:
         x, y = batch
-        logits = self(x)
+        logits = self.forward(x)
         loss = self.loss_fn(logits, y)
         self.log(f"{name}_loss", loss)
         return loss
