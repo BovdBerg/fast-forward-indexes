@@ -68,12 +68,6 @@ def parse_args():
         help="Path to the index file.",
     )
     parser.add_argument(
-        "--index_emb_path", # TODO: find a way to remove need for 2nd index
-        type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
-        help="Path to the index file.",
-    )
-    parser.add_argument(
         "--ckpt_emb_path",
         type=Path,
         default="/home/bvdb9/models/emb_bert.ckpt",
@@ -331,47 +325,10 @@ def main(args: argparse.Namespace) -> None:
     int_avg = FFInterpolate(alpha=0.1)
     sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
-    # index_emb = OnDiskIndex.load(
-    #     args.index_emb_path,
-    #     verbose=args.verbose,
-    #     profiling=args.profiling,
-    # )
-    # if args.storage == "mem":
-    #     index_emb = index_emb.to_memory(2**15)
-    # index_emb.query_encoder = StandaloneEncoder(
-    #     ckpt_path=args.ckpt_emb_path,
-    #     device=args.device,
-    # )
-    # ff_emb = FFScore(index_emb)
-    # int_emb = FFInterpolate(alpha=0.1)
-    # sys_emb = sys_bm25_cut >> ff_emb >> int_emb
-
-    # int_tct_emb = FFInterpolate(alpha=0.6)
-    # sys_tct_emb = sys_tct_int >> ff_emb >> int_tct_emb
-
-    # # TODO: With q_emb included in LearnedAvgWeights, this pipeline hopefully isn't needed anymore.
-    # int_avg_emb = FFInterpolate(alpha=0.4)
-    # sys_avg_emb = sys_avg >> ff_emb >> int_avg_emb
-
-    # avg_on_emb_index = copy(index_emb)
-    # avg_on_emb_index.query_encoder = WeightedAvgEncoder(
-    #     index=avg_on_emb_index,
-    #     ckpt_emb_path=args.ckpt_emb_path,
-    #     w_method=args.w_method,
-    #     k_avg=args.n_docs,
-    #     ckpt_path=args.ckpt_avg_path,
-    #     device=args.device,
-    # )
-    # ff_avg_on_emb = FFScore(avg_on_emb_index)
-    # int_avg_on_emb = FFInterpolate(alpha=0.5)
-    # sys_avg_on_emb = sys_bm25_cut >> ff_avg_on_emb >> int_avg_on_emb
-
     pipelines = [
         # ("bm25", "BM25", ~sys_bm25, None),
         # ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
-        # ("emb", "AvgTokenEmb(BERT)", sys_emb, int_emb),
         ("avg", "AvgEmb(TCT)", sys_avg, int_avg),
-        # ("avg_emb", "AvgEmb(TCT) + AvgTokenEmb(BERT)", sys_avg_emb, int_avg_emb),
     ]
 
     # Validation and parameter tuning on dev set
