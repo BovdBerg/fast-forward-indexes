@@ -75,7 +75,7 @@ def parse_args() -> argparse.Namespace:
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
-        "--samples",  # TODO: Train with all samples
+        "--samples",
         type=int,
         default=None,
         help="Number of queries to sample from the dataset. If not specified, use all samples.",

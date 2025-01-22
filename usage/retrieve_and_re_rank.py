@@ -257,7 +257,6 @@ def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
         )
 
 
-# TODO [later]: Further improve efficiency of re-ranking step. Discuss with ChatGPT and Jurek.
 def main(args: argparse.Namespace) -> None:
     """
     Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
@@ -375,7 +374,6 @@ def main(args: argparse.Namespace) -> None:
         # ("avg_emb", "AvgEmb(TCT) + AvgTokenEmb(BERT)", sys_avg_emb, int_avg_emb),
     ]
 
-    # TODO [maybe]: Improve validation by local optimum search for best alpha
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
         print("\033[33m")

@@ -39,7 +39,7 @@ class W_METHOD(Enum):
     LEARNED = "LEARNED"
 
 
-# TODO: Rename to Encoder names used in ppt.
+# TODO: Remove WeightedAvgEncoder (keep relevant w_method logic) and LearnedAvgWeights, to avoid confusion with AvgEmbQueryEstimator.
 class WeightedAvgEncoder(Encoder):
     """
     WeightedAvgEncoder estimates the query embeddings as the weighted average of the top-ranked document embeddings.
