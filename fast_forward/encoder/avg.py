@@ -96,7 +96,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         self.to(device)
         self.eval()
-        print(f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self.embs_avg_weights)}")
+
+        print(
+            f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self.embs_avg_weights)}"
+        )
 
     @property
     def ranking(self) -> Optional[Ranking]:
@@ -134,22 +137,20 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         # Tokenizer queries using the doc_encoder_pretrained tokenizer
-        q_tokens = self.tokenizer(list(queries), return_tensors="pt", padding=True)
-        input_ids = q_tokens["input_ids"].to(self.device)
-
-        # lookup q_tokens in self.tok_embs
-        q_tok_embs = self.tok_embs(input_ids)
+        q_tokens = self.tokenizer(
+            list(queries),
+            return_tensors="pt",
+            padding=True,
+            # add_special_tokens=False  # TODO: try training without special tokens [CLS], [SEP]
+        ).to(self.device)
 
         # estimate lightweight query as weighted average of q_tok_embs
         # TODO: verify that padding is masked properly before softmax and averaging
-        # TODO: try excluding [CLS] and [SEP] token embeddings too (when tokenizing), might improve fine-tuning for query tokens
-        q_tok_weights = self.tok_embs_avg_weights[input_ids]  # get weights for q tokens
-        q_tok_weights = torch.nn.functional.softmax(q_tok_weights, dim=-1).unsqueeze(
-            -1
-        )  # softmax over weights
+        q_tok_embs = self.tok_embs(q_tokens["input_ids"])  # lookup q_tokens in self.tok_embs
+        q_tok_weights = torch.nn.functional.softmax(self.tok_embs_avg_weights[q_tokens["input_ids"]], dim=-1).unsqueeze(-1)  # type: ignore
         q_emb_1 = torch.sum(q_tok_embs * q_tok_weights, dim=1).unsqueeze(
             1
-        )  # weighted average
+        )
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
