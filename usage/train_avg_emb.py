@@ -77,8 +77,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--samples",  # TODO: Train with all samples
         type=int,
-        default=10_000,
-        help="Number of queries to sample from the dataset.",
+        default=None,
+        help="Number of queries to sample from the dataset. If not specified, use all samples.",
     )
     parser.add_argument(
         "--num_workers",
@@ -210,12 +210,17 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
     print("\033[96m")  # Prints during setup are colored cyan
     pt.init()
 
+    train_topics = pt.get_dataset("irds:msmarco-passage/train").get_topics()
+    n_train_topics = len(train_topics)
+    if args.samples is not None:
+        n_train_topics = min(args.samples, n_train_topics)
+
     train_dataloader, train_topics = create_data(
-        dataset_name="irds:msmarco-passage/train", samples=args.samples, shuffle=True
+        dataset_name="irds:msmarco-passage/train", samples=n_train_topics, shuffle=True
     )
     val_dataloader, val_topics = create_data(
         dataset_name="irds:msmarco-passage/eval",
-        samples=min(1_000, args.samples),
+        samples=min(1_000, n_train_topics),
         shuffle=False,
     )
 
