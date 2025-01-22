@@ -151,31 +151,55 @@ def create_data(
     return dataloader, topics
 
 
-def create_lexical_ranking(queries: pd.DataFrame):
-    cache_file = args.dataset_cache_path / f"ranking_cache_{args.samples}samples_{args.n_docs}docs.pt"
+def create_lexical_ranking(queries_path: Path):
+    cache_dir = (
+        args.dataset_cache_path
+        / f"ranking_cache_{args.samples}samples_{args.n_docs}docs"
+    )
+    os.makedirs(cache_dir, exist_ok=True)
+    chunk_size = 10_000
 
-    if Path(cache_file).exists():
-        with open(cache_file, "rb") as f:
-            ranking = pickle.load(f)
-    else:
-        sys_bm25 = (
-            pt.BatchRetrieve.from_dataset(
-                "msmarco_passage",
-                "terrier_stemmed",
-                wmodel="BM25",
-                memory=True,
-                verbose=True,
-                num_results=args.n_docs,
-            )
-            % args.n_docs
+    ranking = None
+    for i, chunk in enumerate(
+        tqdm(
+            pd.read_csv(queries_path, chunksize=10_000),
+            desc="Loading/Creating Ranking in chunks",
+            total=args.samples // chunk_size,
         )
-        lexical_df = sys_bm25.transform(queries)
-        ranking = Ranking(lexical_df.rename(columns={"qid": "q_id", "docno": "id"}))
+    ):
+        cache_file = cache_dir / f"{i * chunk_size}-{(i + 1) * chunk_size}.pt"
 
-        with open(cache_file, "wb") as f:
-            pickle.dump(ranking, f)
+        if cache_file.exists():
+            with open(cache_file, "rb") as f:
+                chunk_ranking = pickle.load(f)
+        else:
+            sys_bm25 = (
+                pt.BatchRetrieve.from_dataset(
+                    "msmarco_passage",
+                    "terrier_stemmed",
+                    wmodel="BM25",
+                    memory=True,
+                    verbose=True,
+                    num_results=args.n_docs,
+                )
+                % args.n_docs
+            )
+            chunk["query"] = chunk["query"].astype(str)
+            chunk_df = sys_bm25.transform(chunk)
+            chunk_ranking = Ranking(
+                chunk_df.rename(columns={"qid": "q_id", "docno": "id"})
+            )
+            chunk_ranking = chunk_ranking.cut(args.n_docs)
 
-    return ranking.cut(args.n_docs)
+            with open(cache_file, "wb") as f:
+                pickle.dump(chunk_ranking, f)
+
+        if ranking is None:
+            ranking = chunk_ranking
+        else:
+            ranking = ranking.__add__(chunk_ranking)
+
+    return ranking
 
 
 def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
@@ -193,7 +217,9 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
 
     # Create model pre-requisites
     all_topics = pd.concat([train_topics, val_topics])
-    lexical_ranking = create_lexical_ranking(all_topics)
+    queries_path = args.dataset_cache_path / "all_topics.csv"
+    all_topics.to_csv(queries_path, index=False)
+    lexical_ranking = create_lexical_ranking(queries_path)
 
     index = OnDiskIndex.load(args.index_tct_path)
     if args.storage == "mem":
