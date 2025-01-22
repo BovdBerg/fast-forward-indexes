@@ -311,6 +311,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         self.to(device)
         self.eval()
+        print(f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self.embs_avg_weights)}")
 
     @property
     def ranking(self) -> Optional[Ranking]:
