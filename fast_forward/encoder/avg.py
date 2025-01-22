@@ -261,6 +261,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         n_docs: int,
         device: str,
         ranking: Optional[Ranking] = None,
+        ckpt_path: Optional[Path] = None,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -302,9 +303,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         )  # weights for averaging over q_emb1 ++ d_embs, shape (n_embs,)
 
         # TODO: add different w_methods
-        # TODO: load ckpt_path
+
+        if ckpt_path is not None:
+            ckpt = torch.load(ckpt_path)
+            self.load_state_dict(ckpt["state_dict"])
 
         self.to(device)
+        self.eval()
 
     @property
     def ranking(self) -> Optional[Ranking]:
