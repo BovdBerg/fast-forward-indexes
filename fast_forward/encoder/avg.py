@@ -325,9 +325,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         assert self.index.dim is not None, "Index dimension cannot be None."
 
         # Create tensors for padding and total embedding counts
-        d_embs_pad = torch.zeros(
-            (len(queries), self.n_docs, 768), device=self.device
-        )
+        d_embs_pad = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
         n_embs_per_q = torch.ones((len(queries)), dtype=torch.int, device=self.device)
 
         # Retrieve the top-ranked documents for all queries
