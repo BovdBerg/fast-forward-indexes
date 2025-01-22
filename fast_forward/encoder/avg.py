@@ -1,15 +1,13 @@
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 import numpy as np
-import pandas as pd
 import torch
 from transformers import AutoModel, AutoTokenizer
 
 from fast_forward.encoder import Encoder
-from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index import Index
 from fast_forward.lightning import GeneralModule
 from fast_forward.ranking import Ranking
@@ -145,12 +143,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ).to(self.device)
 
         # estimate lightweight query as weighted average of q_tok_embs
-        # TODO: verify that padding is masked properly before softmax and averaging
-        q_tok_embs = self.tok_embs(q_tokens["input_ids"])  # lookup q_tokens in self.tok_embs
+        q_tok_embs = self.tok_embs(q_tokens["input_ids"])
+        q_tok_embs_masked = q_tok_embs * q_tokens["attention_mask"].unsqueeze(-1)
         q_tok_weights = torch.nn.functional.softmax(self.tok_embs_avg_weights[q_tokens["input_ids"]], dim=-1).unsqueeze(-1)  # type: ignore
-        q_emb_1 = torch.sum(q_tok_embs * q_tok_weights, dim=1).unsqueeze(
-            1
-        )
+        q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights, dim=1).unsqueeze(1)
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
