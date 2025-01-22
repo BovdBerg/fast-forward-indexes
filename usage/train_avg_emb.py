@@ -94,9 +94,9 @@ def create_data(
     samples: int,
     shuffle: bool,
 ) -> Tuple[DataLoader, pd.DataFrame]:
-    name = f"{samples}_samples" if samples else "all"
-    dataset_file = args.dataset_cache_path / dataset_name / f"{name}.pt"
-    dataset_file.parent.mkdir(parents=True, exist_ok=True)
+    dataset_stem = args.dataset_cache_path / dataset_name
+    dataset_stem.mkdir(parents=True, exist_ok=True)
+    print(f"Creating/retrieving dataset for {samples} samples for {dataset_stem}")
 
     topics = pt.get_dataset(dataset_name).get_topics()
     if samples:
@@ -107,17 +107,38 @@ def create_data(
         device=args.device,
     )
 
+    step = min(samples, 10_000)
     dataset = []
-    # TODO: Create and load data per 10_000 samples (see train_avg_weights.py)
-    if (dataset_file).exists():
-        print(f"Loading dataset from {dataset_file}")
-        dataset = torch.load(dataset_file)
-    else:
-        for query in tqdm(topics["query"], desc="Creating dataset", total=len(topics)):
-            q_rep_tct = encoder_tct([query])[0]
-            dataset.append((query, q_rep_tct))
+    for lb in tqdm(
+        range(0, samples, step),
+        desc="Processing dataset steps",
+        total=samples // step,
+    ):
+        ub = lb + step
+        step_dataset_file = dataset_stem / f"{lb}-{ub}.pt"
+        step_dataset_file.parent.mkdir(parents=True, exist_ok=True)
 
-        torch.save(dataset, dataset_file)
+        if (step_dataset_file).exists():  # Load dataset part
+            new_data = torch.load(step_dataset_file)
+        else:
+            print(f"...Step {lb}-{ub}: Creating new data in {step_dataset_file}")
+            step_topics = topics.iloc[lb:ub]
+
+            queries = step_topics["query"].tolist()
+            new_data = []
+            batch_size = 32
+            for i in tqdm(
+                range(0, len(queries), batch_size),
+                desc="Encoding queries",
+                total=len(queries) // batch_size,
+            ):
+                batch_queries = queries[i : i + batch_size]
+                q_reps_tct = encoder_tct(batch_queries)
+                new_data.extend(zip(batch_queries, q_reps_tct))
+
+            torch.save(new_data, step_dataset_file)
+
+        dataset.extend(new_data)
 
     dataloader = DataLoader(
         dataset=dataset,  # type: ignore
@@ -131,30 +152,30 @@ def create_data(
 
 
 def create_lexical_ranking(queries: pd.DataFrame):
-    cache_file = args.dataset_cache_path / f"ranking_cache_{args.samples}samples.pt"
+    cache_file = args.dataset_cache_path / f"ranking_cache_{args.samples}samples_{args.n_docs}docs.pt"
 
     if Path(cache_file).exists():
         with open(cache_file, "rb") as f:
-            return pickle.load(f)
-
-    sys_bm25 = (
-        pt.BatchRetrieve.from_dataset(
-            "msmarco_passage",
-            "terrier_stemmed",
-            wmodel="BM25",
-            memory=True,
-            verbose=True,
-            num_results=args.n_docs,
+            ranking = pickle.load(f)
+    else:
+        sys_bm25 = (
+            pt.BatchRetrieve.from_dataset(
+                "msmarco_passage",
+                "terrier_stemmed",
+                wmodel="BM25",
+                memory=True,
+                verbose=True,
+                num_results=args.n_docs,
+            )
+            % args.n_docs
         )
-        % args.n_docs
-    )
-    lexical_df = sys_bm25.transform(queries)
-    ranking = Ranking(lexical_df.rename(columns={"qid": "q_id", "docno": "id"}))
+        lexical_df = sys_bm25.transform(queries)
+        ranking = Ranking(lexical_df.rename(columns={"qid": "q_id", "docno": "id"}))
 
-    with open(cache_file, "wb") as f:
-        pickle.dump(ranking, f)
-    
-    return ranking
+        with open(cache_file, "wb") as f:
+            pickle.dump(ranking, f)
+
+    return ranking.cut(args.n_docs)
 
 
 def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
@@ -199,8 +220,14 @@ def main() -> None:
     trainer = lightning.Trainer(
         deterministic="warn",
         max_epochs=50,
-        log_every_n_steps=1 if len(train_dataloader) <= 1000 else len(train_dataloader) // 100,
-        val_check_interval=1.0 if len(train_dataloader) <= 1_000 else 0.25 if len(train_dataloader) <= 10_000 else 0.1,
+        log_every_n_steps=(
+            1 if len(train_dataloader) <= 1000 else len(train_dataloader) // 100
+        ),
+        val_check_interval=(
+            1.0
+            if len(train_dataloader) <= 1_000
+            else 0.25 if len(train_dataloader) <= 10_000 else 0.1
+        ),
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
             callbacks.EarlyStopping(
