@@ -13,6 +13,7 @@ class GeneralModule(lightning.LightningModule):
     Override forward to define the forward pass.
     Override configure_optimizers to define the optimizer.
     """
+
     def __init__(self) -> None:
         super().__init__()
         self.loss_fn = torch.nn.MSELoss()
@@ -24,14 +25,12 @@ class GeneralModule(lightning.LightningModule):
         settings_file = Path(self.trainer.log_dir) / "settings.json"
         with open(settings_file, "w") as f:
             json.dump(
-                {"Class": self.__class__.__name__},
+                {"Class": self.__class__.__name__, "val_loss": float("inf")},
                 f,
                 indent=4,
             )
 
-    def step(
-        self, batch: tuple[torch.Tensor, torch.Tensor], name: str
-    ) -> torch.Tensor:
+    def step(self, batch: tuple[torch.Tensor, torch.Tensor], name: str) -> torch.Tensor:
         x, y = batch
         logits = self.forward(x)
         loss = self.loss_fn(logits, y)
@@ -42,7 +41,17 @@ class GeneralModule(lightning.LightningModule):
         return self.step(batch, "train")
 
     def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self.step(batch, "val")
+        val_loss = self.step(batch, "val")
+        settings_file = Path(self.trainer.log_dir) / "settings.json"  # type: ignore
+        with open(settings_file, "r") as f:
+            settings = json.load(f)
+
+        if val_loss < settings["val_loss"]:
+            settings["val_loss"] = val_loss
+            with open(settings_file, "w") as f:
+                json.dump(settings, f, indent=4)
+
+        return val_loss
 
     def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         return self.step(batch, "test")
