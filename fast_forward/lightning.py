@@ -41,17 +41,7 @@ class GeneralModule(lightning.LightningModule):
         return self.step(batch, "train")
 
     def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        val_loss = self.step(batch, "val")
-        settings_file = Path(self.trainer.log_dir) / "settings.json"  # type: ignore
-        with open(settings_file, "r") as f:
-            settings = json.load(f)
-
-        if val_loss < settings["val_loss"]:
-            settings["val_loss"] = val_loss
-            with open(settings_file, "w") as f:
-                json.dump(settings, f, indent=4)
-
-        return val_loss
+        return self.step(batch, "val")
 
     def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         return self.step(batch, "test")
