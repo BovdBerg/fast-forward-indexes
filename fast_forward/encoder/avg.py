@@ -298,6 +298,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         )  # weights for averaging over q's token embedding, shape (vocab_size,)
 
         n_embs = n_docs + 1
+        # TODO: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
         self.embs_avg_weights = torch.nn.Parameter(
             torch.randn(n_embs)
         )  # weights for averaging over q_emb1 ++ d_embs, shape (n_embs,)
@@ -323,26 +324,27 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
 
-        # Create a tensor of zeros with shape (len(queries), n_docs, 768)
+        # Create tensors for padding and total embedding counts
         d_embs_pad = torch.zeros(
             (len(queries), self.n_docs, 768), device=self.device
         )
         n_embs_per_q = torch.ones((len(queries)), dtype=torch.int, device=self.device)
 
-        # Retrieve the top-ranked documents for each query and increment n_docs_per_q
+        # Retrieve the top-ranked documents for all queries
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
-        for i, query in enumerate(queries):  # TODO: can this be done without for-loop?
-            query_docs = top_docs[top_docs["query"] == query]
-            if len(query_docs) == 0:
-                continue
+        query_to_idx = {query: idx for idx, query in enumerate(queries)}
 
-            d_embs, d_idxs = self.index._get_vectors(query_docs["id"].unique())
+        # TODO: Can this be done without for-loop?
+        for query, group in top_docs.groupby("query"):
+            d_embs, d_idxs = self.index._get_vectors(group["id"].unique())
             if self.index.quantizer is not None:
                 d_embs = self.index.quantizer.decode(d_embs)
             d_embs = torch.tensor(d_embs[[x[0] for x in d_idxs]], device=self.device)
 
-            d_embs_pad[i, : len(d_embs)] = d_embs
-            n_embs_per_q[i] += len(d_embs)
+            # Pad and count embeddings for this query
+            query_idx = query_to_idx[str(query)]
+            d_embs_pad[query_idx, : len(d_embs)] = d_embs
+            n_embs_per_q[query_idx] += len(d_embs)
 
         return d_embs_pad, n_embs_per_q
 
