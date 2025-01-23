@@ -119,7 +119,7 @@ def create_data(
     for lb in tqdm(
         range(0, samples, step),
         desc="Processing dataset steps",
-        total=samples // step,
+        total=ceil(samples / step),
     ):
         ub = lb + step
         step_dataset_file = dataset_stem / f"{lb}-{ub}.pt"
