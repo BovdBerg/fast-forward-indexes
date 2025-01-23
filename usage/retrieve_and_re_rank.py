@@ -56,22 +56,10 @@ def parse_args():
         help="Profile the re-ranking process.",
     )
     parser.add_argument(
-        "--dataset",
-        type=str,
-        default="msmarco_passage",
-        help="Dataset (using package ir-datasets).",
-    )
-    parser.add_argument(
         "--index_tct_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the index file.",
-    )
-    parser.add_argument(
-        "--ckpt_emb_path",
-        type=Path,
-        default="/home/bvdb9/models/emb_bert.ckpt",
-        help="Path to the emb checkpoint file.",
     )
     parser.add_argument(
         "--ckpt_avg_path",
@@ -110,7 +98,7 @@ def parse_args():
     parser.add_argument(
         "--n_docs",
         type=int,
-        default=3,
+        default=10,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     # VALIDATION
@@ -285,7 +273,7 @@ def main(args: argparse.Namespace) -> None:
 
     print("\033[96m")  # Prints in this method are cyan
     # Load dataset and create sparse retriever (e.g. BM25)
-    dataset = pt.get_dataset(args.dataset)
+    dataset = pt.get_dataset("msmarco_passage")
     print("Creating BM25 retriever via PyTerrier index...")
     try:
         sys_bm25 = pt.BatchRetrieve.from_dataset(
