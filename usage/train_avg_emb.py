@@ -1,9 +1,9 @@
 import argparse
-from math import ceil
 import os
 import pickle
 import time
 import warnings
+from math import ceil
 from pathlib import Path
 from typing import Tuple
 
@@ -65,6 +65,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to use for training.",
+    )
+    parser.add_argument(
+        "--ckpt_path",
+        type=Path,
+        default=None,
+        help="Path to a checkpoint file to load the model from.",
     )
 
     # Training arguments
@@ -154,10 +160,7 @@ def create_data(
 
 def create_lexical_ranking(queries_path: Path):
     cache_n_docs = 50
-    cache_dir = (
-        args.dataset_cache_path
-        / f"ranking_cache_{cache_n_docs}docs"
-    )
+    cache_dir = args.dataset_cache_path / f"ranking_cache_{cache_n_docs}docs"
     os.makedirs(cache_dir, exist_ok=True)
     chunk_size = 10_000
 
@@ -225,7 +228,9 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
     )
 
     # Create model pre-requisites
-    all_topics = pd.concat([val_topics, train_topics])  # Important that val_topics is first, because len(train_topics) may vary.
+    all_topics = pd.concat(
+        [val_topics, train_topics]
+    )  # Important that val_topics is first, because len(train_topics) may vary.
     queries_path = args.dataset_cache_path / f"{len(all_topics)}_topics.csv"
     all_topics.to_csv(queries_path, index=False)
     lexical_ranking = create_lexical_ranking(queries_path)
@@ -236,7 +241,11 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
 
     # Create model instance
     query_estimator = AvgEmbQueryEstimator(
-        index=index, n_docs=args.n_docs, device=args.device, ranking=lexical_ranking
+        index=index,
+        n_docs=args.n_docs,
+        device=args.device,
+        ranking=lexical_ranking,
+        ckpt_path=args.ckpt_path,
     )
 
     print("\033[0m")  # Reset print color
