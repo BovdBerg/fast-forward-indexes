@@ -155,19 +155,23 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             # add_special_tokens=False  # TODO: try training without special tokens [CLS], [SEP]
         ).to(self.device)
         input_ids = q_tokens["input_ids"].to(self.device)
+        attention_mask = q_tokens["attention_mask"].to(self.device).unsqueeze(-1)
 
         # TODO: Regular TransformerEmbeddingEncoder might be sufficient after adding untrained tokens logic.
         if self.trainer.training:
             # During training, update self.trained_toks with the encountered tokens
             self.trained_toks[torch.unique(input_ids.flatten())] = True
         else:
-            # During inference, remove tokens from q_tokens that were not trained
-            input_ids = input_ids[self.trained_toks[input_ids.flatten()]]
+            # During inference, extend attention mask to only include trained tokens
+            trained_tokens_mask = self.trained_toks[input_ids].unsqueeze(-1)
+            attention_mask = attention_mask * trained_tokens_mask
 
         # estimate lightweight query as weighted average of q_tok_embs
         q_tok_embs = self.tok_embs(input_ids)
-        q_tok_embs_masked = q_tok_embs * q_tokens["attention_mask"].unsqueeze(-1)
-        q_tok_weights = torch.nn.functional.softmax(self.tok_embs_avg_weights[input_ids], dim=-1).unsqueeze(-1)
+        q_tok_embs_masked = q_tok_embs * attention_mask
+        q_tok_weights = torch.nn.functional.softmax(
+            self.tok_embs_avg_weights[input_ids], dim=-1
+        ).unsqueeze(-1)
         q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights, dim=1).unsqueeze(1)
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
@@ -175,8 +179,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         # estimate query embedding as weighted average of q_emb and d_embs
         embs = torch.cat((q_emb_1, d_embs_pad), dim=-2)
-
-        # initialize embs_avg_weights as zeros with shape (len(queries), n_embs)
         embs_weights = torch.zeros((len(queries), embs.shape[-2]), device=self.device)
         # assign self.embs_avg_weights to embs_avg_weights, but only up to the number of top-ranked documents per query
         for i, n_embs in enumerate(
