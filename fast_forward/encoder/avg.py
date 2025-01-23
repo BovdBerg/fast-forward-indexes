@@ -103,14 +103,14 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         ## Print some information about the model
         embs_avg_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=0)
-        print(
-            f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {embs_avg_weights}"
-        )
+        print(f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {embs_avg_weights}")
 
         trained_tokens_count = torch.sum(self.trained_toks).item()
         vocab_size = self.tokenizer.vocab_size
         trained_tokens_percentage = trained_tokens_count / vocab_size * 100
-        print(f"AvgEmbQueryEstimator.trained_toks: {trained_tokens_count}/{vocab_size} ({trained_tokens_percentage:.2f}%). Ignoring {vocab_size - trained_tokens_count} tokens in averaging.")
+        print(
+            f"AvgEmbQueryEstimator.trained_toks: {trained_tokens_count}/{vocab_size} ({trained_tokens_percentage:.2f}%). Ignoring {vocab_size - trained_tokens_count} tokens in averaging."
+        )
 
     @property
     def ranking(self) -> Optional[Ranking]:
