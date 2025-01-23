@@ -83,13 +83,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         )
 
         self.tok_embs_avg_weights = torch.nn.Parameter(
-            torch.randn(self.tokenizer.vocab_size)
+            torch.ones(self.tokenizer.vocab_size) / self.tokenizer.vocab_size
         )  # weights for averaging over q's token embedding, shape (vocab_size,)
 
         n_embs = n_docs + 1
         # TODO: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
         self.embs_avg_weights = torch.nn.Parameter(
-            torch.randn(n_embs)
+            torch.ones(n_embs) / n_embs
         )  # weights for averaging over q_emb1 ++ d_embs, shape (n_embs,)
 
         # TODO: add different w_methods
