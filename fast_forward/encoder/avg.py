@@ -157,11 +157,11 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         input_ids = q_tokens["input_ids"].to(self.device)
         attention_mask = q_tokens["attention_mask"].to(self.device).unsqueeze(-1)
 
-        # TODO: Regular TransformerEmbeddingEncoder might be sufficient after adding untrained tokens logic.
         if self._trainer is not None and self.trainer.training:
             # During training, update self.trained_toks with the encountered tokens
             self.trained_toks[torch.unique(input_ids.flatten())] = True
         else:
+            # TODO: Run/Train without this attention mask extension and see how it compares.
             # During inference, extend attention mask to only include trained tokens
             trained_tokens_mask = self.trained_toks[input_ids].unsqueeze(-1)
             attention_mask = attention_mask * trained_tokens_mask
