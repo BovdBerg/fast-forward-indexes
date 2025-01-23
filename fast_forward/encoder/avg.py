@@ -134,6 +134,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         return d_embs_pad, n_embs_per_q
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
+        # TODO: Handle Unknown tokens in queries. Init self.trained_toks as False, then flip if trained. Any non-trained token should be ignored in averaging.
+        # TODO: If self.trained_toks is added, Oldschool TransformerEmbeddingEncoder might be sufficient.
         # Tokenizer queries using the doc_encoder_pretrained tokenizer
         q_tokens = self.tokenizer(
             list(queries),
