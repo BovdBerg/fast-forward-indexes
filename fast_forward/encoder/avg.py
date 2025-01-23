@@ -172,6 +172,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         q_tok_weights = torch.nn.functional.softmax(
             self.tok_embs_avg_weights[input_ids], dim=-1
         ).unsqueeze(-1)
+        # TODO: What happens if all tokens are untrained? Does it return 0s?
         q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights, dim=1).unsqueeze(1)
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
