@@ -151,7 +151,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         q_tokens = self.tokenizer(
             list(queries),
             return_tensors="pt",
-            padding=True,
+            padding=True,  # TODO: Can padding be removed along with attention_mask?
             # add_special_tokens=False  # TODO: try training without special tokens [CLS], [SEP]
         ).to(self.device)
         input_ids = q_tokens["input_ids"].to(self.device)
