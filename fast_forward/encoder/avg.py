@@ -45,7 +45,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         device: str,
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
-        update_trained_toks: bool = False,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -68,7 +67,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.index = index
         self._ranking = ranking
         self.n_docs = n_docs
-        self.update_trained_toks = update_trained_toks
 
         doc_encoder_pretrained = "bert-base-uncased"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
@@ -77,7 +75,12 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_embs = (
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
-        self.trained_toks = torch.zeros(len(self.tokenizer.get_vocab()), dtype=torch.bool, device=device)
+        self.register_buffer(
+            "trained_toks",
+            torch.zeros(
+                len(self.tokenizer.get_vocab()), dtype=torch.bool, device=device
+            ),
+        )
 
         self.tok_embs_avg_weights = torch.nn.Parameter(
             torch.randn(self.tokenizer.vocab_size)
@@ -153,8 +156,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ).to(self.device)
         input_ids = q_tokens["input_ids"].to(self.device)
 
-        # TODO: Oldschool TransformerEmbeddingEncoder might be sufficient after adding untrained tokens logic.
-        if self.update_trained_toks:
+        # TODO: Regular TransformerEmbeddingEncoder might be sufficient after adding untrained tokens logic.
+        if self.trainer.training:
             # During training, update self.trained_toks with the encountered tokens
             self.trained_toks[torch.unique(input_ids.flatten())] = True
         else:

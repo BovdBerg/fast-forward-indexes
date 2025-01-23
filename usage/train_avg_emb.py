@@ -246,7 +246,6 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         device=args.device,
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
-        update_trained_toks=True,
     )
 
     print("\033[0m")  # Reset print color
