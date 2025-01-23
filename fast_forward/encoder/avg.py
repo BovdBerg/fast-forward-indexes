@@ -45,6 +45,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         device: str,
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
+        update_trained_toks: bool = False,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -67,6 +68,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.index = index
         self._ranking = ranking
         self.n_docs = n_docs
+        self.update_trained_toks = update_trained_toks
 
         doc_encoder_pretrained = "bert-base-uncased"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
@@ -75,6 +77,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_embs = (
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
+        self.trained_toks = torch.zeros(len(self.tokenizer.get_vocab()), dtype=torch.bool, device=device)
 
         self.tok_embs_avg_weights = torch.nn.Parameter(
             torch.randn(self.tokenizer.vocab_size)
@@ -95,9 +98,16 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.to(device)
         self.eval()
 
+        ## Print some information about the model
+        embs_avg_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=0)
         print(
-            f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self.embs_avg_weights)}"
+            f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {embs_avg_weights}"
         )
+
+        trained_tokens_count = torch.sum(self.trained_toks).item()
+        vocab_size = self.tokenizer.vocab_size
+        trained_tokens_percentage = trained_tokens_count / vocab_size * 100
+        print(f"AvgEmbQueryEstimator.trained_toks: {trained_tokens_count}/{vocab_size} ({trained_tokens_percentage:.2f}%). Ignoring {vocab_size - trained_tokens_count} tokens in averaging.")
 
     @property
     def ranking(self) -> Optional[Ranking]:
@@ -134,8 +144,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         return d_embs_pad, n_embs_per_q
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
-        # TODO: Handle Unknown tokens in queries. Init self.trained_toks as False, then flip if trained. Any non-trained token should be ignored in averaging.
-        # TODO: If self.trained_toks is added, Oldschool TransformerEmbeddingEncoder might be sufficient.
         # Tokenizer queries using the doc_encoder_pretrained tokenizer
         q_tokens = self.tokenizer(
             list(queries),
@@ -143,11 +151,20 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             padding=True,
             # add_special_tokens=False  # TODO: try training without special tokens [CLS], [SEP]
         ).to(self.device)
+        input_ids = q_tokens["input_ids"].to(self.device)
+
+        # TODO: Oldschool TransformerEmbeddingEncoder might be sufficient after adding untrained tokens logic.
+        if self.update_trained_toks:
+            # During training, update self.trained_toks with the encountered tokens
+            self.trained_toks[torch.unique(input_ids.flatten())] = True
+        else:
+            # During inference, remove tokens from q_tokens that were not trained
+            input_ids = input_ids[self.trained_toks[input_ids.flatten()]]
 
         # estimate lightweight query as weighted average of q_tok_embs
-        q_tok_embs = self.tok_embs(q_tokens["input_ids"])
+        q_tok_embs = self.tok_embs(input_ids)
         q_tok_embs_masked = q_tok_embs * q_tokens["attention_mask"].unsqueeze(-1)
-        q_tok_weights = torch.nn.functional.softmax(self.tok_embs_avg_weights[q_tokens["input_ids"]], dim=-1).unsqueeze(-1)  # type: ignore
+        q_tok_weights = torch.nn.functional.softmax(self.tok_embs_avg_weights[input_ids], dim=-1).unsqueeze(-1)
         q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights, dim=1).unsqueeze(1)
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
