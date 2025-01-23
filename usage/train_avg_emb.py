@@ -202,11 +202,11 @@ def create_lexical_ranking(queries_path: Path):
 
         chunk_ranking = chunk_ranking.cut(args.n_docs)
         if ranking is None:
-            ranking = chunk_ranking
+            res_df = chunk_ranking._df
         else:
-            ranking = ranking.__add__(chunk_ranking)
+            res_df = pd.concat([res_df, chunk_ranking._df])
 
-    return ranking
+    return Ranking(res_df).cut(args.n_docs)
 
 
 def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
