@@ -70,6 +70,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         doc_encoder_pretrained = "bert-base-uncased"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
+        vocab_size = self.tokenizer.vocab_size
 
         doc_encoder = AutoModel.from_pretrained(doc_encoder_pretrained)
         self.tok_embs = (
@@ -78,12 +79,12 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.register_buffer(
             "trained_toks",
             torch.zeros(
-                len(self.tokenizer.get_vocab()), dtype=torch.bool, device=device
+                vocab_size, dtype=torch.bool, device=device
             ),
         )
 
         self.tok_embs_avg_weights = torch.nn.Parameter(
-            torch.ones(self.tokenizer.vocab_size) / self.tokenizer.vocab_size
+            torch.ones(vocab_size) / vocab_size
         )  # weights for averaging over q's token embedding, shape (vocab_size,)
 
         n_embs = n_docs + 1
@@ -106,7 +107,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         print(f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {embs_avg_weights}")
 
         trained_tokens_count = torch.sum(self.trained_toks).item()
-        vocab_size = self.tokenizer.vocab_size
         trained_tokens_percentage = trained_tokens_count / vocab_size * 100
         print(
             f"AvgEmbQueryEstimator.trained_toks: {trained_tokens_count}/{vocab_size} ({trained_tokens_percentage:.2f}%). Ignoring {vocab_size - trained_tokens_count} tokens in averaging."
