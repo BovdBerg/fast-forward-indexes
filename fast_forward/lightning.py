@@ -25,7 +25,7 @@ class GeneralModule(lightning.LightningModule):
         settings_file = Path(self.trainer.log_dir) / "settings.json"
         with open(settings_file, "w") as f:
             json.dump(
-                {"Class": self.__class__.__name__, "val_loss": float("inf")},
+                {"Class": self.__class__.__name__},
                 f,
                 indent=4,
             )
