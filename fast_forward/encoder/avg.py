@@ -37,6 +37,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
         tok_weight_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
+        untrained_tok_weight: float = 0.5,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -56,6 +57,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
             tok_weight_method (TOKEN_WEIGHT_METHOD): The method to use for token weighting.
+            untrained_tok_weight (float): The weight to assign to untrained tokens.
         """
         super().__init__()
         self.index = index
@@ -71,10 +73,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
         self.register_buffer(
-            "trained_toks",
-            torch.zeros(
-                vocab_size, dtype=torch.bool, device=device
-            ),
+            "trained_toks", torch.full((vocab_size,), untrained_tok_weight)
         )
 
         self.tok_embs_avg_weights = torch.nn.Parameter(
@@ -93,6 +92,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if ckpt_path is not None:
             ckpt = torch.load(ckpt_path)
             self.load_state_dict(ckpt["state_dict"])
+
+        # Overwrite any 0s (loaded from ckpt) in trained_toks with untrained_tok_weight
+        self.trained_toks[self.trained_toks == 0] = untrained_tok_weight
 
         self.to(device)
         self.eval()
@@ -152,10 +154,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if self._trainer is not None and self.trainer.training:
             # During training, update self.trained_toks with the encountered tokens
             self.trained_toks[torch.unique(input_ids.flatten())] = True
-        # else:
-        #     # During inference, extend attention mask to only include trained tokens
-        #     trained_tokens_mask = self.trained_toks[input_ids].unsqueeze(-1)
-        #     attention_mask = attention_mask * trained_tokens_mask
+        else:
+            # During inference, extend attention mask to weigh untrained tokens with untrained_tok_weight
+            trained_tokens_mask = self.trained_toks[input_ids].unsqueeze(-1)
+            attention_mask = attention_mask * trained_tokens_mask
 
         # estimate lightweight query as weighted average of q_tok_embs
         q_tok_embs = self.tok_embs(input_ids)
