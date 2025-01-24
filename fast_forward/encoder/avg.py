@@ -77,7 +77,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
         self.untrained_tok_weight = untrained_tok_weight
-        self.register_buffer("trained_toks", torch.zeros((vocab_size), dtype=torch.bool))
+        self.register_buffer(
+            "trained_toks", torch.zeros((vocab_size), dtype=torch.bool)
+        )
 
         self.tok_embs_avg_weights = torch.nn.Parameter(
             torch.ones(vocab_size) / vocab_size
@@ -171,47 +173,43 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             add_special_tokens=self.add_special_tokens,
         ).to(self.device)
         input_ids = q_tokens["input_ids"].to(self.device)
-        attention_mask = q_tokens["attention_mask"].to(self.device).unsqueeze(-1)
+        attention_mask = q_tokens["attention_mask"].to(self.device)
 
         if self._trainer is not None and self.trainer.training:
             # During training, update self.trained_toks with the encountered tokens
             self.trained_toks[torch.unique(input_ids.flatten())] = True
         elif self.untrained_tok_weight != 1.0:
             # During inference, extend attention mask to weigh untrained tokens with untrained_tok_weight
-            trained_toks_mask = self.trained_toks[input_ids].unsqueeze(-1)
+            trained_toks_mask = self.trained_toks[input_ids]
             trained_toks_mask[~trained_toks_mask] = self.untrained_tok_weight
             attention_mask = attention_mask * trained_toks_mask
 
         # estimate lightweight query as weighted average of q_tok_embs
         q_tok_embs = self.tok_embs(input_ids)
-        q_tok_embs_masked = q_tok_embs * attention_mask
+        q_tok_embs_masked = q_tok_embs * attention_mask.unsqueeze(-1)
         match self.tok_weight_method:
             case WEIGHT_METHOD.UNIFORM:
-                q_emb_1 = q_tok_embs_masked.mean(dim=1).unsqueeze(1)
+                q_emb_1 = torch.mean(q_tok_embs_masked, 1)
             case WEIGHT_METHOD.LEARNED:
                 q_tok_weights = torch.nn.functional.softmax(
-                    self.tok_embs_avg_weights[input_ids], dim=-1
-                ).unsqueeze(-1)
-                q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights, dim=1).unsqueeze(
-                    1
+                    self.tok_embs_avg_weights[input_ids], -1
                 )
+                q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights.unsqueeze(-1), 1)
         # TODO: What if all (weighted) query tokens are added to doc_embs instead of 1 q_emb_1? Would need different weighting, padding, and masking.
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
 
         # estimate query embedding as weighted average of q_emb and d_embs
-        embs = torch.cat((q_emb_1, d_embs_pad), dim=-2)
+        embs = torch.cat((q_emb_1.unsqueeze(1), d_embs_pad), -2)
         embs_weights = torch.zeros((len(queries), embs.shape[-2]), device=self.device)
         # assign self.embs_avg_weights to embs_avg_weights, but only up to the number of top-ranked documents per query
-        for i, n_embs in enumerate(
-            n_embs_per_q
-        ):
+        for i, n_embs in enumerate(n_embs_per_q):
             embs_weights[i, :n_embs] = torch.nn.functional.softmax(
-                self.embs_avg_weights[:n_embs], dim=0
+                self.embs_avg_weights[:n_embs], 0
             )
 
-        q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), dim=-2)
+        q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         return q_emb_2
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
