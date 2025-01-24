@@ -124,10 +124,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             {
                 "n_docs": self.n_docs,
                 "device": self.device,
-                "ckpt_path": self.ckpt_path,
+                "ckpt_path": getattr(self, "ckpt_path", None),
                 "untrained_tok_weight": self.untrained_tok_weight,
                 "tok_weight_method": self.tok_weight_method.value,
-                "add_special_tokens": self.add_special_tokens
+                "add_special_tokens": self.add_special_tokens,
             }
         )
 
@@ -171,7 +171,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         # Tokenizer queries using the doc_encoder_pretrained tokenizer
         q_tokens = self.tokenizer(
-            list(queries), return_tensors="pt", padding=True, add_special_tokens=self.add_special_tokens
+            list(queries),
+            return_tensors="pt",
+            padding=True,
+            add_special_tokens=self.add_special_tokens,
         ).to(self.device)
         input_ids = q_tokens["input_ids"].to(self.device)
         attention_mask = q_tokens["attention_mask"].to(self.device).unsqueeze(-1)
