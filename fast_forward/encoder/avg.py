@@ -152,7 +152,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             list(queries),
             return_tensors="pt",
             padding=True,  # TODO: Can padding be removed along with attention_mask?
-            # add_special_tokens=False  # TODO: try training without special tokens [CLS], [SEP]
+            add_special_tokens=False
         ).to(self.device)
         input_ids = q_tokens["input_ids"].to(self.device)
         attention_mask = q_tokens["attention_mask"].to(self.device).unsqueeze(-1)
@@ -160,11 +160,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if self._trainer is not None and self.trainer.training:
             # During training, update self.trained_toks with the encountered tokens
             self.trained_toks[torch.unique(input_ids.flatten())] = True
-        else:
-            # TODO: Run/Train without this attention mask extension and see how it compares.
-            # During inference, extend attention mask to only include trained tokens
-            trained_tokens_mask = self.trained_toks[input_ids].unsqueeze(-1)
-            attention_mask = attention_mask * trained_tokens_mask
+        # else:
+        #     # During inference, extend attention mask to only include trained tokens
+        #     trained_tokens_mask = self.trained_toks[input_ids].unsqueeze(-1)
+        #     attention_mask = attention_mask * trained_tokens_mask
 
         # estimate lightweight query as weighted average of q_tok_embs
         q_tok_embs = self.tok_embs(input_ids)
