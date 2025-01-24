@@ -1,3 +1,4 @@
+import json
 import warnings
 from enum import Enum
 from pathlib import Path
@@ -72,6 +73,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_embs = (
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
+        self.untrained_tok_weight = untrained_tok_weight
         self.register_buffer(
             "trained_toks", torch.full((vocab_size,), untrained_tok_weight)
         )
@@ -90,6 +92,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # TODO: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
 
         if ckpt_path is not None:
+            self.ckpt_path = ckpt_path
             ckpt = torch.load(ckpt_path)
             self.load_state_dict(ckpt["state_dict"])
 
@@ -108,6 +111,24 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         print(
             f"AvgEmbQueryEstimator.trained_toks: {trained_tokens_count}/{vocab_size} ({trained_tokens_percentage:.2f}%). Ignoring {vocab_size - trained_tokens_count} tokens in averaging."
         )
+
+    def on_train_start(self) -> None:
+        super().on_train_start()
+        with open(self.settings_file, "r") as f:
+            settings = json.load(f)
+
+        settings.update(
+            {
+                "n_docs": self.n_docs,
+                "device": self.device,
+                "ckpt_path": self.ckpt_path,
+                "untrained_tok_weight": self.untrained_tok_weight,
+                "tok_weight_method": self.tok_weight_method.value,
+            }
+        )
+
+        with open(self.settings_file, "w") as f:
+            json.dump(settings, f, indent=4)
 
     @property
     def ranking(self) -> Optional[Ranking]:

@@ -22,8 +22,8 @@ class GeneralModule(lightning.LightningModule):
         if self.trainer.log_dir is None:
             raise ValueError("Trainer log directory is None")
 
-        settings_file = Path(self.trainer.log_dir) / "settings.json"
-        with open(settings_file, "w") as f:
+        self.settings_file = Path(self.trainer.log_dir) / "settings.json"
+        with open(self.settings_file, "w") as f:
             json.dump(
                 {"Class": self.__class__.__name__, "Remarks": "..."},
                 f,
