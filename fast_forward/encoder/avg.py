@@ -38,8 +38,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
         tok_weight_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
-        untrained_tok_weight: float = 0.5,
-        add_special_tokens: bool = False,
+        untrained_tok_weight: float = 1.0,
+        add_special_tokens: bool = True,  # TODO: Why does [CLS] still have high weight? I thought its tok_emb would average all training samples.
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -59,7 +59,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
             tok_weight_method (TOKEN_WEIGHT_METHOD): The method to use for token weighting.
-            untrained_tok_weight (float): The weight to assign to untrained tokens.
+            untrained_tok_weight (float): The weight to assign to untrained tokens. Use 1.0 to treat them equal to trained tokens.
             add_special_tokens (bool): Whether to add special tokens to the input_ids, including [CLS] and [SEP] in token embedding averaging.
         """
         super().__init__()
@@ -77,9 +77,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
         self.untrained_tok_weight = untrained_tok_weight
-        self.register_buffer(
-            "trained_toks", torch.full((vocab_size,), untrained_tok_weight)
-        )
+        self.register_buffer("trained_toks", torch.zeros((vocab_size), dtype=torch.bool))
 
         self.tok_embs_avg_weights = torch.nn.Parameter(
             torch.ones(vocab_size) / vocab_size
@@ -99,9 +97,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ckpt = torch.load(ckpt_path)
             self.load_state_dict(ckpt["state_dict"])
 
-        # Overwrite any 0s (loaded from ckpt) in trained_toks with untrained_tok_weight
-        self.trained_toks[self.trained_toks == 0] = untrained_tok_weight
-
         self.to(device)
         self.eval()
 
@@ -109,7 +104,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_avg_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=0)
         print(f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {embs_avg_weights}")
 
-        trained_tokens_count = torch.sum(self.trained_toks).item()
+        trained_tokens_count = int(torch.sum(self.trained_toks).item())
         trained_tokens_percentage = trained_tokens_count / vocab_size * 100
         print(
             f"AvgEmbQueryEstimator.trained_toks: {trained_tokens_count}/{vocab_size} ({trained_tokens_percentage:.2f}%). Ignoring {vocab_size - trained_tokens_count} tokens in averaging."
@@ -154,7 +149,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
         query_to_idx = {query: idx for idx, query in enumerate(queries)}
 
-        # TODO: Can this be done without for-loop?
         for query, group in top_docs.groupby("query"):
             d_embs, d_idxs = self.index._get_vectors(group["id"].unique())
             if self.index.quantizer is not None:
@@ -182,10 +176,11 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if self._trainer is not None and self.trainer.training:
             # During training, update self.trained_toks with the encountered tokens
             self.trained_toks[torch.unique(input_ids.flatten())] = True
-        else:
+        elif self.untrained_tok_weight != 1.0:
             # During inference, extend attention mask to weigh untrained tokens with untrained_tok_weight
-            trained_tokens_mask = self.trained_toks[input_ids].unsqueeze(-1)
-            attention_mask = attention_mask * trained_tokens_mask
+            trained_toks_mask = self.trained_toks[input_ids].unsqueeze(-1)
+            trained_toks_mask[~trained_toks_mask] = self.untrained_tok_weight
+            attention_mask = attention_mask * trained_toks_mask
 
         # estimate lightweight query as weighted average of q_tok_embs
         q_tok_embs = self.tok_embs(input_ids)
@@ -197,10 +192,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 q_tok_weights = torch.nn.functional.softmax(
                     self.tok_embs_avg_weights[input_ids], dim=-1
                 ).unsqueeze(-1)
-                print(f"q_tok_embs_masked.shape: {q_tok_embs_masked.shape}")
-                print(f"q_tok_weights.shape: {q_tok_weights.shape}")
-                print(f"q_tok_embs_masked: {q_tok_embs_masked[:, 0, 0]}")
-                print(f"q_tok_weights: {q_tok_weights[:, 0, 0]}")
                 q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights, dim=1).unsqueeze(
                     1
                 )
@@ -215,7 +206,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # assign self.embs_avg_weights to embs_avg_weights, but only up to the number of top-ranked documents per query
         for i, n_embs in enumerate(
             n_embs_per_q
-        ):  # TODO: can this be done without for-loop?
+        ):
             embs_weights[i, :n_embs] = torch.nn.functional.softmax(
                 self.embs_avg_weights[:n_embs], dim=0
             )
