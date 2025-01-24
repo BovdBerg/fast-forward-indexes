@@ -123,7 +123,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         settings.update(
             {
                 "n_docs": self.n_docs,
-                "device": self.device,
+                "device": self.device.type,
                 "ckpt_path": getattr(self, "ckpt_path", None),
                 "untrained_tok_weight": self.untrained_tok_weight,
                 "tok_weight_method": self.tok_weight_method.value,
@@ -197,6 +197,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 q_tok_weights = torch.nn.functional.softmax(
                     self.tok_embs_avg_weights[input_ids], dim=-1
                 ).unsqueeze(-1)
+                print(f"q_tok_embs_masked.shape: {q_tok_embs_masked.shape}")
+                print(f"q_tok_weights.shape: {q_tok_weights.shape}")
+                print(f"q_tok_embs_masked: {q_tok_embs_masked[:, 0, 0]}")
+                print(f"q_tok_weights: {q_tok_weights[:, 0, 0]}")
                 q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights, dim=1).unsqueeze(
                     1
                 )
