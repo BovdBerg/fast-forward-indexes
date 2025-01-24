@@ -15,25 +15,16 @@ from fast_forward.ranking import Ranking
 warnings.filterwarnings("ignore", message="`training_step` returned `None`.*")
 
 
-class W_METHOD(Enum):
+class WEIGHT_METHOD(Enum):
     """
-    Enumeration for different types of probability distributions used to assign weights to top-ranked documents in the WeightedAvgEncoder.
+    Enumeration for different types of probability distributions used to assign weights to tokens in the WeightedAvgEncoder.
 
     Attributes:
-        UNIFORM: all top-ranked documents are weighted equally.
-        EXPONENTIAL: weights decrease exponentially with rank.
-        HALF_NORMAL: weights decrease with the half-normal distribution.
-        SOFTMAX_SCORES: weights are assigned based on the softmax of the scores.
-        LINEAR_DECAY_RANKS: weights decrease linearly with rank.
-        LINEAR_DECAY_SCORES: weights decrease linearly with rank, multiplied by the scores.
+        UNIFORM: all tokens are weighted equally.
+        LEARNED: weights are learned during training.
     """
 
     UNIFORM = "UNIFORM"
-    EXPONENTIAL = "EXPONENTIAL"
-    HALF_NORMAL = "HALF_NORMAL"
-    SOFTMAX_SCORES = "SOFTMAX_SCORES"
-    LINEAR_DECAY_RANKS = "LINEAR_DECAY_RANKS"
-    LINEAR_DECAY_SCORES = "LINEAR_DECAY_SCORES"
     LEARNED = "LEARNED"
 
 
@@ -45,6 +36,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         device: str,
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
+        tok_weight_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -62,6 +54,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             n_docs (int): The number of top-ranked documents to average.
             device (str): The device to run the encoder on.
             ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
+            ckpt_path (Optional[Path]): Path to a checkpoint to load.
+            tok_weight_method (TOKEN_WEIGHT_METHOD): The method to use for token weighting.
         """
         super().__init__()
         self.index = index
@@ -86,6 +80,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_embs_avg_weights = torch.nn.Parameter(
             torch.ones(vocab_size) / vocab_size
         )  # weights for averaging over q's token embedding, shape (vocab_size,)
+        self.tok_weight_method = tok_weight_method
 
         n_embs = n_docs + 1
         # TODO: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
@@ -93,7 +88,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             torch.ones(n_embs) / n_embs
         )  # weights for averaging over q_emb1 ++ d_embs, shape (n_embs,)
 
-        # TODO: add different w_methods
+        # TODO: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
 
         if ckpt_path is not None:
             ckpt = torch.load(ckpt_path)
@@ -149,10 +144,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         # Tokenizer queries using the doc_encoder_pretrained tokenizer
         q_tokens = self.tokenizer(
-            list(queries),
-            return_tensors="pt",
-            padding=True,
-            add_special_tokens=False
+            list(queries), return_tensors="pt", padding=True, add_special_tokens=False
         ).to(self.device)
         input_ids = q_tokens["input_ids"].to(self.device)
         attention_mask = q_tokens["attention_mask"].to(self.device).unsqueeze(-1)
@@ -168,12 +160,17 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # estimate lightweight query as weighted average of q_tok_embs
         q_tok_embs = self.tok_embs(input_ids)
         q_tok_embs_masked = q_tok_embs * attention_mask
-        q_tok_weights = torch.nn.functional.softmax(
-            self.tok_embs_avg_weights[input_ids], dim=-1
-        ).unsqueeze(-1)
-        # TODO: What happens if all tokens are untrained? Does it return 0s?
-        # TODO: What if all query tokens are added to doc_embs instead of only the average? Would need different weighting.
-        q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights, dim=1).unsqueeze(1)
+        match self.tok_weight_method:
+            case WEIGHT_METHOD.UNIFORM:
+                q_emb_1 = q_tok_embs_masked.mean(dim=1).unsqueeze(1)
+            case WEIGHT_METHOD.LEARNED:
+                q_tok_weights = torch.nn.functional.softmax(
+                    self.tok_embs_avg_weights[input_ids], dim=-1
+                ).unsqueeze(-1)
+                q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights, dim=1).unsqueeze(
+                    1
+                )
+        # TODO: What if all (weighted) query tokens are added to doc_embs instead of 1 q_emb_1? Would need different weighting, padding, and masking.
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)

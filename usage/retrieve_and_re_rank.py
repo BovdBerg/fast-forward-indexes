@@ -20,7 +20,7 @@ from gspread_formatting import (
 )
 from ir_measures import measures
 
-from fast_forward.encoder.avg import W_METHOD, AvgEmbQueryEstimator
+from fast_forward.encoder.avg import AvgEmbQueryEstimator
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
@@ -88,13 +88,6 @@ def parse_args():
         help="Additional remarks about the experiment. Will be added to the Google Sheets file.",
     )
     # WeightedAvgEncoder
-    parser.add_argument(
-        "--w_method",
-        type=W_METHOD,
-        choices=list(W_METHOD),
-        default="LEARNED",
-        help="Method to estimate query embeddings. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
-    )
     parser.add_argument(
         "--n_docs",
         type=int,
@@ -176,7 +169,7 @@ def print_settings() -> str:
     # General settings
     settings_description: List[str] = [
         f"storage={args.storage}, device={args.device}",
-        f"WeightedAvgEncoder: w_method={args.w_method.name}, n_docs={args.n_docs}",
+        f"WeightedAvgEncoder: n_docs={args.n_docs}",
     ]
     # Validation settings
     if args.val_pipelines:
