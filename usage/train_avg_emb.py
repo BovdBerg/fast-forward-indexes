@@ -126,7 +126,7 @@ def create_data(
         step_dataset_file.parent.mkdir(parents=True, exist_ok=True)
 
         if (step_dataset_file).exists():  # Load dataset part
-            new_data = torch.load(step_dataset_file)
+            new_data = torch.load(step_dataset_file, map_location=args.device)
         else:
             print(f"...Step {lb}-{ub}: Creating new data in {step_dataset_file}")
             step_topics = topics.iloc[lb:ub]

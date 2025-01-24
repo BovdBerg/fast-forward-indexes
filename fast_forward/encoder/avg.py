@@ -94,7 +94,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         if ckpt_path is not None:
             self.ckpt_path = ckpt_path
-            ckpt = torch.load(ckpt_path)
+            ckpt = torch.load(ckpt_path, map_location=device)
             self.load_state_dict(ckpt["state_dict"])
 
         self.to(device)
