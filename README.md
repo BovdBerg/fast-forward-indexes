@@ -31,48 +31,46 @@ Install the package via `pip`:
 ```bash
 conda create -y -n ff python=3.12.3
 conda activate ff
-conda install -y -c conda-forge openjdk=21.0.5
-pip install fast-forward-indexes
 
+git clone https://github.com/BovdBerg/fast-forward-indexes.git
 cd fast-forward-indexes
-pip install -r requirements.txt
 pip install -e .
 ```
 
 
 ## Instructions
+Feel free to email me at `bvdb98@gmail.com` for an example index (for `index_path`) and checkpoint file (for `ckpt_path`).
+
+For a detailed description of the program arguments, run ```python path/to/file.py -h``` or inspect the `parse_args` method of that file.
+
+### Training AvgEmbQueryEstimator
+```bash
+python usage/train_avg_emb.py \
+    --index_path path/to/index_path.h5
+    --n_docs 10
+```
+The main important options are:
+- `--ckpt_path` can be added to continue training from an earlier checkpoint.
+- `--samples X` to train on only the first X (integer) samples.
+- `--num_workers X` to use X (int) cpu cores for dataloading. More workers speeds up training.
+
 ### Re-ranking
 <!-- TODO [final]: update run script in readme -->
-Re-ranking can be done by running this code:
 ```bash
 python usage/retrieve_and_re_rank.py \
     --index_path path/to/index_path.h5 \
-    --in_memory \
-    --sparse_cutoff 1000 \
-    --remarks "From README.md" \
-    --avg_chains 3 \
-    --dev_sample_size 512 \
+    --ckpt_path path/to/ckpt_path.ckpt \
+    --device cpu \
+    --n_docs 10 \
     --val_pipelines all \
-    --test_datasets irds:msmarco-passage/trec-dl-2019/judged irds:msmarco-passage/trec-dl-2020/judged \
-    --eval_metrics nDCG@10 RR(rel=2)@10 AP(rel=2)@10
+    --test_datasets "irds:msmarco-passage/trec-dl-2019/judged"
 ```
-
-For a detailed description of the program arguments:
-- Look in the `usage/rerank.py::parse_args` method.
-- Or run: ```python usage/rerank.py -h```
 
 ### Profiling
 ```bash
 python usage/retrieve_and_re_rank.py \
-    --in_memory \
+    [...]
+    --storage mem \
     --profiling \
-    --device=cpu \
-```
-
-### Plotting a profile
-```bash
-python usage/plot_runtimes.py \
-    --profiles avg1 tct \
-    --storage="mem" \
-    --device="cpu" \
+    --device=cpu
 ```
