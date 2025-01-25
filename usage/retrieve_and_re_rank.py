@@ -44,7 +44,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
     )
-    # TODO [final]: Remove default paths (index_tct_path, index_emb_path, ckpt_path) form the arguments
+    # TODO [final]: Remove default paths (index_path, ckpt_path) form the arguments
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -56,13 +56,13 @@ def parse_args():
         help="Profile the re-ranking process.",
     )
     parser.add_argument(
-        "--index_tct_path",
+        "--index_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the index file.",
     )
     parser.add_argument(
-        "--ckpt_avg_path",
+        "--ckpt_path",
         type=Path,
         default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
@@ -80,12 +80,6 @@ def parse_args():
         choices=["cuda", "cpu"],
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to use for encoding queries.",
-    )
-    parser.add_argument(
-        "--remarks",
-        type=str,
-        default="",
-        help="Additional remarks about the experiment. Will be added to the Google Sheets file.",
     )
     # WeightedAvgEncoder
     parser.add_argument(
@@ -152,6 +146,12 @@ def parse_args():
         type=Path,
         default="/home/bvdb9/thesis-gsheets-credentials.json",
         help="Path to the Google Sheets credentials file.",
+    )
+    parser.add_argument(
+        "--remarks",
+        type=str,
+        default="",
+        help="Additional remarks about the experiment. Will be added to the Google Sheets file.",
     )
     return parser.parse_args()
 
@@ -283,7 +283,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
     index_tct = OnDiskIndex.load(
-        args.index_tct_path,
+        args.index_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
         verbose=args.verbose,
         profiling=args.profiling,
@@ -300,7 +300,7 @@ def main(args: argparse.Namespace) -> None:
         index=index_avg,
         n_docs=args.n_docs,
         device=args.device,
-        ckpt_path=args.ckpt_avg_path,
+        ckpt_path=args.ckpt_path,
     )
     ff_avg = FFScore(index_avg)
     int_avg = FFInterpolate(alpha=0.1)

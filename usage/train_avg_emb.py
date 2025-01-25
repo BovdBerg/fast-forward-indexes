@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
 
     # AvgEmbQueryEstimator arguments
     parser.add_argument(
-        "--index_tct_path",
+        "--index_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the TCT index.",
@@ -235,7 +235,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
     all_topics.to_csv(queries_path, index=False)
     lexical_ranking = create_lexical_ranking(queries_path)
 
-    index = OnDiskIndex.load(args.index_tct_path)
+    index = OnDiskIndex.load(args.index_path)
     if args.storage == "mem":
         index = index.to_memory(2**15)
 
