@@ -174,13 +174,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         input_ids = q_tokens["input_ids"].to(self.device)
         attention_mask = q_tokens["attention_mask"].to(self.device)
 
-        # Remove first 4 tokens from attention mask (similar to TCTQueryEncoder)
-        attention_mask[:, :4] = 0
-        # # Remove any special tokens from attention mask (similar to TCTQueryEncoder)
-        # special_tokens_mask = ~torch.isin(
-        #     input_ids, torch.tensor(self.tokenizer.all_special_ids, device=self.device)
-        # )
-        # attention_mask = attention_mask * special_tokens_mask
+        # # Remove first 4 tokens from attention mask (similar to TCTQueryEncoder)
+        # attention_mask[:, :4] = 0
+        # Remove all special tokens from attention mask (similar to TCTQueryEncoder)
+        special_tokens_mask = ~torch.isin(
+            input_ids, torch.tensor(self.tokenizer.all_special_ids, device=self.device)
+        )
+        attention_mask = attention_mask * special_tokens_mask
 
         if self._trainer is not None and self.trainer.training:
             # During training, update self.trained_toks with the encountered tokens
