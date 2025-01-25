@@ -65,7 +65,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self._ranking = ranking
         self.n_docs = n_docs
 
-        doc_encoder_pretrained = "bert-base-uncased"
+        doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
         vocab_size = self.tokenizer.vocab_size
 
