@@ -38,7 +38,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
         tok_weight_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
-        untrained_tok_weight: float = 1.0,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -174,12 +173,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         input_ids = q_tokens["input_ids"].to(self.device)
         attention_mask = q_tokens["attention_mask"].to(self.device)
 
-        # Remove any special tokens from attention mask (similar to TCTQueryEncoder)
-        # TODO: TCTQueryEncoder removes first 4 tokens `return np.average(embeddings[:, 4:, :], axis=-2)` = `attention_mask[:, :4] = 0`. Train once with only 1st 4 tokens removed.
-        special_tokens_mask = ~torch.isin(
-            input_ids, torch.tensor(self.tokenizer.all_special_ids, device=self.device)
-        )
-        attention_mask = attention_mask * special_tokens_mask
+        # Remove first 4 tokens from attention mask (similar to TCTQueryEncoder)
+        attention_mask[:, :4] = 0
+        # # Remove any special tokens from attention mask (similar to TCTQueryEncoder)
+        # special_tokens_mask = ~torch.isin(
+        #     input_ids, torch.tensor(self.tokenizer.all_special_ids, device=self.device)
+        # )
+        # attention_mask = attention_mask * special_tokens_mask
 
         if self._trainer is not None and self.trainer.training:
             # During training, update self.trained_toks with the encountered tokens
