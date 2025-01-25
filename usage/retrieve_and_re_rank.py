@@ -307,8 +307,8 @@ def main(args: argparse.Namespace) -> None:
     sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
     pipelines = [
-        # ("bm25", "BM25", ~sys_bm25, None),
-        # ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
+        ("bm25", "BM25", ~sys_bm25, None),
+        ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
         ("avg", "AvgEmb(TCT)", sys_avg, int_avg),
     ]
 
