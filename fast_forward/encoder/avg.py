@@ -166,10 +166,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         q_tokens = self.tokenizer(
             ["[CLS] [Q] " + q + "[MASK]" * max_length for q in queries],
             max_length=max_length,
-            return_tensors="pt",
             truncation=True,
-            padding=False,
             add_special_tokens=False,
+            return_tensors="pt",
+            padding=False,
         ).to(self.device)
         input_ids = q_tokens["input_ids"].to(self.device)
         attention_mask = q_tokens["attention_mask"].to(self.device)
