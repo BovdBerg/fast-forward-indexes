@@ -38,6 +38,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
         tok_weight_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
+        untrained_tok_weight: float = 1.0,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
