@@ -106,7 +106,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         trained_tokens_count = int(torch.sum(self.trained_toks).item())
         trained_tokens_percentage = trained_tokens_count / vocab_size * 100
         print(
-            f"AvgEmbQueryEstimator.trained_toks: {trained_tokens_count}/{vocab_size} ({trained_tokens_percentage:.2f}%). Ignoring {vocab_size - trained_tokens_count} tokens in averaging."
+            f"AvgEmbQueryEstimator.trained_toks: {trained_tokens_count}/{vocab_size} ({trained_tokens_percentage:.2f}%). Using untrained_tok_weight={self.untrained_tok_weight} for {vocab_size - trained_tokens_count} tokens."
         )
 
     def on_train_start(self) -> None:

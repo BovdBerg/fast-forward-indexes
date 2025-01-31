@@ -309,7 +309,7 @@ def main(args: argparse.Namespace) -> None:
     pipelines = [
         ("bm25", "BM25", ~sys_bm25, None),
         ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
-        ("avg", "AvgEmb(TCT)", sys_avg, int_avg),
+        ("avg", "AvgEmb", sys_avg, int_avg),
     ]
 
     # Validation and parameter tuning on dev set

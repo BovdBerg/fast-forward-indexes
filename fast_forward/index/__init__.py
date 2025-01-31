@@ -340,6 +340,7 @@ class Index(abc.ABC):
         # get all required vectors from the FF index
         t1 = perf_counter()
         vectors, id_to_vec_idxs = self._get_vectors(id_df["id"].to_list())
+        # TODO: use same vectors in query averaging
         t2 = perf_counter()
         if self._profiling:
             LOGGER.info(f"_get_vectors took {t2 - t1:.5f} seconds for {len(vectors)} vectors")
