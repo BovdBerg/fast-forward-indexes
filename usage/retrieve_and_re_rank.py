@@ -334,12 +334,29 @@ def main(args: argparse.Namespace) -> None:
     int_combo = FFInterpolate(alpha=0.1)
     sys_combo = sys_avg >> ff_emb >> int_combo
 
+    index_avgD = copy(index_tct)
+    index_avgD.query_encoder = AvgEmbQueryEstimator(
+        index=index_avg,
+        n_docs=args.n_docs,
+        device=args.device,
+        ckpt_path=args.ckpt_path,
+        disable_lightweight_query=True,
+    )
+    ff_avgD = FFScore(index_avgD)
+    int_avgD = FFInterpolate(alpha=0.1)
+    sys_avgD = sys_bm25_cut >> ff_avgD >> int_avgD
+
+    int_comboD = FFInterpolate(alpha=0.1)
+    sys_comboD = sys_avgD >> ff_emb >> int_comboD
+
     pipelines = [
         ("bm25", "BM25", ~sys_bm25, None),
         ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
         ("emb", "AvgTokEmb", sys_emb, int_emb),
+        ("avgD", "AvgEmb_docs", sys_avgD, int_avgD),
+        ("comboD", "AvgEmb_docs + AvgTokEmb", sys_comboD, int_comboD),
         ("avg", "AvgEmb", sys_avg, int_avg),
-        ("combo", "AvgEmb + TCT-ColBERT", sys_combo, int_combo),
+        ("combo", "AvgEmb + AvgTokEmb", sys_combo, int_combo),
     ]
 
     # Validation and parameter tuning on dev set
