@@ -307,18 +307,7 @@ def main(args: argparse.Namespace) -> None:
     int_tct = FFInterpolate(alpha=0.1)
     sys_tct_int = sys_bm25_cut >> ff_tct >> int_tct
 
-    # Create re-ranking pipeline based on WeightedAvgEncoder
-    index_avg = copy(index_tct)
-    index_avg.query_encoder = AvgEmbQueryEstimator(
-        index=index_avg,
-        n_docs=args.n_docs,
-        device=args.device,
-        ckpt_path=args.ckpt_path,
-    )
-    ff_avg = FFScore(index_avg)
-    int_avg = FFInterpolate(alpha=0.0)
-    sys_avg = sys_bm25_cut >> ff_avg >> int_avg
-
+    # Create re-ranking pipeline based on TransformerEmbedding
     index_emb = OnDiskIndex.load(
         args.index_path_emb,
         StandaloneEncoder(ckpt_path=args.ckpt_path_emb, device=args.device),
@@ -331,12 +320,10 @@ def main(args: argparse.Namespace) -> None:
     int_emb = FFInterpolate(alpha=0.1)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
-    int_combo = FFInterpolate(alpha=0.7)
-    sys_combo = sys_avg >> ff_emb >> int_combo
-
+    # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avgD = copy(index_tct)
     index_avgD.query_encoder = AvgEmbQueryEstimator(
-        index=index_avg,
+        index=index_avgD,
         n_docs=args.n_docs,
         device=args.device,
         ckpt_path=args.ckpt_path,
@@ -348,6 +335,20 @@ def main(args: argparse.Namespace) -> None:
 
     int_comboD = FFInterpolate(alpha=0.5)
     sys_comboD = sys_avgD >> ff_emb >> int_comboD
+
+    index_avg = copy(index_tct)
+    index_avg.query_encoder = AvgEmbQueryEstimator(
+        index=index_avg,
+        n_docs=args.n_docs,
+        device=args.device,
+        ckpt_path=args.ckpt_path,
+    )
+    ff_avg = FFScore(index_avg)
+    int_avg = FFInterpolate(alpha=0.0)
+    sys_avg = sys_bm25_cut >> ff_avg >> int_avg
+
+    int_combo = FFInterpolate(alpha=0.7)
+    sys_combo = sys_avg >> ff_emb >> int_combo
 
     pipelines = [
         ("bm25", "BM25", ~sys_bm25, None),
