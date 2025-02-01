@@ -22,6 +22,7 @@ from ir_measures import measures
 
 from fast_forward.encoder.avg import AvgEmbQueryEstimator
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
+from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
@@ -64,8 +65,20 @@ def parse_args():
     parser.add_argument(
         "--ckpt_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/version_53/checkpoints/epoch=5-step=145314.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
+    )
+    parser.add_argument(
+        "--index_path_emb",
+        type=Path,
+        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
+        help="Path to the index file.",
+    )
+    parser.add_argument(
+        "--ckpt_path_emb",
+        type=Path,
+        default="/home/bvdb9/models/emb_bert.ckpt",
+        help="Path to the emb checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
         "--storage",
@@ -306,10 +319,27 @@ def main(args: argparse.Namespace) -> None:
     int_avg = FFInterpolate(alpha=0.1)
     sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
+    index_emb = OnDiskIndex.load(
+        args.index_path_emb,
+        StandaloneEncoder(ckpt_path=args.ckpt_path_emb, device=args.device),
+        verbose=args.verbose,
+        profiling=args.profiling,
+    )
+    if args.storage == "mem":
+        index_emb = index_emb.to_memory(2**15)
+    ff_emb = FFScore(index_emb)
+    int_emb = FFInterpolate(alpha=0.1)
+    sys_emb = sys_bm25_cut >> ff_emb >> int_emb
+
+    int_combo = FFInterpolate(alpha=0.1)
+    sys_combo = sys_avg >> ff_emb >> int_combo
+
     pipelines = [
         ("bm25", "BM25", ~sys_bm25, None),
         ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
+        ("emb", "AvgTokEmb", sys_emb, int_emb),
         ("avg", "AvgEmb", sys_avg, int_avg),
+        ("combo", "AvgEmb + TCT-ColBERT", sys_combo, int_combo),
     ]
 
     # Validation and parameter tuning on dev set
