@@ -161,16 +161,22 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         return d_embs_pad, n_embs_per_q
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
-        # Tokenizer queries similar to TCTColBERTQueryEncoder
-        max_length = 36
+        # Tokenizer queries
         q_tokens = self.tokenizer(
-            ["[CLS] [Q] " + q + "[MASK]" * max_length for q in queries],
-            max_length=max_length,
-            truncation=True,
+            list(queries),
             add_special_tokens=False,
             return_tensors="pt",
-            padding=False,
+            padding=True,
         ).to(self.device)
+        # max_length = 36
+        # q_tokens = self.tokenizer(
+        #     ["[CLS] [Q] " + q + "[MASK]" * max_length for q in queries],
+        #     max_length=max_length,
+        #     truncation=True,
+        #     add_special_tokens=False,
+        #     return_tensors="pt",
+        #     padding=False,
+        # ).to(self.device)
         input_ids = q_tokens["input_ids"].to(self.device)
         attention_mask = q_tokens["attention_mask"].to(self.device)
 
