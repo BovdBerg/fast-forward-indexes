@@ -3,7 +3,6 @@ import logging
 import warnings
 from enum import Enum
 from pathlib import Path
-from time import perf_counter
 from typing import Optional, Sequence
 
 import numpy as np
@@ -16,9 +15,6 @@ from fast_forward.lightning import GeneralModule
 from fast_forward.ranking import Ranking
 
 warnings.filterwarnings("ignore", message="`training_step` returned `None`.*")
-
-LOGGER = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 class WEIGHT_METHOD(Enum):
@@ -171,8 +167,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         return d_embs_pad, n_embs_per_q
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
-        t0 = perf_counter()
-
         if self.disable_lightweight_query:
             q_emb_1 = torch.zeros((len(queries), 768), device=self.device)
         else:
@@ -224,16 +218,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights.unsqueeze(-1), 1)
             # TODO: What if all (weighted) query tokens are added to doc_embs instead of 1 q_emb_1? Would need different weighting, padding, and masking.
 
-        t1 = perf_counter()
-        if self.index._profiling:
-            LOGGER.info(f"lightweight q_emb_1 took {t1 - t0:.5f} seconds")
-
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
-
-        t2 = perf_counter()
-        if self.index._profiling:
-            LOGGER.info(f"_get_top_docs took {t2 - t1:.5f} seconds")
 
         # estimate query embedding as weighted average of q_emb and d_embs
         embs = torch.cat((q_emb_1.unsqueeze(1), d_embs_pad), -2)
@@ -246,11 +232,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 embs_weights[i] = torch.nn.functional.softmax(embs_weights[i], 0)
 
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
-
-        t3 = perf_counter()
-        if self.index._profiling:
-            LOGGER.info(f"q_emb_2 took {t3 - t2:.5f} seconds")
-
         return q_emb_2
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
