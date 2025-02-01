@@ -316,7 +316,7 @@ def main(args: argparse.Namespace) -> None:
         ckpt_path=args.ckpt_path,
     )
     ff_avg = FFScore(index_avg)
-    int_avg = FFInterpolate(alpha=0.1)
+    int_avg = FFInterpolate(alpha=0.0)
     sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
     index_emb = OnDiskIndex.load(
@@ -331,7 +331,7 @@ def main(args: argparse.Namespace) -> None:
     int_emb = FFInterpolate(alpha=0.1)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
-    int_combo = FFInterpolate(alpha=0.1)
+    int_combo = FFInterpolate(alpha=0.7)
     sys_combo = sys_avg >> ff_emb >> int_combo
 
     index_avgD = copy(index_tct)
@@ -346,7 +346,7 @@ def main(args: argparse.Namespace) -> None:
     int_avgD = FFInterpolate(alpha=0.1)
     sys_avgD = sys_bm25_cut >> ff_avgD >> int_avgD
 
-    int_comboD = FFInterpolate(alpha=0.1)
+    int_comboD = FFInterpolate(alpha=0.5)
     sys_comboD = sys_avgD >> ff_emb >> int_comboD
 
     pipelines = [
