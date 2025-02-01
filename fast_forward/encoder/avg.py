@@ -1,5 +1,4 @@
 import json
-import logging
 import warnings
 from enum import Enum
 from pathlib import Path
@@ -146,8 +145,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # Create tensors for padding and total embedding counts
         d_embs_pad = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
         n_embs_per_q = torch.ones((len(queries)), dtype=torch.int, device=self.device)
-        if self.disable_lightweight_query:
-            n_embs_per_q.fill_(0)
 
         # Retrieve the top-ranked documents for all queries
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
@@ -229,7 +226,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             embs_weights[i, :n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:n_embs], 0)
             if self.disable_lightweight_query:
                 embs_weights[i, 0] = 0.0
-                embs_weights[i] = torch.nn.functional.softmax(embs_weights[i], 0)
+                embs_weights[i, 1:n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[1:n_embs], 0)
+            else:
+                embs_weights[i, :n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:n_embs], 0)
 
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         return q_emb_2
