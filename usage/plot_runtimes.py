@@ -47,17 +47,14 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     for i, (bar_group, runtimes) in enumerate(zip(bars, [encode_queries, get_vectors, compute_scores, other])):
         for j, (bar, runtime) in enumerate(zip(bar_group, runtimes)):
             if i == 0:
-            # if (j == 0 and runtime > 500) or i == 0:
                 ax.text(
                     bar.get_x() + bar.get_width() / 2,
-                    # bar.get_y() + bar.get_height() / 2 if j == 0 else bar.get_y(),
                     bar.get_y(),
                     f'{(runtime / total[j]) * 100:.1f}%',
                     ha='center',
                     va='bottom',
-                    # va='center' if j == 0 else 'bottom',
                     color='white',
-                    fontsize=9.5,
+                    fontsize=10,
                     fontweight='bold',
                 )
 
