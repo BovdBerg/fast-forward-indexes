@@ -160,9 +160,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 add_special_tokens=False,
                 return_tensors="pt",
                 padding=True,
-                # TODO: remove truncation?
-                truncation=True,
-                max_length=512,
             ).to(self.device)
             # TODO: remove unneeded TCT-ColBERT tokenization. Only max_length=36 would have mattered anyway.
             # max_length = 36
