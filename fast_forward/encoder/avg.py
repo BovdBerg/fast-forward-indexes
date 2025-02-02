@@ -166,20 +166,11 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             # Tokenizer queries
             q_tokens = self.tokenizer(
                 list(queries),
-                add_special_tokens=self.add_special_tokens,
-                return_tensors="pt",
                 padding=True,
+                return_tensors="pt",
+                add_special_tokens=self.add_special_tokens,
             ).to(self.device)
-            # TODO: remove unneeded TCT-ColBERT tokenization. Only max_length=36 would have mattered anyway.
-            # max_length = 36
-            # q_tokens = self.tokenizer(
-            #     ["[CLS] [Q] " + q + "[MASK]" * max_length for q in queries],
-            #     max_length=max_length,
-            #     truncation=True,
-            #     add_special_tokens=False,
-            #     return_tensors="pt",
-            #     padding=False,
-            # ).to(self.device)
+
             input_ids = q_tokens["input_ids"].to(self.device)
             attention_mask = q_tokens["attention_mask"].to(self.device)
 
