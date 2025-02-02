@@ -95,6 +95,12 @@ def parse_args() -> argparse.Namespace:
 
     # Training arguments
     parser.add_argument(
+        "--ckpt_name",
+        type=str,
+        default=None,
+        help="Name of the checkpoint file to save.",
+    )
+    parser.add_argument(
         "--dataset_cache_path",
         type=Path,
         default="data/q-to-rep/tct/",
@@ -306,7 +312,12 @@ def main() -> None:
             )
         ),
         callbacks=[
-            callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
+            callbacks.ModelCheckpoint(
+                monitor="val_loss",
+                verbose=True,
+                dirpath="lightning_logs/checkpoints",
+                filename=args.ckpt_name,
+            ),
             callbacks.EarlyStopping(
                 monitor="val_loss", min_delta=3e-4, patience=5, verbose=True
             ),
