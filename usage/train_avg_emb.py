@@ -15,7 +15,7 @@ from lightning.pytorch import callbacks
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from fast_forward.encoder.avg import AvgEmbQueryEstimator
+from fast_forward.encoder.avg import AvgEmbQueryEstimator, WEIGHT_METHOD
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -60,6 +60,13 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=10,
         help="Number of top-ranked documents to average.",
+    )
+    parser.add_argument(
+        "--tok_w_method",
+        type=str,
+        default=WEIGHT_METHOD.LEARNED,
+        choices=WEIGHT_METHOD,
+        help="Method to weight token embeddings.",
     )
     parser.add_argument(
         "--device",
@@ -247,6 +254,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         device=args.device,
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
+        tok_weight_method=args.tok_w_method,
     )
 
     print("\033[0m")  # Reset print color

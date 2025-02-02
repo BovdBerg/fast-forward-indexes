@@ -173,9 +173,11 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 add_special_tokens=False,
                 return_tensors="pt",
                 padding=True,
+                # TODO: remove truncation?
                 truncation=True,
                 max_length=512,
             ).to(self.device)
+            # TODO: remove unneeded TCT-ColBERT tokenization. Only max_length=36 would have mattered anyway.
             # max_length = 36
             # q_tokens = self.tokenizer(
             #     ["[CLS] [Q] " + q + "[MASK]" * max_length for q in queries],
@@ -188,17 +190,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             input_ids = q_tokens["input_ids"].to(self.device)
             attention_mask = q_tokens["attention_mask"].to(self.device)
 
-            # Get token embeddings
-            tokens_emb = self.tok_embs(input_ids)
-
-            # Apply attention mask to remove padding tokens
-            masked_emb = tokens_emb * attention_mask.unsqueeze(-1)
-
-            # Compute the mean of the masked embeddings
-            lengths = attention_mask.sum(dim=1, keepdim=True)
-            mean_emb = masked_emb.sum(dim=1) / lengths
-            q_emb_1 = torch.nn.functional.normalize(mean_emb)
-
             # # Remove all special tokens from attention mask
             # special_tokens_mask = ~torch.isin(
             #     input_ids,
@@ -206,27 +197,21 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             # )
             # attention_mask = attention_mask * special_tokens_mask
 
-            # if self._trainer is not None and self.trainer.training:
-            #     # During training, update self.trained_toks with the encountered tokens
-            #     self.trained_toks[torch.unique(input_ids.flatten())] = True
-            # elif self.untrained_tok_weight != 1.0:
-            #     # During inference, extend attention mask to weigh untrained tokens with untrained_tok_weight
-            #     trained_toks_mask = self.trained_toks[input_ids]
-            #     trained_toks_mask[~trained_toks_mask] = self.untrained_tok_weight
-            #     attention_mask = attention_mask * trained_toks_mask
+            # estimate lightweight query as weighted average of q_tok_embs
+            q_tok_embs = self.tok_embs(input_ids)
+            q_tok_embs_masked = q_tok_embs * attention_mask.unsqueeze(-1)
+            match self.tok_weight_method:
+                case WEIGHT_METHOD.UNIFORM:
+                    q_emb_1 = torch.mean(q_tok_embs_masked, 1)
+                case WEIGHT_METHOD.LEARNED:
+                    q_tok_weights = torch.nn.functional.softmax(
+                        self.tok_embs_avg_weights[input_ids], -1
+                    )
+                    q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights.unsqueeze(-1), 1)
+            # TODO: What if all (weighted) query tokens are added to doc_embs instead of 1 q_emb_1? Would need different weighting, padding, and masking.
 
-            # # estimate lightweight query as weighted average of q_tok_embs
-            # q_tok_embs = self.tok_embs(input_ids)
-            # q_tok_embs_masked = q_tok_embs * attention_mask.unsqueeze(-1)
-            # match self.tok_weight_method:
-            #     case WEIGHT_METHOD.UNIFORM:
-            #         q_emb_1 = torch.mean(q_tok_embs_masked, 1)
-            #     case WEIGHT_METHOD.LEARNED:
-            #         q_tok_weights = torch.nn.functional.softmax(
-            #             self.tok_embs_avg_weights[input_ids], -1
-            #         )
-            #         q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights.unsqueeze(-1), 1)
-            # # TODO: What if all (weighted) query tokens are added to doc_embs instead of 1 q_emb_1? Would need different weighting, padding, and masking.
+            # # TODO: Normalize mean_emb or not?
+            # q_emb_1 = torch.nn.functional.normalize(mean_emb)
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
