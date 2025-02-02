@@ -32,7 +32,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
 
     fig, ax = plt.subplots()
 
-    bar_width = 0.85
+    bar_width = 0.9
     bars = [
         ax.bar(names, encode_queries, color="darkviolet", label="encode queries", width=bar_width),
         ax.bar(names, get_vectors, bottom=encode_queries, label="get vectors", width=bar_width),
@@ -41,20 +41,23 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     ]
 
     # Set y-axis limit
-    ax.set_ylim(0, max(total) + 2000)
+    ax.set_ylim(0, (max(total) // 1000 + 1) * 1000)
 
     # Add percentage text for bars of >X cm
-    for bar_group, runtimes in zip(bars, [encode_queries, get_vectors, compute_scores, other]):
-        for bar, runtime in zip(bar_group, runtimes):
-            if bar.get_height() > 500:
+    for i, (bar_group, runtimes) in enumerate(zip(bars, [encode_queries, get_vectors, compute_scores, other])):
+        for j, (bar, runtime) in enumerate(zip(bar_group, runtimes)):
+            if i == 0:
+            # if (j == 0 and runtime > 500) or i == 0:
                 ax.text(
                     bar.get_x() + bar.get_width() / 2,
-                    bar.get_y() + bar.get_height() / 2,
-                    f'{(runtime / total[0]) * 100:.1f}%',
+                    # bar.get_y() + bar.get_height() / 2 if j == 0 else bar.get_y(),
+                    bar.get_y(),
+                    f'{(runtime / total[j]) * 100:.1f}%',
                     ha='center',
-                    va='center',
+                    va='bottom',
+                    # va='center' if j == 0 else 'bottom',
                     color='white',
-                    fontsize=12,
+                    fontsize=9.5,
                     fontweight='bold',
                 )
 
@@ -74,12 +77,15 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
 
     ax.set_xlabel('Pipelines')
     ax.set_ylabel('Re-ranking runtime (ms)')
-    ax.legend()
+    ax.legend(bbox_to_anchor=(1.05, 0.5), loc='center left')
 
     # Rotate the names under the X-axis vertically
+    ax.set_xticks(np.arange(len(names)))
     ax.set_xticklabels(names, rotation=90)
+    plt.tight_layout()
 
     fig.savefig("reranking_runtimes_distribution.png", transparent=True)
+    plt.show()
 
 
 def main(args: argparse.Namespace) -> None:
