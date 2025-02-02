@@ -38,7 +38,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
         tok_w_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
-        disable_lightweight_query: bool = False,
+        docs_only: bool = False,
         add_special_tokens: bool = False,
     ) -> None:
         """
@@ -59,7 +59,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
             tok_weight_method (TOKEN_WEIGHT_METHOD): The method to use for token weighting.
-            disable_lightweight_query (bool): Whether to disable the lightweight query estimation.
+            docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
             add_special_tokens (bool): Whether to add special tokens to the queries.
         """
         super().__init__()
@@ -67,7 +67,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self._ranking = ranking
         self.n_docs = n_docs
         self.add_special_tokens = add_special_tokens
-        self.disable_lightweight_query = disable_lightweight_query
+        self.docs_only = docs_only
 
         doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
@@ -115,7 +115,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "ckpt_path": getattr(self, "ckpt_path", None),
                 "tok_weight_method": self.tok_weight_method.value,
                 "add_special_tokens": self.add_special_tokens,
-                "disable_lightweight_query": self.disable_lightweight_query,
+                "docs_only": self.docs_only,
             }
         )
 
@@ -156,7 +156,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         return d_embs_pad, n_embs_per_q
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
-        if self.disable_lightweight_query:
+        if self.docs_only:
             q_emb_1 = torch.zeros((len(queries), 768), device=self.device)
         else:
             # Tokenizer queries
@@ -210,12 +210,11 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_weights = torch.zeros((len(queries), embs.shape[-2]), device=self.device)
         # assign self.embs_avg_weights to embs_avg_weights, but only up to the number of top-ranked documents per query
         for i, n_embs in enumerate(n_embs_per_q):
-            if self.disable_lightweight_query:
+            if self.docs_only:
                 embs_weights[i, 0] = 0.0
                 embs_weights[i, 1:n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[1:n_embs], 0)
             else:
                 embs_weights[i, :n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:n_embs], 0)
-
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         return q_emb_2
 
