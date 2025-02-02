@@ -75,12 +75,6 @@ def parse_args() -> argparse.Namespace:
         help="Whether to add special tokens to the queries.",
     )
     parser.add_argument(
-        "--normalize_q_embs",
-        type=bool,
-        default=False,
-        help="Whether to normalize the query embeddings.",
-    )
-    parser.add_argument(
         "--device",
         type=str,
         default="cuda" if torch.cuda.is_available() else "cpu",
@@ -280,7 +274,6 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         ckpt_path=args.ckpt_path,
         tok_w_method=WEIGHT_METHOD(args.tok_w_method),
         add_special_tokens=args.add_special_tokens,
-        normalize_q_embs=args.normalize_q_embs,
     )
 
     print("\033[0m")  # Reset print color
