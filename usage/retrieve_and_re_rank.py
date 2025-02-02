@@ -344,7 +344,7 @@ def main(args: argparse.Namespace) -> None:
         ckpt_path=args.ckpt_path,
     )
     ff_avg = FFScore(index_avg)
-    int_avg = FFInterpolate(alpha=0.0)
+    int_avg = FFInterpolate(alpha=0.1)
     sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
     # int_combo = FFInterpolate(alpha=0.7)
