@@ -15,7 +15,7 @@ from lightning.pytorch import callbacks
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from fast_forward.encoder.avg import AvgEmbQueryEstimator, WEIGHT_METHOD
+from fast_forward.encoder.avg import WEIGHT_METHOD, AvgEmbQueryEstimator
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -296,10 +296,14 @@ def main() -> None:
         log_every_n_steps=(
             1 if len(train_dataloader) <= 1000 else len(train_dataloader) // 100
         ),
-        val_check_interval=args.val_check_interval if args.val_check_interval else (
-            1.0
-            if len(train_dataloader) <= 1_000
-            else 0.5 if len(train_dataloader) <= 10_000 else 0.25
+        val_check_interval=(
+            args.val_check_interval
+            if args.val_check_interval
+            else (
+                1.0
+                if len(train_dataloader) <= 1_000
+                else 0.5 if len(train_dataloader) <= 10_000 else 0.25
+            )
         ),
         callbacks=[
             callbacks.ModelCheckpoint(monitor="val_loss", verbose=True),
