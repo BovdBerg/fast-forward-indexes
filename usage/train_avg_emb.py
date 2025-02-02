@@ -69,6 +69,12 @@ def parse_args() -> argparse.Namespace:
         help="Method to weight token embeddings.",
     )
     parser.add_argument(
+        "--add_special_tokens",
+        type=bool,
+        default=False,
+        help="Whether to add special tokens to the queries.",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default="cuda" if torch.cuda.is_available() else "cpu",
@@ -261,6 +267,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
         tok_w_method=WEIGHT_METHOD(args.tok_w_method),
+        add_special_tokens=args.add_special_tokens,
     )
 
     print("\033[0m")  # Reset print color

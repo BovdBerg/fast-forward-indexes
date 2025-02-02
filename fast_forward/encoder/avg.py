@@ -39,6 +39,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ckpt_path: Optional[Path] = None,
         tok_w_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
         disable_lightweight_query: bool = False,
+        add_special_tokens: bool = False,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -58,11 +59,14 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
             tok_weight_method (TOKEN_WEIGHT_METHOD): The method to use for token weighting.
+            disable_lightweight_query (bool): Whether to disable the lightweight query estimation.
+            add_special_tokens (bool): Whether to add special tokens to the queries.
         """
         super().__init__()
         self.index = index
         self._ranking = ranking
         self.n_docs = n_docs
+        self.add_special_tokens = add_special_tokens
         self.disable_lightweight_query = disable_lightweight_query
 
         doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
@@ -110,6 +114,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "device": self.device.type,
                 "ckpt_path": getattr(self, "ckpt_path", None),
                 "tok_weight_method": self.tok_weight_method.value,
+                "add_special_tokens": self.add_special_tokens,
                 "disable_lightweight_query": self.disable_lightweight_query,
             }
         )
@@ -157,7 +162,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             # Tokenizer queries
             q_tokens = self.tokenizer(
                 list(queries),
-                add_special_tokens=False,
+                add_special_tokens=self.add_special_tokens,
                 return_tensors="pt",
                 padding=True,
             ).to(self.device)
