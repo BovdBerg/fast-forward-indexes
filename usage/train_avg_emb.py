@@ -71,7 +71,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--add_special_tokens",
         type=bool,
-        default=False,
+        default=True,
         help="Whether to add special tokens to the queries.",
     )
     parser.add_argument(

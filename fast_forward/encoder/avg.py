@@ -40,7 +40,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         tok_w_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
         docs_only: bool = False,
         q_only: bool = False,
-        add_special_tokens: bool = False,
+        add_special_tokens: bool = True,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
