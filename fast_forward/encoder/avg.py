@@ -40,6 +40,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         tok_w_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
         docs_only: bool = False,
         add_special_tokens: bool = False,
+        normalize_q_embs: bool = True,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -61,6 +62,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             tok_weight_method (TOKEN_WEIGHT_METHOD): The method to use for token weighting.
             docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
             add_special_tokens (bool): Whether to add special tokens to the queries.
+            normalize_q_embs (bool): Whether to normalize the query embeddings (q_emb_1 and q_emb_2).
         """
         super().__init__()
         self.index = index
@@ -68,6 +70,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.n_docs = n_docs
         self.add_special_tokens = add_special_tokens
         self.docs_only = docs_only
+        self.normalize_q_embs = normalize_q_embs
 
         doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
@@ -84,12 +87,12 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_weight_method = tok_w_method
 
         n_embs = n_docs + 1
-        # TODO: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
+        # TODO [maybe]: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
         self.embs_avg_weights = torch.nn.Parameter(
             torch.ones(n_embs) / n_embs
         )  # weights for averaging over q_emb1 ++ d_embs, shape (n_embs,)
 
-        # TODO: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
+        # TODO [maybe]: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
 
         if ckpt_path is not None:
             self.ckpt_path = ckpt_path
@@ -116,6 +119,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "tok_weight_method": self.tok_weight_method.value,
                 "add_special_tokens": self.add_special_tokens,
                 "docs_only": self.docs_only,
+                "normalize_q_embs": self.normalize_q_embs,
             }
         )
 
@@ -197,10 +201,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                         self.tok_embs_avg_weights[input_ids], -1
                     )
                     q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights.unsqueeze(-1), 1)
-            # TODO: What if all (weighted) query tokens are added to doc_embs instead of 1 q_emb_1? Would need different weighting, padding, and masking.
-
-            # # TODO: Normalize mean_emb or not?
-            # q_emb_1 = torch.nn.functional.normalize(mean_emb)
+            if self.normalize_q_embs:
+                q_emb_1 = torch.nn.functional.normalize(q_emb_1)
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
@@ -216,6 +218,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             else:
                 embs_weights[i, :n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:n_embs], 0)
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
+        if self.normalize_q_embs:
+            q_emb_2 = torch.nn.functional.normalize(q_emb_2)
+
         return q_emb_2
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
