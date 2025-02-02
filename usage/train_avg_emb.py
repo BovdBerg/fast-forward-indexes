@@ -100,6 +100,12 @@ def parse_args() -> argparse.Namespace:
         default=11,
         help="Number of workers for the DataLoader.",
     )
+    parser.add_argument(
+        "--val_check_interval",
+        type=float,
+        default=None,
+        help="Validation check interval in epochs.",
+    )
 
     return parser.parse_args()
 
@@ -276,7 +282,7 @@ def main() -> None:
         log_every_n_steps=(
             1 if len(train_dataloader) <= 1000 else len(train_dataloader) // 100
         ),
-        val_check_interval=(
+        val_check_interval=args.val_check_interval if args.val_check_interval else (
             1.0
             if len(train_dataloader) <= 1_000
             else 0.5 if len(train_dataloader) <= 10_000 else 0.25
