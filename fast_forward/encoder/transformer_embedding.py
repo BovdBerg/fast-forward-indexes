@@ -88,8 +88,8 @@ class StandaloneEncoder(Encoder):
             list(texts),
             padding=True,
             truncation=True,
-            return_tensors="pt",
             max_length=512,
+            return_tensors="pt",
         )
         inputs.to(self.device)
 
