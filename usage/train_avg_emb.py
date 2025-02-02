@@ -41,6 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--index_path",
         type=Path,
+        # Note that training on non-OPQ index has better results.
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the TCT index.",
     )
