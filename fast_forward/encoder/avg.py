@@ -39,6 +39,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ckpt_path: Optional[Path] = None,
         tok_w_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
         docs_only: bool = False,
+        q_only: bool = False,
         add_special_tokens: bool = False,
     ) -> None:
         """
@@ -60,6 +61,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
             tok_weight_method (TOKEN_WEIGHT_METHOD): The method to use for token weighting.
             docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
+            q_only (bool): Whether to only use the lightweight query estimation and not the top-ranked documents.
             add_special_tokens (bool): Whether to add special tokens to the queries.
         """
         super().__init__()
@@ -68,6 +70,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.n_docs = n_docs
         self.add_special_tokens = add_special_tokens
         self.docs_only = docs_only
+        self.q_only = q_only
 
         doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
@@ -116,6 +119,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "tok_weight_method": self.tok_weight_method.value,
                 "add_special_tokens": self.add_special_tokens,
                 "docs_only": self.docs_only,
+                "q_only": self.q_only,
             }
         )
 
@@ -197,6 +201,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                         self.tok_embs_avg_weights[input_ids], -1
                     )
                     q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights.unsqueeze(-1), 1)
+        if self.q_only:
+            return q_emb_1
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)

@@ -86,6 +86,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Path to a checkpoint file to load the model from.",
     )
+    parser.add_argument(
+        "--docs_only",
+        type=bool,
+        default=False,
+        help="Whether to disable the lightweight query estimation and only use the top-ranked documents.",
+    )
+    parser.add_argument(
+        "--q_only",
+        type=bool,
+        default=False,
+        help="Whether to only use the lightweight query estimation and not the top-ranked documents.",
+    )
 
     # Training arguments
     parser.add_argument(
@@ -274,6 +286,8 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         ckpt_path=args.ckpt_path,
         tok_w_method=WEIGHT_METHOD(args.tok_w_method),
         add_special_tokens=args.add_special_tokens,
+        docs_only=args.docs_only,
+        q_only=args.q_only,
     )
 
     print("\033[0m")  # Reset print color
