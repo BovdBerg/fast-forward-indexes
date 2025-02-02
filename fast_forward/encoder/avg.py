@@ -236,7 +236,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_weights = torch.zeros((len(queries), embs.shape[-2]), device=self.device)
         # assign self.embs_avg_weights to embs_avg_weights, but only up to the number of top-ranked documents per query
         for i, n_embs in enumerate(n_embs_per_q):
-            embs_weights[i, :n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:n_embs], 0)
             if self.disable_lightweight_query:
                 embs_weights[i, 0] = 0.0
                 embs_weights[i, 1:n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[1:n_embs], 0)
