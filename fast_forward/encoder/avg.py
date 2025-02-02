@@ -37,7 +37,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         device: str,
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
-        tok_weight_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
+        tok_w_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
         disable_lightweight_query: bool = False,
     ) -> None:
         """
@@ -77,7 +77,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_embs_avg_weights = torch.nn.Parameter(
             torch.ones(vocab_size) / vocab_size
         )  # weights for averaging over q's token embedding, shape (vocab_size,)
-        self.tok_weight_method = tok_weight_method
+        self.tok_weight_method = tok_w_method
 
         n_embs = n_docs + 1
         # TODO: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
