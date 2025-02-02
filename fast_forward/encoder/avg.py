@@ -38,7 +38,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
         tok_weight_method: WEIGHT_METHOD = WEIGHT_METHOD.LEARNED,
-        untrained_tok_weight: float = 1.0,
         disable_lightweight_query: bool = False,
     ) -> None:
         """
@@ -59,7 +58,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
             tok_weight_method (TOKEN_WEIGHT_METHOD): The method to use for token weighting.
-            untrained_tok_weight (float): The weight to assign to untrained tokens. Use 1.0 to treat them equal to trained tokens.
         """
         super().__init__()
         self.index = index
@@ -75,10 +73,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_embs = (
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
-        self.untrained_tok_weight = untrained_tok_weight
-        self.register_buffer(
-            "trained_toks", torch.zeros((vocab_size), dtype=torch.bool)
-        )
 
         self.tok_embs_avg_weights = torch.nn.Parameter(
             torch.ones(vocab_size) / vocab_size
@@ -105,12 +99,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_avg_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=0)
         print(f"AvgEmbQueryEstimator.embs_avg_weights (softmaxed): {embs_avg_weights}")
 
-        trained_tokens_count = int(torch.sum(self.trained_toks).item())
-        trained_tokens_percentage = trained_tokens_count / vocab_size * 100
-        print(
-            f"AvgEmbQueryEstimator.trained_toks: {trained_tokens_count}/{vocab_size} ({trained_tokens_percentage:.2f}%). Using untrained_tok_weight={self.untrained_tok_weight} for the other {vocab_size - trained_tokens_count} tokens."
-        )
-
     def on_train_start(self) -> None:
         super().on_train_start()
         with open(self.settings_file, "r") as f:
@@ -121,7 +109,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "n_docs": self.n_docs,
                 "device": self.device.type,
                 "ckpt_path": getattr(self, "ckpt_path", None),
-                "untrained_tok_weight": self.untrained_tok_weight,
                 "tok_weight_method": self.tok_weight_method.value,
                 "disable_lightweight_query": self.disable_lightweight_query,
             }
