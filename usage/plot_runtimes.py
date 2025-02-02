@@ -75,7 +75,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
             fontweight='bold',
         )
 
-    ax.set_xlabel('Pipelines')
+    # ax.set_xlabel('Pipelines')
     ax.set_ylabel('Re-ranking runtime (ms)')
     ax.legend(bbox_to_anchor=(1.05, 0.5), loc='center left')
 
