@@ -41,6 +41,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         docs_only: bool = False,
         q_only: bool = False,
         add_special_tokens: bool = True,
+        normalize_q_emb_1: bool = False,
+        normalize_q_emb_2: bool = False,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -63,6 +65,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
             q_only (bool): Whether to only use the lightweight query estimation and not the top-ranked documents.
             add_special_tokens (bool): Whether to add special tokens to the queries.
+            normalize_q_emb_1 (bool): Whether to normalize the lightweight query estimation.
+            normalize_q_emb_2 (bool): Whether to normalize the final query embedding.
         """
         super().__init__()
         self.index = index
@@ -71,6 +75,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.add_special_tokens = add_special_tokens
         self.docs_only = docs_only
         self.q_only = q_only
+        self.normalize_q_emb_1 = normalize_q_emb_1
+        self.normalize_q_emb_2 = normalize_q_emb_2
 
         doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
@@ -97,7 +103,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if ckpt_path is not None:
             self.ckpt_path = ckpt_path
             ckpt = torch.load(ckpt_path, map_location=device)
-            self.load_state_dict(ckpt["state_dict"])
+            state_dict = {k: v for k, v in ckpt["state_dict"].items() if k in self.state_dict()}
+            self.load_state_dict(state_dict)
 
         self.to(device)
         self.eval()
@@ -120,6 +127,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "add_special_tokens": self.add_special_tokens,
                 "docs_only": self.docs_only,
                 "q_only": self.q_only,
+                "normalize_q_emb_1": self.normalize_q_emb_1,
+                "normalize_q_emb_2": self.normalize_q_emb_2,
             }
         )
 
@@ -174,13 +183,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             input_ids = q_tokens["input_ids"].to(self.device)
             attention_mask = q_tokens["attention_mask"].to(self.device)
 
-            # # Remove all special tokens from attention mask
-            # special_tokens_mask = ~torch.isin(
-            #     input_ids,
-            #     torch.tensor(self.tokenizer.all_special_ids, device=self.device),
-            # )
-            # attention_mask = attention_mask * special_tokens_mask
-
             # estimate lightweight query as weighted average of q_tok_embs
             q_tok_embs = self.tok_embs(input_ids)
             q_tok_embs_masked = q_tok_embs * attention_mask.unsqueeze(-1)
@@ -192,6 +194,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                         self.tok_embs_avg_weights[input_ids], -1
                     )
                     q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights.unsqueeze(-1), 1)
+            if self.normalize_q_emb_1:
+                q_emb_1 = torch.nn.functional.normalize(q_emb_1)
+
         if self.q_only:
             return q_emb_1
 
@@ -209,6 +214,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             else:
                 embs_weights[i, :n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:n_embs], 0)
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
+        if self.normalize_q_emb_2:
+            q_emb_2 = torch.nn.functional.normalize(q_emb_2)
 
         return q_emb_2
 
