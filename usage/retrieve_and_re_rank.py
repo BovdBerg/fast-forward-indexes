@@ -65,7 +65,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/version_53/checkpoints/epoch=5-step=145314.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
