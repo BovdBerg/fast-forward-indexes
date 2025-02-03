@@ -347,9 +347,6 @@ def main(args: argparse.Namespace) -> None:
     int_avg = FFInterpolate(alpha=0.1)
     sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
-    int_combo = FFInterpolate(alpha=0.7)
-    sys_combo = sys_avg >> ff_emb >> int_combo
-
     pipelines = [
         ("bm25", "BM25", ~sys_bm25, None),
         ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
@@ -357,7 +354,6 @@ def main(args: argparse.Namespace) -> None:
         ("avgD", "AvgEmb_docs", sys_avgD, int_avgD),
         ("comboD", "AvgEmb_docs + AvgTokEmb", sys_comboD, int_comboD),
         ("avg", "AvgEmb", sys_avg, int_avg),
-        ("combo", "AvgEmb + AvgTokEmb", sys_combo, int_combo),
     ]
 
     # Validation and parameter tuning on dev set

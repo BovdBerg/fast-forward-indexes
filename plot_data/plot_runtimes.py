@@ -130,13 +130,6 @@ def main(args: argparse.Namespace) -> None:
             "_get_vectors": 543,
             "_compute_scores": 888,
         },
-        {
-            "name": "AvgEmb + AvgTokEmb",
-            "total": 3305,
-            "encode_queries": 85.71,
-            "_get_vectors": 1087,
-            "_compute_scores": 1775,
-        },
     ]
 
     plot_runtimes(profiles)
