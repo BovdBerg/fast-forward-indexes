@@ -101,6 +101,12 @@ def parse_args():
         default=10,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
+    parser.add_argument(
+        "--q_only",
+        type=bool,
+        default=False,
+        help="Only use the query embeddings for the WeightedAvgEncoder.",
+    )
     # VALIDATION
     parser.add_argument(
         "--dev_dataset",
@@ -342,6 +348,7 @@ def main(args: argparse.Namespace) -> None:
         n_docs=args.n_docs,
         device=args.device,
         ckpt_path=args.ckpt_path,
+        q_only=args.q_only,
     )
     ff_avg = FFScore(index_avg)
     int_avg = FFInterpolate(alpha=0.1)
