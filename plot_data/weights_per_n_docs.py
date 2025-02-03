@@ -20,19 +20,16 @@ def parse_args():
 
 
 def plot(data: Dict[str, Any]):
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10))
-    fig.suptitle('Weights distribution per relative embeddings position')
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
 
-    for ax in [ax1, ax2, ax3]:
+    for ax in [ax1, ax2]:
         ax.set_xlabel('Embeddings position (%)')
         ax.set_ylabel('Weight distribution (%)')
-        if ax != ax3:
-            ax.set_ylim(0, 100)
-    ax1.set_title('Including all weights')
+    ax1.set_title('All weights')
     ax2.set_title('Excluding lightweight query encoding')
-    ax3.set_title('Approximation for n_docs=10')
+    ax1.set_ylim(0, 105)
     
-    plt.subplots_adjust(hspace=0.5)
+    plt.subplots_adjust(hspace=0.3)
 
     # For each n_docs, plot the weights of the embeddings as a line plot with dots. The first element should be left and the last should be right.
     for i in range(len(data)):
@@ -59,36 +56,13 @@ def plot(data: Dict[str, Any]):
 
         # Highlight the dot of n_docs=1 more
         if n_docs == 1:
-            ax2.plot(x_values_ignored[0] - 1, weights_ignored[0], marker='o', markersize=10, label="n_docs=1")
-            ax2.axhline(y=weights_ignored[0] - 1, linestyle='--')
+            # ax2.plot(x_values_ignored[0], weights_ignored[0], marker='')
+            # ax2.axhline(y=weights_ignored[0], linestyle='-', label="n_docs=1")
+            pass
         else:
-            ax2.plot(x_values_ignored, weights_ignored, marker='.', label=f"n_docs={n_docs}")
+            ax2.plot(x_values_ignored, weights_ignored, marker='.', label=f"n_docs={n_docs}", color=f"C{(i % 9)}")
 
-        if n_docs == 10:
-            # Ignore the first element
-            weights_ignored = weights[1:]
-
-            # Normalize weights
-            weights_ignored = np.array(weights_ignored)
-            weights_ignored = weights_ignored / np.sum(weights_ignored) * 100
-
-            # Normalize x-axis values
-            x_values_ignored = np.linspace(0, 100, len(weights_ignored))
-
-            # Plot the weights as a line plot with dots
-            ax3.plot(x_values_ignored, weights_ignored, marker='.', label=f"Learned, n_docs={n_docs}")
-
-            # Add a horizontal line for uniform weight distribution
-            uniform_weight = 100 / len(weights_ignored)
-            ax3.axhline(y=uniform_weight, color='r', linestyle='--', label='Uniform')
-
-            # Add exponential weight distribution
-            exp_factor = 0.5
-            exponential_approximation = np.array([np.exp(-i**exp_factor) for i in range(len(weights_ignored))])
-            exponential_approximation = exponential_approximation / np.sum(exponential_approximation) * 100
-            ax3.plot(x_values_ignored, exponential_approximation, linestyle='--', label=f'Exponential decay, factor {exp_factor}')
-
-    for ax in [ax1, ax2, ax3]:
+    for ax in [ax1, ax2]:
         ax.legend()
 
     fig.savefig("plot_data/figures/weights_per_n_docs.png", transparent=True)
