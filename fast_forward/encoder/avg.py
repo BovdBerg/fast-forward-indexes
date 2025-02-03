@@ -1,4 +1,5 @@
 import json
+import logging
 from time import perf_counter
 import warnings
 from enum import Enum
@@ -15,6 +16,9 @@ from fast_forward.lightning import GeneralModule
 from fast_forward.ranking import Ranking
 
 warnings.filterwarnings("ignore", message="`training_step` returned `None`.*")
+
+LOGGER = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class WEIGHT_METHOD(Enum):
@@ -205,14 +209,14 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         t1 = perf_counter()
         if self.index._profiling:
-            print(f"Lightweight query estimation (q_emb_1) took: {t1 - t0:.2f}s")
+            LOGGER.info(f"Lightweight query estimation (q_emb_1) took: {t1 - t0:.5f}s")
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
 
         t2 = perf_counter()
         if self.index._profiling:
-            print(f"Lookup of top-ranked documents (_get_top_docs) took: {t2 - t1:.2f}s")
+            LOGGER.info(f"Lookup of top-ranked documents (_get_top_docs) took: {t2 - t1:.5f}s")
 
         # estimate query embedding as weighted average of q_emb and d_embs
         embs = torch.cat((q_emb_1.unsqueeze(1), d_embs_pad), -2)
@@ -230,7 +234,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         t3 = perf_counter()
         if self.index._profiling:
-            print(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.2f}s")
+            LOGGER.info(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.5f}s")
 
         return q_emb_2
 
