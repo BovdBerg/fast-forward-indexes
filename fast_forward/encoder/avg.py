@@ -1,4 +1,5 @@
 import json
+from time import perf_counter
 import warnings
 from enum import Enum
 from pathlib import Path
@@ -169,6 +170,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         return d_embs_pad, n_embs_per_q
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
+        t0 = perf_counter()
+
         if self.docs_only:
             q_emb_1 = torch.zeros((len(queries), 768), device=self.device)
         else:
@@ -200,8 +203,16 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if self.q_only:
             return q_emb_1
 
+        t1 = perf_counter()
+        if self.index._profiling:
+            print(f"Lightweight query estimation (q_emb_1) took: {t1 - t0:.2f}s")
+
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
+
+        t2 = perf_counter()
+        if self.index._profiling:
+            print(f"Lookup of top-ranked documents (_get_top_docs) took: {t2 - t1:.2f}s")
 
         # estimate query embedding as weighted average of q_emb and d_embs
         embs = torch.cat((q_emb_1.unsqueeze(1), d_embs_pad), -2)
@@ -216,6 +227,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         if self.normalize_q_emb_2:
             q_emb_2 = torch.nn.functional.normalize(q_emb_2)
+
+        t3 = perf_counter()
+        if self.index._profiling:
+            print(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.2f}s")
 
         return q_emb_2
 
