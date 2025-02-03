@@ -59,6 +59,8 @@ def plot_runtimes(profiles: Dict[str, float]):
         fontweight="bold",
     )
 
+    ax.set_xticks([])
+
     fig.savefig("plot_data/figures/q_enc_distribution.png", transparent=True)
     plt.show()
 
