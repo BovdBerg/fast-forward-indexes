@@ -204,12 +204,12 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             if self.normalize_q_emb_1:
                 q_emb_1 = torch.nn.functional.normalize(q_emb_1)
 
-        if self.q_only:
-            return q_emb_1
-
         t1 = perf_counter()
         if self.index._profiling:
             LOGGER.info(f"Lightweight query estimation (q_emb_1) took: {t1 - t0:.5f}s")
+
+        if self.q_only:
+            return q_emb_1
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
