@@ -81,7 +81,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     ax.set_xticklabels(names, rotation=90)
     plt.tight_layout()
 
-    fig.savefig("reranking_runtimes_distribution.png", transparent=True)
+    fig.savefig("plot_data/figures/reranking_runtimes_distribution.png", transparent=True)
     plt.show()
 
 
