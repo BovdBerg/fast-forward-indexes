@@ -327,7 +327,7 @@ def main(args: argparse.Namespace) -> None:
         n_docs=args.n_docs,
         device=args.device,
         ckpt_path=args.ckpt_path,
-        docs_only=False,
+        docs_only=True,
     )
     ff_avgD = FFScore(index_avgD)
     int_avgD = FFInterpolate(alpha=0.1)
