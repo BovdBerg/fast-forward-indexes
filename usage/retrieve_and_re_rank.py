@@ -351,7 +351,7 @@ def main(args: argparse.Namespace) -> None:
         q_only=args.q_only,
     )
     ff_avg = FFScore(index_avg)
-    int_avg = FFInterpolate(alpha=0.1)
+    int_avg = FFInterpolate(alpha=0.0)
     sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
     pipelines = [
