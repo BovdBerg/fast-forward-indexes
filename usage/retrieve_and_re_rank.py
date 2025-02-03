@@ -396,7 +396,6 @@ def main(args: argparse.Namespace) -> None:
             test_dataset = pt.get_dataset(test_dataset_name)
 
             print(f"\nRunning final tests on {test_dataset_name}...")
-            decimals = 5
             results = pt.Experiment(
                 [pipeline for _, _, pipeline, _ in pipelines],
                 test_dataset.get_topics(),
@@ -406,7 +405,7 @@ def main(args: argparse.Namespace) -> None:
                     name if not tunable else f"{name}, α=[{tunable.alpha}]"
                     for _, name, _, tunable in pipelines
                 ],
-                round=decimals,
+                round=3,
                 verbose=True,
             )
             settings_str = print_settings()
