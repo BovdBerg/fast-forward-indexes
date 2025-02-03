@@ -115,4 +115,5 @@ profiles/
 data/
 runs/
 outputs/
-lightning_logs/*
+lightning_logs/
+plot_data/figures/

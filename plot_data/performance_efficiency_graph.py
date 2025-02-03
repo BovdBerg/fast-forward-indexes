@@ -56,27 +56,31 @@ def main(args: argparse.Namespace) -> None:
         {
             "name": "TCT-ColBERT",
             "latency": 2609,
+            "latency_enc": 1021,
             "nDCG@10": 0.684,
         },
-        # TODO: update nDCG
         {
             "name": "AvgTokEmb",
             "latency": 1634,
-            "nDCG@10": 0.684,
+            "latency_enc": 7.09,
+            "nDCG@10": 0.673,
         },
         {
             "name": "AvgEmb_docs",
             "latency": 1636,
+            "latency_enc": 64.8,
             "nDCG@10": 0.684,
         },
         {
             "name": "AvgEmb_docs + AvgTokEmb",
             "latency": 3350,
+            "latency_enc": 68.59,
             "nDCG@10": 0.684,
         },
         {
             "name": "AvgEmb",
             "latency": 1671,
+            "latency_enc": 75.98,
             "nDCG@10": 0.684,
         },
     ]
