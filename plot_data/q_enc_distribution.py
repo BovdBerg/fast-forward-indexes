@@ -24,26 +24,28 @@ def plot_runtimes(profiles: Dict[str, float]):
     q_emb_1 = profiles["q_emb_1"]
     _get_top_docs = profiles["_get_top_docs"]
     q_emb_2 = profiles["q_emb_2"]
+    other = total - q_emb_1 - _get_top_docs - q_emb_2
 
     fig, ax = plt.subplots()
     ax.set_ylabel("Re-ranking latency (ms)")
     ax.set_ylim(0, total * 1.15)
 
     bars = [
-        ("Query embedding 2", q_emb_2, 0),
-        ("Get top docs", _get_top_docs, q_emb_2),
-        ("Query embedding 1", q_emb_1, q_emb_2 + _get_top_docs),
+        ("Other", other, 0),
+        ("Query embedding 2", q_emb_2, other),
+        ("Get top docs", _get_top_docs, other + q_emb_2),
+        ("Query embedding 1", q_emb_1, other + q_emb_2 + _get_top_docs),
     ]
     for label, value, bottom in bars:
         ax.bar(0, value, label=label, bottom=bottom)
         ax.text(
             0,
             bottom + value / 2,
-            f"{label:}\n{value}ms ({(value / total) * 100:.1f}%)",
+            f"{label:}\n{value:.2f}ms ({(value / total) * 100:.1f}%)",
             ha="center",
             va="center",
             color="white",
-            fontsize=14,
+            fontsize=11,
             fontweight="bold",
         )
 
@@ -61,6 +63,10 @@ def plot_runtimes(profiles: Dict[str, float]):
 
     ax.set_xticks([])
 
+    # handles, labels = ax.get_legend_handles_labels()
+    # ax.legend(handles[::-1], labels[::-1], bbox_to_anchor=(1, 0.5), loc='center left')
+    # fig.tight_layout()
+
     fig.savefig("plot_data/figures/q_enc_distribution.png", transparent=True)
     plt.show()
 
@@ -75,9 +81,9 @@ def main(args: argparse.Namespace) -> None:
         args (argparse.Namespace): Parsed command-line arguments.
     """
     profiles = {
-        "total": 0.59,
-        "q_emb_1": 0.16,
-        "_get_top_docs": 0.27,
+        "total": 0.55,
+        "q_emb_1": 0.09,
+        "_get_top_docs": 0.23,
         "q_emb_2": 0.16,
     }
 
