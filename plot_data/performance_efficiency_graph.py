@@ -20,23 +20,34 @@ def parse_args():
 
 
 def plot_runtimes(profiles: List[Dict[str, Any]]):
-    def extract_runtimes(key: str) -> List[Any]:
+    def extract_runtimes(key: str) -> np.ndarray:
         return np.array([profile[key] for profile in profiles])
 
     names = extract_runtimes("name")
     latency = extract_runtimes("latency")
+    latency_enc = extract_runtimes("latency_enc") / 128
     nDCG = extract_runtimes("nDCG@10")
 
-    fig, ax = plt.subplots()
-    ax.set_xlabel('nDCG@10')
-    ax.set_ylabel('Re-ranking latency (ms)')
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    ax1.set_ylim(bottom=0, top=latency.max() * 1.1)
+    ax2.set_ylim(bottom=0, top=latency_enc.max() * 1.1)
 
-    # Plot each point and annotate with the name
+    # Plot for latency vs nDCG@10
+    ax1.set_xlabel('nDCG@10')
+    ax1.set_ylabel('Re-ranking latency (ms)')
     for i in range(len(names)):
-        ax.scatter(nDCG[i], latency[i], label=names[i])
-        # ax.annotate(names[i], (nDCG[i], latency[i]))
+        ax1.scatter(nDCG[i], latency[i], label=names[i], marker='*' if i < 2 else 's')
+    ax1.legend(bbox_to_anchor=(0, 1), loc='upper left')
+    ax1.set_title('Full re-ranking')
 
-    ax.legend(bbox_to_anchor=(1, 0), loc='lower right')
+    # Plot for latency_enc vs nDCG@10
+    ax2.set_xlabel('nDCG@10')
+    ax2.set_ylabel('Query-encoding latency (ms)')
+    for i in range(len(names)):
+        ax2.scatter(nDCG[i], latency_enc[i], label=names[i], marker='*' if i < 2 else 's')
+    ax2.legend(bbox_to_anchor=(0, 1), loc='upper left')
+    ax2.set_title('Query-encoding')
+
     fig.tight_layout()
 
     fig.savefig("plot_data/figures/performance_efficiency_graph.png", transparent=True)
@@ -69,19 +80,19 @@ def main(args: argparse.Namespace) -> None:
             "name": "AvgEmb_docs",
             "latency": 1636,
             "latency_enc": 64.8,
-            "nDCG@10": 0.684,
+            "nDCG@10": 0.555,
         },
         {
             "name": "AvgEmb_docs + AvgTokEmb",
             "latency": 3350,
             "latency_enc": 68.59,
-            "nDCG@10": 0.684,
+            "nDCG@10": 0.685,
         },
         {
             "name": "AvgEmb",
             "latency": 1671,
             "latency_enc": 75.98,
-            "nDCG@10": 0.684,
+            "nDCG@10": 0.653,
         },
     ]
 

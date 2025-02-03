@@ -25,10 +25,12 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
 
     names = extract_runtimes("name")
     latency = extract_runtimes("latency")
-    latency_enc = extract_runtimes("latency_enc")
+    latency_enc = extract_runtimes("latency_enc") / 128
     nDCG = extract_runtimes("nDCG@10")
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    ax1.set_ylim(bottom=0, top=latency.max() * 1.1)
+    ax2.set_ylim(bottom=0, top=latency_enc.max() * 1.1)
 
     # Plot for latency vs nDCG@10
     ax1.set_xlabel('nDCG@10')
@@ -60,42 +62,41 @@ def main(args: argparse.Namespace) -> None:
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
     """
-    queries = 128
     profiles = [
         {
             "name": "TCT-ColBERT",
             "latency": 2609,
-            "latency_enc": 1021 / queries,
+            "latency_enc": 1021,
             "nDCG@10": 0.684,
         },
         {
             "name": "AvgTokEmb",
             "latency": 1634,
-            "latency_enc": 7.09 / queries,
+            "latency_enc": 7.09,
             "nDCG@10": 0.673,
         },
         {
             "name": "n_docs=0 (=q_only)",
             "latency": 1636,
-            "latency_enc": 15.49 / queries,
+            "latency_enc": 15.49,
             "nDCG@10": 0.650,
         },
         {
             "name": "n_docs=1",
             "latency": 1907,
-            "latency_enc": 55.27 / queries,
+            "latency_enc": 55.27,
             "nDCG@10": 0.659,
         },
         {
             "name": "n_docs=10",
             "latency": 1687,
-            "latency_enc": 74.77 / queries,
+            "latency_enc": 74.77,
             "nDCG@10": 0.653,
         },
         {
             "name": "n_docs=50",
             "latency": 1591,
-            "latency_enc": 79.53 / queries,
+            "latency_enc": 79.53,
             "nDCG@10": 0.656,
         },
     ]

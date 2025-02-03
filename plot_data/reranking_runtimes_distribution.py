@@ -20,7 +20,7 @@ def parse_args():
 
 
 def plot_runtimes(profiles: List[Dict[str, Any]]):
-    def extract_runtimes(key: str) -> List[Any]:
+    def extract_runtimes(key: str) -> np.ndarray:
         return np.array([profile[key] for profile in profiles])
 
     names = extract_runtimes("name")
