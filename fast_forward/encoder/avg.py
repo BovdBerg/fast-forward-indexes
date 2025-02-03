@@ -53,8 +53,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         Note that the optimal values for these values are learned during fine-tuning:
         - `self.tok_embs`: the token embeddings
-        - `self.tok_embs_weights`: token embedding weighted averages
-        - `self.embs_weights`: embedding weighted averages
+        - `self.tok_embs_avg_weights`: token embedding weighted averages
+        - `self.embs_avg_weights`: embedding weighted averages
 
         Args:
             index (Index): The index containing document embeddings.
@@ -89,13 +89,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
 
-        self.tok_embs_weights = torch.nn.Parameter(
+        self.tok_embs_avg_weights = torch.nn.Parameter(
             torch.ones(vocab_size) / vocab_size
         )  # weights for averaging over q's token embedding, shape (vocab_size,)
 
         n_embs = n_docs + 1
-        # TODO [maybe]: Maybe self.embs_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
-        self.embs_weights = torch.nn.Parameter(
+        # TODO [maybe]: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
+        self.embs_avg_weights = torch.nn.Parameter(
             torch.ones(n_embs) / n_embs
         )  # weights for averaging over q_emb1 ++ d_embs, shape (n_embs,)
 
@@ -111,7 +111,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.eval()
 
         ## Print some information about the model
-        embs_weights = torch.nn.functional.softmax(self.embs_weights, dim=0)
+        embs_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=0)
         print(f"AvgEmbQueryEstimator.embs_weights (softmaxed): {embs_weights}")
 
     def on_train_start(self) -> None:
@@ -194,7 +194,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_emb_1 = torch.mean(q_tok_embs_masked, 1)
                 case WEIGHT_METHOD.LEARNED:
                     q_tok_weights = torch.nn.functional.softmax(
-                        self.tok_embs_weights[input_ids], -1
+                        self.tok_embs_avg_weights[input_ids], -1
                     )
                     q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights.unsqueeze(-1), 1)
             if self.normalize_q_emb_1:
@@ -217,13 +217,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # estimate query embedding as weighted average of q_emb and d_embs
         embs = torch.cat((q_emb_1.unsqueeze(1), d_embs_pad), -2)
         embs_weights = torch.zeros((len(queries), embs.shape[-2]), device=self.device)
-        # assign self.embs_weights to embs_weights, but only up to the number of top-ranked documents per query
+        # assign self.embs_avg_weights to embs_weights, but only up to the number of top-ranked documents per query
         for i, n_embs in enumerate(n_embs_per_q):
             if self.docs_only:
                 embs_weights[i, 0] = 0.0
-                embs_weights[i, 1:n_embs] = torch.nn.functional.softmax(self.embs_weights[1:n_embs], 0)
+                embs_weights[i, 1:n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[1:n_embs], 0)
             else:
-                embs_weights[i, :n_embs] = torch.nn.functional.softmax(self.embs_weights[:n_embs], 0)
+                embs_weights[i, :n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:n_embs], 0)
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         if self.normalize_q_emb_2:
             q_emb_2 = torch.nn.functional.normalize(q_emb_2)
