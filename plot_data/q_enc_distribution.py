@@ -32,9 +32,9 @@ def plot_runtimes(profiles: Dict[str, float]):
 
     bars = [
         ("Other", other, 0),
-        ("Query embedding 2", q_emb_2, other),
-        ("Get top docs", _get_top_docs, other + q_emb_2),
-        ("Query embedding 1", q_emb_1, other + q_emb_2 + _get_top_docs),
+        ("Initial Lightweight Query-Encoding", q_emb_2, other),
+        ("Retrieve Top-Ranked Doc Embeddings", _get_top_docs, other + q_emb_2),
+        ("Estimate Query Embedding", q_emb_1, other + q_emb_2 + _get_top_docs),
     ]
     for label, value, bottom in bars:
         ax.bar(0, value, label=label, bottom=bottom)
