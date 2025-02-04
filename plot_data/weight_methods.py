@@ -22,7 +22,7 @@ def parse_args():
 def plot(data: Dict[str, Any]):
     n_docs = data["n_docs"]
     weights = data["weights"]
-    pos_scores = data["pos_scores"]
+    rank_scores = data["rank_scores"]
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
     ax.set_xlim(0, n_docs)
@@ -53,10 +53,10 @@ def plot(data: Dict[str, Any]):
     ax.plot(x_values, exponential_approximation, linestyle='--', label=f'Exponential decay (-x$^{{{exp_factor}}}$)')
 
     # Normalize and softmax position scores and plot them as weight distribution
-    pos_scores = np.array(pos_scores)
-    pos_scores_normalized = pos_scores / np.sum(pos_scores) * 100
-    softmax_pos_scores = np.exp(pos_scores_normalized) / np.sum(np.exp(pos_scores_normalized)) * 100
-    ax.plot(x_values, softmax_pos_scores, linestyle='--', label='Softmax norm. rank scores')
+    rank_scores = np.array(rank_scores)
+    rank_scores_normalized = rank_scores / np.sum(rank_scores) * 100
+    softmax_rank_scores = np.exp(rank_scores_normalized) / np.sum(np.exp(rank_scores_normalized)) * 100
+    ax.plot(x_values, softmax_rank_scores, linestyle='--', label='Softmax norm. rank scores')
 
     ax.legend()
 
@@ -68,7 +68,7 @@ def main(args: argparse.Namespace) -> None:
     data = {
         "n_docs": 10,
         "weights": [0.8738, 0.0441, 0.0265, 0.0189, 0.0122, 0.0087, 0.0063, 0.0040, 0.0027, 0.0018, 0.0010],
-        "pos_scores": [29.11000671, 27.71860574, 27.31457273, 26.505415, 26.12595619, 24.08121221, 23.78653777, 23.34701436, 23.03488101, 22.8207384]
+        "rank_scores": [37.483, 35.713, 34.547, 33.523, 32.566, 31.812, 31.234, 30.64, 30.298, 29.886]
     }
 
     plot(data)
