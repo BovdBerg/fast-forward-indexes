@@ -1,10 +1,12 @@
 import argparse
+import os
 import time
 import warnings
 from copy import copy
 from pathlib import Path
 from typing import List
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyterrier as pt
@@ -47,16 +49,6 @@ def parse_args():
     )
     # TODO [final]: Remove default paths (index_path, ckpt_path) form the arguments
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Print more information during re-ranking.",
-    )
-    parser.add_argument(
-        "--profiling",
-        action="store_true",
-        help="Profile the re-ranking process.",
-    )
-    parser.add_argument(
         "--index_path",
         type=Path,
         default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
@@ -67,18 +59,6 @@ def parse_args():
         type=Path,
         default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
-    )
-    parser.add_argument(
-        "--index_path_emb",
-        type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
-        help="Path to the index file.",
-    )
-    parser.add_argument(
-        "--ckpt_path_emb",
-        type=Path,
-        default="/home/bvdb9/models/emb_bert.ckpt",
-        help="Path to the emb checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
         "--storage",
@@ -94,6 +74,12 @@ def parse_args():
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to use for encoding queries.",
     )
+    parser.add_argument(
+        "--samples",
+        type=int,
+        default=10,
+        help="Number of queries to sample for validation.",
+    )
     # WeightedAvgEncoder
     parser.add_argument(
         "--n_docs",
@@ -101,148 +87,64 @@ def parse_args():
         default=10,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
-    # VALIDATION
-    parser.add_argument(
-        "--dev_dataset",
-        type=str,
-        default="irds:msmarco-passage/dev/judged",
-        help="Dataset to use for validation.",
-    )
-    parser.add_argument(
-        "--dev_eval_metric",
-        type=str,
-        default="ndcg_cut_10",  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
-        help="Evaluation metric for pt.GridSearch on dev set.",
-    )
-    parser.add_argument(
-        "--dev_sample_size",
-        type=int,
-        default=1024,
-        help="Number of queries to sample for validation.",
-    )
-    parser.add_argument(
-        "--val_pipelines",
-        type=str,
-        nargs="*",
-        default=["all"],
-        help="List of pipelines to validate, based on exact pipeline names.",
-    )
-    parser.add_argument(
-        "--alphas_step",
-        type=float,
-        nargs="+",
-        default=0.1,
-        help="List of interpolation parameters for evaluation.",
-    )
-    # EVALUATION
-    parser.add_argument(
-        "--test_datasets",
-        type=str,
-        nargs="*",
-        default=["irds:msmarco-passage/trec-dl-2019/judged"],
-        help="Datasets to evaluate the rankings. May never be equal to dev_dataset (=msmarco_passage/dev or msmarco_passage/dev.small).",
-    )
-    parser.add_argument(
-        "--eval_metrics",
-        type=str,
-        nargs="+",
-        default=[
-            "nDCG@10",
-            "RR(rel=2)@10",
-            "AP(rel=2)@10",
-        ],  # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
-        help="Metrics used for evaluation.",
-    )
-    # SAVING TO GOOGLE SHEETS
-    parser.add_argument(
-        "--gsheets_credentials",
-        type=Path,
-        default="/home/bvdb9/thesis-gsheets-credentials.json",
-        help="Path to the Google Sheets credentials file.",
-    )
-    parser.add_argument(
-        "--remarks",
-        type=str,
-        default="",
-        help="Additional remarks about the experiment. Will be added to the Google Sheets file.",
-    )
     return parser.parse_args()
 
 
-def print_settings() -> str:
-    """
-    Print general settings used for re-ranking.
+def load_or_generate_df():
+    cache_file = Path(f"cache/performance_per_query_cache_{args.n_docs}_{args.samples}.pt")
 
-    Args:
-        pipeline (pt.Transformer): The pipeline used for re-ranking.
+    if cache_file.exists():
+        df = torch.load(cache_file, map_location=args.device)
+        print(f"Loaded df from cache file: {cache_file}")
+    else:
+        dataset = pt.get_dataset("msmarco_passage")
+        sys_bm25 = pt.BatchRetrieve.from_dataset(
+            dataset, "terrier_stemmed", wmodel="BM25", memory=True
+        )
+        sys_bm25_cut = ~sys_bm25 % args.n_docs
 
-    Returns:
-        str: A string representation of the settings.
-    """
-    # General settings
-    settings_description: List[str] = [
-        f"storage={args.storage}, device={args.device}",
-        f"WeightedAvgEncoder: n_docs={args.n_docs}",
-    ]
-    # Validation settings
-    if args.val_pipelines:
-        settings_description.append(
-            f"Val: {args.val_pipelines}, '{args.dev_dataset}', samples={args.dev_sample_size}, α_step={args.alphas_step}"
+        # Create re-ranking pipeline based on WeightedAvgEncoder
+        index = OnDiskIndex.load(args.index_path)
+        if args.storage == "mem":
+            index = index.to_memory(2**15)
+        index.query_encoder = AvgEmbQueryEstimator(
+            index=index,
+            n_docs=args.n_docs,
+            device=args.device,
+            ckpt_path=args.ckpt_path,
+        )
+        ff_avg = FFScore(index)
+        sys_avg = sys_bm25_cut >> ff_avg
+
+        topics = (
+            pt.get_dataset("irds:msmarco-passage/eval")
+            .get_topics()
+            .sample(args.samples, random_state=42)
         )
 
-    print("\nSettings:\n\t" + "\n\t".join(settings_description))
-    return "\n".join(settings_description)
+        df = sys_avg.transform(topics)
+        torch.save(df, cache_file)
+        print(f"Saved df to cache file: {cache_file}")
+
+    return df
 
 
-def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
-    """
-    Append the results of an experiment to a Google Sheets document.
+def plot_data(bm25_scores: List[float], avg_scores: List[float]):
+    fig, ax = plt.subplots()
+    ax.set_xlabel("BM25 scores")
+    ax.set_ylabel("AvgEmb score")
 
-    Args:
-        results (pd.DataFrame): Results of the experiment to append.
-        settings_str (str): Settings used for the experiment
-    """
-    service_acc = service_account(filename=args.gsheets_credentials)
-    spreadsheet = service_acc.open("Thesis Results")
-    worksheet = spreadsheet.sheet1
-    print(f"Saving results to Google Sheets file...")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
 
-    # Prepend date and time fields to the results
-    results["Remarks"] = args.remarks
-    results["Date"] = time.strftime("%Y-%m-%d %H:%M")
-    results["Settings"] = settings_str
-    prepend_cols = ["Remarks", "Date", "Settings"]
-    results = results[
-        prepend_cols + [col for col in results.columns if col not in prepend_cols]
-    ]
+    ax.scatter(bm25_scores, avg_scores, alpha=0.5)
 
-    first_row = len(worksheet.get_all_values()) + 1
-    last_row = first_row + len(results) - 1
+    ax.grid(True)
 
-    # Add horizontal line above the data
-    format_cell_range(
-        worksheet,
-        f"A{first_row}:G{first_row}",
-        CellFormat(borders=Borders(top=Border("SOLID"))),
+    fig.savefig(
+        "plot_data/figures/performance_per_query.png", transparent=True
     )
-
-    # Append the results
-    set_with_dataframe(worksheet, results, row=first_row, include_column_header=False)
-
-    # Merge cells which share the same values
-    for col in ["A", "B", "C"]:
-        worksheet.merge_cells(f"{col}{first_row}:{col}{last_row}")
-
-    # Highlight the row with the highest nDCG@10 value in bold (excl. baselines)
-    non_baselines = results.iloc[2:]
-    if not non_baselines.empty:
-        max_ndcg10_index = non_baselines["nDCG@10"].idxmax()
-        max_ndcg10_row = first_row + int(max_ndcg10_index)
-        format_cell_range(
-            worksheet,
-            f"A{max_ndcg10_row}:G{max_ndcg10_row}",
-            CellFormat(textFormat=TextFormat(bold=True)),
-        )
+    plt.show()
 
 
 def main(args: argparse.Namespace) -> None:
@@ -258,108 +160,23 @@ def main(args: argparse.Namespace) -> None:
         args (argparse.Namespace): Parsed command-line arguments.
     """
     start_time = time.time()
-    print_settings()
+    print("\033[96m")  # Prints during setup are colored cyan
     pt.init()
 
-    # Parse eval_metrics (e.g. "nDCG@10", "RR(rel=2)", "AP") to ir-measures' measure objects.
-    eval_metrics = []
-    for metric_str in args.eval_metrics:
-        if "(" in metric_str:
-            metric_name, rest = metric_str.split("(")
-            params, at_value = rest.split(")@")
-            param_dict = {
-                k: int(v) for k, v in (param.split("=") for param in params.split(","))
-            }
-            eval_metrics.append(
-                getattr(measures, metric_name)(**param_dict) @ int(at_value)
-            )
-        else:
-            metric_name, at_value = metric_str.split("@")
-            eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
+    df = load_or_generate_df()
+    print("\033[0m")  # Reset color
+    print(f"df:\n{df}")
 
-    print("\033[96m")  # Prints in this method are cyan
-    # Load dataset and create sparse retriever (e.g. BM25)
-    dataset = pt.get_dataset("msmarco_passage")
-    print("Creating BM25 retriever via PyTerrier index...")
-    try:
-        sys_bm25 = pt.BatchRetrieve.from_dataset(
-            dataset, "terrier_stemmed", wmodel="BM25", memory=True
-        )
-    except:
-        indexer = pt.IterDictIndexer(
-            str(Path.cwd()),  # ignored but must be a valid path
-            type=pt.index.IndexingType.MEMORY,
-        )
-        index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
-        sys_bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True, memory=True)
-    sys_bm25_cut = ~sys_bm25 % 1000
+    bm25_scores = df["score_0"]
+    avg_scores = df["score"]
 
-    # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
-    index_tct = OnDiskIndex.load(
-        args.index_path,
-        TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
-        verbose=args.verbose,
-        profiling=args.profiling,
+    # Normalize the scores
+    bm25_scores = (bm25_scores - bm25_scores.min()) / (
+        bm25_scores.max() - bm25_scores.min()
     )
-    if args.storage == "mem":
-        index_tct = index_tct.to_memory(2**15)
-    ff_tct = FFScore(index_tct)
-    int_tct = FFInterpolate(alpha=0.1)
-    sys_tct_int = sys_bm25_cut >> ff_tct >> int_tct
+    avg_scores = (avg_scores - avg_scores.min()) / (avg_scores.max() - avg_scores.min())
 
-    # Create re-ranking pipeline based on WeightedAvgEncoder
-    index_avg = copy(index_tct)
-    index_avg.query_encoder = AvgEmbQueryEstimator(
-        index=index_avg,
-        n_docs=args.n_docs,
-        device=args.device,
-        ckpt_path=args.ckpt_path,
-    )
-    ff_avg = FFScore(index_avg)
-    int_avg = FFInterpolate(alpha=0.1)
-    sys_avg = sys_bm25_cut >> ff_avg >> int_avg
-
-    pipelines = [
-        ("bm25", "BM25", ~sys_bm25, None),
-        ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
-        ("avg", "AvgEmb", sys_avg, int_avg),
-    ]
-
-    # Evaluate pipelines on args.test_datasets
-    if args.test_datasets:
-        print("\033[0m")  # Reset print color to black
-        for test_dataset_name in args.test_datasets:
-            test_dataset = pt.get_dataset(test_dataset_name)
-
-            print(f"\nRunning final tests on {test_dataset_name}...")
-            decimals = 5
-            results = pt.Experiment(
-                [pipeline for _, _, pipeline, _ in pipelines],
-                test_dataset.get_topics().head(1),
-                test_dataset.get_qrels(),
-                eval_metrics=eval_metrics,
-                names=[
-                    name if not tunable else f"{name}, α=[{tunable.alpha}]"
-                    for _, name, _, tunable in pipelines
-                ],
-                round=decimals,
-                verbose=True,
-            )
-            settings_str = print_settings()
-            print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
-
-            # Save new results to Google Sheets if gsheets_credentials exists
-            if args.gsheets_credentials:
-                if not PREV_RESULTS.exists() or str(results) != str(
-                    pd.read_json(PREV_RESULTS)
-                ):
-                    results.to_json(PREV_RESULTS, indent=4)
-                    settings_str += f"\nTest: '{test_dataset_name}'"
-                    append_to_gsheets(results, settings_str)
-                else:
-                    print(
-                        "Results have not changed since the last run. Skipping Google Sheets update."
-                    )
+    plot_data(bm25_scores, avg_scores)
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
