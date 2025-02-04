@@ -353,6 +353,7 @@ def main(args: argparse.Namespace) -> None:
     ff_avg = FFScore(index_avg)
     int_avg = FFInterpolate(alpha=0.0)
     sys_avg = sys_bm25_cut >> ff_avg >> int_avg
+    # TODO: include rm3 in sys_avg. Verify that query 'what is theraderm used for' has >10 n_docs in FFScore.transform ranking.
 
     pipelines = [
         ("bm25", "BM25", ~sys_bm25, None),
