@@ -153,7 +153,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
 
-        # Create tensors for padding and total embedding counts
         d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
 
         # Retrieve the top-ranked documents for all queries
@@ -171,7 +170,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             if len(top_embs) < self.n_docs:
                 top_embs = torch.cat([top_embs] * self.n_docs, dim=0)[: self.n_docs]
 
-            # Pad and count embeddings for this query
             query_idx = query_to_idx[str(query)]
             d_embs[query_idx] = top_embs
 
