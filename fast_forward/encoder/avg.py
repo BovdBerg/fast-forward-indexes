@@ -168,6 +168,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 d_embs = self.index.quantizer.decode(d_embs)
             d_embs = torch.tensor(d_embs[[x[0] for x in d_idxs]], device=self.device)
 
+            # Repeat d_embs until reaching length n_docs
+            if len(d_embs) < self.n_docs:
+                d_embs = torch.cat([d_embs] * self.n_docs, dim=0)[: self.n_docs]
+
             # Pad and count embeddings for this query
             query_idx = query_to_idx[str(query)]
             d_embs_pad[query_idx, : len(d_embs)] = d_embs
