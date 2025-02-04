@@ -48,6 +48,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         add_special_tokens: bool = True,
         normalize_q_emb_1: bool = False,
         normalize_q_emb_2: bool = False,
+        calc_rank_scores: bool = False,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -72,6 +73,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             add_special_tokens (bool): Whether to add special tokens to the queries.
             normalize_q_emb_1 (bool): Whether to normalize the lightweight query estimation.
             normalize_q_emb_2 (bool): Whether to normalize the final query embedding.
+            calc_rank_scores (bool): Whether to calculate the average rank scores of the top-ranked documents.
         """
         super().__init__()
         self.index = index
@@ -84,6 +86,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.q_only = q_only
         self.normalize_q_emb_1 = normalize_q_emb_1
         self.normalize_q_emb_2 = normalize_q_emb_2
+        self.calc_rank_scores = calc_rank_scores
         self.rank_scores = np.zeros(n_docs)
 
         doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
@@ -173,12 +176,14 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             query_idx = query_to_idx[str(query)]
             d_embs[query_idx] = top_embs
 
-            # Update position scores
-            for i, idx in enumerate(d_idxs):
-                pos_scores[idx[0]] += group.iloc[i]["score"]
+            if self.calc_rank_scores:
+                # Update position scores
+                for i, idx in enumerate(d_idxs):
+                    pos_scores[idx[0]] += group.iloc[i]["score"]
 
-        # Update self.rank_scores with new avg and divide by 2
-        self.rank_scores = (self.rank_scores + pos_scores / len(queries)) / 2
+        if self.calc_rank_scores:
+            # Update self.rank_scores with new avg and divide by 2
+            self.rank_scores = (self.rank_scores + pos_scores / len(queries)) / 2
 
         return d_embs
 
