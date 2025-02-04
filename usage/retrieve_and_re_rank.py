@@ -136,14 +136,12 @@ def parse_args():
     parser.add_argument(
         "--alphas_step",
         type=float,
-        nargs="+",
         default=0.1,
         help="List of interpolation parameters for evaluation.",
     )
     parser.add_argument(
         "--max_alpha",
         type=float,
-        nargs="+",
         default=1.0,
         help="List of interpolation parameters for evaluation.",
     )
