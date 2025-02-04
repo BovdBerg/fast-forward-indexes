@@ -137,13 +137,19 @@ def parse_args():
         "--alphas_step",
         type=float,
         default=0.1,
-        help="List of interpolation parameters for evaluation.",
+        help="Step size for the alpha values in the validation process.",
+    )
+    parser.add_argument(
+        "--min_alpha",
+        type=float,
+        default=0.0,
+        help="Minimum alpha value for the validation process.",
     )
     parser.add_argument(
         "--max_alpha",
         type=float,
         default=1.0,
-        help="List of interpolation parameters for evaluation.",
+        help="Maximum alpha value for the validation process.",
     )
     # EVALUATION
     parser.add_argument(
@@ -383,7 +389,7 @@ def main(args: argparse.Namespace) -> None:
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines
-        alphas = [round(x, 2) for x in np.arange(0, args.max_alpha + 1e-5, args.alphas_step)]
+        alphas = [round(x, 2) for x in np.arange(args.min_alpha, args.max_alpha + 1e-5, args.alphas_step)]
         for abbrev, name, system, tunable in pipelines:
             if tunable is None or (
                 args.val_pipelines != ["all"] and (abbrev not in args.val_pipelines and name not in args.val_pipelines)

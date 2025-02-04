@@ -162,6 +162,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
         query_to_idx = {query: idx for idx, query in enumerate(queries)}
 
+        # TODO [important]: Can we get rid of this loop?
         pos_scores = np.zeros(self.n_docs)
         for query, group in top_docs.groupby("query"):
             top_embs, d_idxs = self.index._get_vectors(group["id"].unique())
