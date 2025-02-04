@@ -83,6 +83,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.q_only = q_only
         self.normalize_q_emb_1 = normalize_q_emb_1
         self.normalize_q_emb_2 = normalize_q_emb_2
+        self.rank_scores = np.zeros(n_docs)
 
         doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
@@ -160,6 +161,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
         query_to_idx = {query: idx for idx, query in enumerate(queries)}
 
+        pos_scores = np.zeros(self.n_docs)
         for query, group in top_docs.groupby("query"):
             d_embs, d_idxs = self.index._get_vectors(group["id"].unique())
             if self.index.quantizer is not None:
@@ -170,6 +172,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             query_idx = query_to_idx[str(query)]
             d_embs_pad[query_idx, : len(d_embs)] = d_embs
             n_embs_per_q[query_idx] += len(d_embs)
+
+            # Update position scores
+            for i, idx in enumerate(d_idxs):
+                pos_scores[idx[0]] += group.iloc[i]["score"]
+
+        # Update self.rank_scores with new avg and divide by 2
+        self.rank_scores = (self.rank_scores + pos_scores / len(queries)) / 2
 
         return d_embs_pad, n_embs_per_q
 
@@ -213,6 +222,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs_pad, n_embs_per_q = self._get_top_docs(queries)
+
+        if self.index._verbose:
+            self.rank_scores = np.round(self.rank_scores, 3)
+            LOGGER.info(f"AvgEmbQueryEstimator.rank_scores: {self.rank_scores}")
 
         t2 = perf_counter()
         if self.index._profiling:
