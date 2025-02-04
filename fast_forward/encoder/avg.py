@@ -228,7 +228,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs = self._get_top_docs(queries)
 
-        if self.index._verbose:
+        if self.calc_rank_scores and self.index._verbose:
             self.rank_scores = np.round(self.rank_scores, 3)
             LOGGER.info(f"AvgEmbQueryEstimator.rank_scores: [{', '.join(map(str, self.rank_scores))}]")
 
