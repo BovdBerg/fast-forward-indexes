@@ -431,16 +431,8 @@ def main(args: argparse.Namespace) -> None:
 
             # Save new results to Google Sheets if gsheets_credentials exists
             if args.gsheets_credentials:
-                if not PREV_RESULTS.exists() or str(results) != str(
-                    pd.read_json(PREV_RESULTS)
-                ):
-                    results.to_json(PREV_RESULTS, indent=4)
-                    settings_str += f"\nTest: '{test_dataset_name}'"
-                    append_to_gsheets(results, settings_str)
-                else:
-                    print(
-                        "Results have not changed since the last run. Skipping Google Sheets update."
-                    )
+                settings_str += f"\nTest: '{test_dataset_name}'"
+                append_to_gsheets(results, settings_str)
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
