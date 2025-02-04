@@ -82,9 +82,9 @@ def main(args: argparse.Namespace) -> None:
     """
     profiles = {
         "total": 0.55,
-        "q_emb_1": 0.09,
-        "_get_top_docs": 0.23,
-        "q_emb_2": 0.16,
+        "q_emb_1": 0.13,
+        "_get_top_docs": 0.22,
+        "q_emb_2": 0.11,
     }
 
     plot_runtimes(profiles)
