@@ -27,6 +27,8 @@ class FFScore(pt.Transformer):
         Returns:
             pd.DataFrame: A new data frame with the computed scores.
         """
+        print(f"FFScore transform:\n{df[df['query'] == 'what is theraderm used for'].head(10)}")
+
         ff_scores = self._index(
             Ranking(
                 df.rename(columns={"qid": "q_id", "docno": "id"}),
