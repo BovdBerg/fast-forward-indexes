@@ -300,16 +300,6 @@ def main(args: argparse.Namespace) -> None:
         sys_bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True, memory=True)
     sys_bm25_cut = ~sys_bm25 % 1000
 
-    print("Creating RM3 re-ranker via PyTerrier index...")
-    indexer = pt.IterDictIndexer(
-        str(Path.cwd()),  # ignored but must be a valid path
-        type=pt.index.IndexingType.MEMORY,
-    )
-    index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
-    index = pt.IndexFactory.of(index_ref)
-    rm3 = pt.rewrite.RM3(index)
-    sys_rm3 = sys_bm25_cut >> rm3 >> sys_bm25
-
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
     index_tct = OnDiskIndex.load(
         args.index_path,
@@ -362,7 +352,7 @@ def main(args: argparse.Namespace) -> None:
     )
     ff_avg = FFScore(index_avg)
     int_avg = FFInterpolate(alpha=0.0)
-    sys_avg = sys_rm3 >> ff_avg >> int_avg
+    sys_avg = sys_bm25_cut >> ff_avg >> int_avg
 
     pipelines = [
         ("bm25", "BM25", ~sys_bm25, None),
