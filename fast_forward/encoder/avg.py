@@ -225,7 +225,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         if self.index._verbose:
             self.rank_scores = np.round(self.rank_scores, 3)
-            LOGGER.info(f"AvgEmbQueryEstimator.rank_scores: {', '.join(map(str, self.rank_scores))}")
+            LOGGER.info(f"AvgEmbQueryEstimator.rank_scores: [{', '.join(map(str, self.rank_scores))}]")
 
         t2 = perf_counter()
         if self.index._profiling:
