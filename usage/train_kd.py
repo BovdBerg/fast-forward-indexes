@@ -99,7 +99,7 @@ def main() -> None:
     pt.init()
 
     train_loader = create_data("irds:msmarco-passage/train", args.samples)
-    train_loader = create_data("irds:msmarco-passage/eval", 1_000)
+    train_loader = create_data("irds:msmarco-passage/dev", 1_000)
 
     # TODO: Split dataset into train and val
     # TODO: Create DataLoaders for train and val.

@@ -244,7 +244,7 @@ def main() -> None:
     # Create data loaders for our datasets; shuffle for training, not for validation
     train_loader = dataset_to_dataloader("irds:msmarco-passage/train", args.samples)
     val_samples = min(args.samples, 1000)
-    val_loader = dataset_to_dataloader("irds:msmarco-passage/eval", val_samples)
+    val_loader = dataset_to_dataloader("irds:msmarco-passage/dev", val_samples)
 
     # Train the model
     k_avg = args.k_avg

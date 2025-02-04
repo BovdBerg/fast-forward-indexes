@@ -117,7 +117,7 @@ def load_or_generate_df():
         sys_avg = sys_bm25_cut >> ff_avg
 
         topics = (
-            pt.get_dataset("irds:msmarco-passage/eval")
+            pt.get_dataset("irds:msmarco-passage/dev")
             .get_topics()
             .sample(args.samples, random_state=42)
         )

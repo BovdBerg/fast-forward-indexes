@@ -254,7 +254,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         dataset_name="irds:msmarco-passage/train", samples=n_train_topics, shuffle=True
     )
     val_dataloader, val_topics = create_data(
-        dataset_name="irds:msmarco-passage/eval",
+        dataset_name="irds:msmarco-passage/dev",
         samples=min(1_000, n_train_topics),
         shuffle=False,
     )
