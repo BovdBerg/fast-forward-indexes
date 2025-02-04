@@ -196,7 +196,7 @@ def create_lexical_ranking(queries_path: Path):
     os.makedirs(cache_dir, exist_ok=True)
     chunk_size = 10_000
 
-    ranking = None
+    res_df = pd.DataFrame()
     queries = pd.read_csv(queries_path)
     for i, chunk in enumerate(
         tqdm(
@@ -233,10 +233,7 @@ def create_lexical_ranking(queries_path: Path):
                 pickle.dump(chunk_ranking, f)
 
         chunk_ranking = chunk_ranking.cut(args.n_docs)
-        if ranking is None:
-            res_df = chunk_ranking._df
-        else:
-            res_df = pd.concat([res_df, chunk_ranking._df])
+        res_df = pd.concat([res_df, chunk_ranking._df])
 
     return Ranking(res_df).cut(args.n_docs)
 
