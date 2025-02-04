@@ -309,38 +309,38 @@ def main(args: argparse.Namespace) -> None:
     )
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
-    ff_tct = FFScore(index_tct)
-    int_tct = FFInterpolate(alpha=0.1)
-    sys_tct_int = sys_bm25_cut >> ff_tct >> int_tct
+    # ff_tct = FFScore(index_tct)
+    # int_tct = FFInterpolate(alpha=0.1)
+    # sys_tct_int = sys_bm25_cut >> ff_tct >> int_tct
 
-    # Create re-ranking pipeline based on TransformerEmbedding
-    index_emb = OnDiskIndex.load(
-        args.index_path_emb,
-        StandaloneEncoder(ckpt_path=args.ckpt_path_emb, device=args.device),
-        verbose=args.verbose,
-        profiling=args.profiling,
-    )
-    if args.storage == "mem":
-        index_emb = index_emb.to_memory(2**15)
-    ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.1)
-    sys_emb = sys_bm25_cut >> ff_emb >> int_emb
+    # # Create re-ranking pipeline based on TransformerEmbedding
+    # index_emb = OnDiskIndex.load(
+    #     args.index_path_emb,
+    #     StandaloneEncoder(ckpt_path=args.ckpt_path_emb, device=args.device),
+    #     verbose=args.verbose,
+    #     profiling=args.profiling,
+    # )
+    # if args.storage == "mem":
+    #     index_emb = index_emb.to_memory(2**15)
+    # ff_emb = FFScore(index_emb)
+    # int_emb = FFInterpolate(alpha=0.1)
+    # sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
-    # Create re-ranking pipeline based on WeightedAvgEncoder
-    index_avgD = copy(index_tct)
-    index_avgD.query_encoder = AvgEmbQueryEstimator(
-        index=index_avgD,
-        n_docs=args.n_docs,
-        device=args.device,
-        ckpt_path=args.ckpt_path,
-        docs_only=True,
-    )
-    ff_avgD = FFScore(index_avgD)
-    int_avgD = FFInterpolate(alpha=0.1)
-    sys_avgD = sys_bm25_cut >> ff_avgD >> int_avgD
+    # # Create re-ranking pipeline based on WeightedAvgEncoder
+    # index_avgD = copy(index_tct)
+    # index_avgD.query_encoder = AvgEmbQueryEstimator(
+    #     index=index_avgD,
+    #     n_docs=args.n_docs,
+    #     device=args.device,
+    #     ckpt_path=args.ckpt_path,
+    #     docs_only=True,
+    # )
+    # ff_avgD = FFScore(index_avgD)
+    # int_avgD = FFInterpolate(alpha=0.1)
+    # sys_avgD = sys_bm25_cut >> ff_avgD >> int_avgD
 
-    int_comboD = FFInterpolate(alpha=0.5)
-    sys_comboD = sys_avgD >> ff_emb >> int_comboD
+    # int_comboD = FFInterpolate(alpha=0.5)
+    # sys_comboD = sys_avgD >> ff_emb >> int_comboD
 
     index_avg = copy(index_tct)
     index_avg.query_encoder = AvgEmbQueryEstimator(
@@ -356,11 +356,11 @@ def main(args: argparse.Namespace) -> None:
     # TODO: include rm3 in sys_avg. Verify that query 'what is theraderm used for' has >10 n_docs in FFScore.transform ranking.
 
     pipelines = [
-        ("bm25", "BM25", ~sys_bm25, None),
-        ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
-        ("emb", "AvgTokEmb", sys_emb, int_emb),
-        ("avgD", "AvgEmb_docs", sys_avgD, int_avgD),
-        ("comboD", "AvgEmb_docs + AvgTokEmb", sys_comboD, int_comboD),
+        # ("bm25", "BM25", ~sys_bm25, None),
+        # ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
+        # ("emb", "AvgTokEmb", sys_emb, int_emb),
+        # ("avgD", "AvgEmb_docs", sys_avgD, int_avgD),
+        # ("comboD", "AvgEmb_docs + AvgTokEmb", sys_comboD, int_comboD),
         ("avg", "AvgEmb", sys_avg, int_avg),
     ]
 
