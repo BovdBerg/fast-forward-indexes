@@ -1,32 +1,16 @@
 import argparse
-import os
 import time
 import warnings
-from copy import copy
 from pathlib import Path
 from typing import List
 
 import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import pyterrier as pt
 import torch
-from gspread.auth import service_account
-from gspread_dataframe import set_with_dataframe
-from gspread_formatting import (
-    Border,
-    Borders,
-    CellFormat,
-    TextFormat,
-    format_cell_range,
-)
-from ir_measures import measures
 
 from fast_forward.encoder.avg import AvgEmbQueryEstimator
-from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
-from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
-from fast_forward.util.pyterrier import FFInterpolate, FFScore
+from fast_forward.util.pyterrier import FFScore
 
 PREV_RESULTS = Path("results.json")
 warnings.filterwarnings(
