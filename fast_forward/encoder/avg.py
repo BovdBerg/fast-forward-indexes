@@ -157,14 +157,16 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         top_docs['rank'] = top_docs.groupby('query')['score'].rank(ascending=False, method='first').astype(int) - 1
         query_to_idx = {query: idx for idx, query in enumerate(queries)}
 
-        # top_docs_ids with rows resembling queries and columns resembling doc_ids at that rank
+        # Initialize top_docs_ids tensor
         top_docs_ids = torch.zeros((len(queries), self.n_docs), device=self.device, dtype=torch.long)
-        top_docs_ids[
-            torch.tensor(top_docs["query"].map(query_to_idx).values, device=self.device), 
-            torch.tensor(top_docs["rank"].values, device=self.device)
-        ] = torch.tensor(top_docs["id"].astype(int).values, device=self.device)
 
-        # replace any 0 in top_docs_ids with d_id at rank 0 for that query
+        # Map queries and ranks to document IDs
+        query_indices = torch.tensor(top_docs["query"].map(query_to_idx).values, device=self.device)
+        rank_indices = torch.tensor(top_docs["rank"].values, device=self.device)
+        doc_ids = torch.tensor(top_docs["id"].astype(int).values, device=self.device)
+        top_docs_ids[query_indices, rank_indices] = doc_ids
+
+        # Replace any 0 in top_docs_ids with d_id at rank 0 for that query
         top_docs_ids[top_docs_ids == 0] = top_docs_ids[:, 0].unsqueeze(1).expand_as(top_docs_ids)[top_docs_ids == 0]
 
         # Retrieve any needed embeddings from the index
@@ -175,10 +177,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         # Map doc_ids in top_docs_ids to embeddings
         d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
-        d_embs[
-            torch.tensor(top_docs["query"].map(query_to_idx).values, device=self.device),
-            torch.tensor(top_docs["rank"].values, device=self.device)
-        ] = top_embs
+        d_embs[query_indices, rank_indices] = top_embs
 
         return d_embs
 
