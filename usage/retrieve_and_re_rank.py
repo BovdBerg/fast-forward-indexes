@@ -334,7 +334,7 @@ def main(args: argparse.Namespace) -> None:
     if args.storage == "mem":
         index_emb = index_emb.to_memory(2**15)
     ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.1)
+    int_emb = FFInterpolate(alpha=0.11)
     sys_emb = sys_bm25_cut >> ff_emb >> int_emb
 
     # Create re-ranking pipeline based on WeightedAvgEncoder
