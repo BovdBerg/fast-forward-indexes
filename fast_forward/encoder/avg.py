@@ -150,7 +150,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
     def ranking(self, ranking: Ranking):
         self._ranking = ranking.cut(self.n_docs)
 
-    def _get_top_docs(self, queries: Sequence[str]):
+    def _get_top_docs_embs(self, queries: Sequence[str]):
+        # TODO [important]: Overwrite with dual-encoders approach
         t0 = perf_counter()
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
@@ -210,21 +211,18 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 return_tensors="pt",
                 add_special_tokens=self.add_special_tokens,
             ).to(self.device)
-
             input_ids = q_tokens["input_ids"].to(self.device)
-            attention_mask = q_tokens["attention_mask"].to(self.device)
 
             # estimate lightweight query as weighted average of q_tok_embs
             q_tok_embs = self.tok_embs(input_ids)
-            q_tok_embs_masked = q_tok_embs * attention_mask.unsqueeze(-1)
             match self.tok_w_method:
                 case WEIGHT_METHOD.UNIFORM:
-                    q_emb_1 = torch.mean(q_tok_embs_masked, 1)
+                    q_emb_1 = torch.mean(q_tok_embs, 1)
                 case WEIGHT_METHOD.LEARNED:
                     q_tok_weights = torch.nn.functional.softmax(
                         self.tok_embs_avg_weights[input_ids], -1
                     )
-                    q_emb_1 = torch.sum(q_tok_embs_masked * q_tok_weights.unsqueeze(-1), 1)
+                    q_emb_1 = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)
             if self.normalize_q_emb_1:
                 q_emb_1 = torch.nn.functional.normalize(q_emb_1)
 
@@ -236,7 +234,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             return q_emb_1
 
         # lookup embeddings of top-ranked documents
-        d_embs = self._get_top_docs(queries)
+        d_embs = self._get_top_docs_embs(queries)
 
         t2 = perf_counter()
         if self.profiling:
