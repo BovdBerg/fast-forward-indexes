@@ -153,8 +153,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         assert self.index.dim is not None, "Index dimension cannot be None."
 
         # Retrieve the top-ranked documents for all queries
-        top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
-        top_docs.loc[:, 'rank'] = top_docs.groupby('query')['score'].rank(ascending=False, method='first').astype(int) - 1
+        top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
+        top_docs['rank'] = top_docs.groupby('query')['score'].rank(ascending=False, method='first').astype(int) - 1
         query_to_idx = {query: idx for idx, query in enumerate(queries)}
 
         # top_docs_ids with rows resembling queries and columns resembling doc_ids at that rank
