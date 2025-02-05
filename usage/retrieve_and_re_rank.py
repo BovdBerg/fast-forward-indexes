@@ -299,7 +299,7 @@ def main(args: argparse.Namespace) -> None:
     dataset = pt.get_dataset("msmarco_passage")
     print("Creating BM25 retriever via PyTerrier index...")
     try:
-        sys_bm25 = pt.BatchRetrieve.from_dataset(
+        bm25 = pt.BatchRetrieve.from_dataset(
             dataset, "terrier_stemmed", wmodel="BM25", memory=True
         )
     except:
@@ -308,8 +308,8 @@ def main(args: argparse.Namespace) -> None:
             type=pt.index.IndexingType.MEMORY,
         )
         index_ref = indexer.index(dataset.get_corpus_iter(), fields=["text"])
-        sys_bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True, memory=True)
-    sys_bm25_cut = ~sys_bm25 % 1000
+        bm25 = pt.BatchRetrieve(index_ref, wmodel="BM25", verbose=True, memory=True)
+    bm25 = ~bm25 % 1000
 
     # Create re-ranking pipeline based on TCTColBERTQueryEncoder (normal FF approach)
     index_tct = OnDiskIndex.load(
@@ -322,7 +322,7 @@ def main(args: argparse.Namespace) -> None:
         index_tct = index_tct.to_memory(2**15)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.1)
-    sys_tct_int = sys_bm25_cut >> ff_tct >> int_tct
+    tct = bm25 >> ff_tct >> int_tct
 
     # Create re-ranking pipeline based on TransformerEmbedding
     index_emb = OnDiskIndex.load(
@@ -335,7 +335,7 @@ def main(args: argparse.Namespace) -> None:
         index_emb = index_emb.to_memory(2**15)
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.11)
-    sys_emb = sys_bm25_cut >> ff_emb >> int_emb
+    emb = bm25 >> ff_emb >> int_emb
 
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avgD = copy(index_tct)
@@ -349,10 +349,10 @@ def main(args: argparse.Namespace) -> None:
     )
     ff_avgD = FFScore(index_avgD)
     int_avgD = FFInterpolate(alpha=0.09)
-    sys_avgD = sys_bm25_cut >> ff_avgD >> int_avgD
+    avgD = bm25 >> ff_avgD >> int_avgD
 
     int_comboD = FFInterpolate(alpha=0.39)
-    sys_comboD = sys_avgD >> ff_emb >> int_comboD
+    comboD = avgD >> ff_emb >> int_comboD
 
     index_avg = copy(index_tct)
     index_avg.query_encoder = AvgEmbQueryEstimator(
@@ -365,15 +365,15 @@ def main(args: argparse.Namespace) -> None:
     )
     ff_avg = FFScore(index_avg)
     int_avg = FFInterpolate(alpha=0.03)
-    sys_avg = sys_bm25_cut >> ff_avg >> int_avg
+    avg = bm25 >> ff_avg >> int_avg
 
     pipelines = [
-        ("bm25", "BM25", ~sys_bm25, None),
-        ("tct", "TCT-ColBERT", sys_tct_int, int_tct),
-        ("emb", "AvgTokEmb", sys_emb, int_emb),
-        ("avgD", "AvgEmb_docs", sys_avgD, int_avgD),
-        ("comboD", "AvgEmb_docs + AvgTokEmb", sys_comboD, int_comboD),
-        ("avg", "AvgEmb", sys_avg, int_avg),
+        ("bm25", "BM25", ~bm25, None),
+        ("tct", "TCT-ColBERT", tct, int_tct),
+        ("emb", "AvgTokEmb", emb, int_emb),
+        ("avgD", "AvgEmb_docs", avgD, int_avgD),
+        ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
+        ("avg", "AvgEmb", avg, int_avg),
     ]
 
     # Validation and parameter tuning on dev set
@@ -391,10 +391,16 @@ def main(args: argparse.Namespace) -> None:
             dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines
-        alphas = [round(x, 2) for x in np.arange(args.min_alpha, args.max_alpha + 1e-5, args.alphas_step)]
+        alphas = [
+            round(x, 2)
+            for x in np.arange(args.min_alpha, args.max_alpha + 1e-5, args.alphas_step)
+        ]
         for abbrev, name, system, tunable in pipelines:
             if tunable is None or (
-                args.val_pipelines != ["all"] and (abbrev not in args.val_pipelines and name not in args.val_pipelines)
+                args.val_pipelines != ["all"]
+                and (
+                    abbrev not in args.val_pipelines and name not in args.val_pipelines
+                )
             ):
                 continue
 
