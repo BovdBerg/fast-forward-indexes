@@ -488,10 +488,10 @@ class Index(abc.ABC):
             ranking._df[["q_id", "query"]].drop_duplicates().reset_index(drop=True)
         )
         query_df["q_no"] = query_df.index
-        df_with_q_no = ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
+        df = ranking._df.merge(query_df, on="q_id", suffixes=[None, "_"])
 
         # early stopping splits the data frame, hence we need to keep track of the original index
-        df_with_q_no["orig_index"] = df_with_q_no.index
+        df["orig_index"] = df.index
 
         # batch encode queries
         query_vectors = self.encode_queries(list(query_df["query"]), ranking)
@@ -509,17 +509,17 @@ class Index(abc.ABC):
 
         num_queries = len(query_df)
         if batch_size is None or batch_size >= num_queries:
-            result = _get_result(df_with_q_no)
+            result = _get_result(df)
         else:
             # assign batch indices to query IDs
-            df_with_q_no["batch_idx"] = (
-                df_with_q_no.groupby("q_id").ngroup() / batch_size
+            df["batch_idx"] = (
+                df.groupby("q_id").ngroup() / batch_size
             ).astype(int)
 
             chunks = []
             num_batches = int(num_queries / batch_size) + 1
             for batch_idx in tqdm(range(num_batches)):
-                batch = df_with_q_no[df_with_q_no["batch_idx"] == batch_idx]
+                batch = df[df["batch_idx"] == batch_idx]
                 chunks.append(_get_result(batch))
             result = pd.concat(chunks)
 
