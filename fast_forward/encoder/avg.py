@@ -156,13 +156,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # Retrieve the top-ranked documents for all queries
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
         top_docs['rank'] = top_docs.groupby('query')['score'].rank(ascending=False, method='first').astype(int) - 1
-        query_to_idx = {query: idx for idx, query in enumerate(queries)}
-
+        top_docs['q_no'] = top_docs.groupby('query').ngroup()
         t1 = perf_counter()
         LOGGER.info(f"1 (top_docs) ranking lookup took: {t1 - t0:.5f}s")
 
         # Map queries and ranks to document IDs
-        query_indices = torch.tensor(top_docs["query"].map(query_to_idx).values, device=self.device)
+        top_docs_ids = torch.zeros((len(queries), self.n_docs), device=self.device, dtype=torch.long)
+        query_indices = torch.tensor(top_docs["q_no"].values, device=self.device)
         rank_indices = torch.tensor(top_docs["rank"].values, device=self.device)
         doc_ids = torch.tensor(top_docs["id"].astype(int).values, device=self.device)
         top_docs_ids[query_indices, rank_indices] = doc_ids
@@ -178,7 +178,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         top_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
         if self.index.quantizer is not None:
             top_embs = self.index.quantizer.decode(top_embs)
-        top_embs = torch.tensor(top_embs[[x[0] for x in d_idxs]], device=self.device)
+        top_embs = torch.tensor(top_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device)
         t4 = perf_counter()
         LOGGER.info(f"4 (top_embs) lookup took: {t4 - t3:.5f}s")
 
