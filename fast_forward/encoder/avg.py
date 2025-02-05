@@ -45,7 +45,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         tok_w_method: str = "LEARNED",
         docs_only: bool = False,
         q_only: bool = False,
-        add_special_tokens: bool = True,
+        add_special_tokens: bool = True,  # TODO: might make sense to disable special tokens, e.g. [CLS] will learn a generic embedding
         normalize_q_emb_1: bool = False,
         normalize_q_emb_2: bool = False,
         profiling: bool = False,
@@ -74,6 +74,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             normalize_q_emb_1 (bool): Whether to normalize the lightweight query estimation.
             normalize_q_emb_2 (bool): Whether to normalize the final query embedding.
         """
+        # TODO [important]: Overwrite with dual-encoders AvgEmbQueryEstimator logic
         super().__init__()
         self.index = index
         self._ranking = ranking
@@ -151,7 +152,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self._ranking = ranking.cut(self.n_docs)
 
     def _get_top_docs_embs(self, queries: Sequence[str]):
-        # TODO [important]: Overwrite with dual-encoders approach
         t0 = perf_counter()
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
