@@ -149,6 +149,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self._ranking = ranking.cut(self.n_docs)
 
     def _get_top_docs(self, queries: Sequence[str]):
+        t0 = perf_counter()
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
 
@@ -157,27 +158,35 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         top_docs['rank'] = top_docs.groupby('query')['score'].rank(ascending=False, method='first').astype(int) - 1
         query_to_idx = {query: idx for idx, query in enumerate(queries)}
 
-        # Initialize top_docs_ids tensor
-        top_docs_ids = torch.zeros((len(queries), self.n_docs), device=self.device, dtype=torch.long)
+        t1 = perf_counter()
+        LOGGER.info(f"1 (top_docs) ranking lookup took: {t1 - t0:.5f}s")
 
         # Map queries and ranks to document IDs
         query_indices = torch.tensor(top_docs["query"].map(query_to_idx).values, device=self.device)
         rank_indices = torch.tensor(top_docs["rank"].values, device=self.device)
         doc_ids = torch.tensor(top_docs["id"].astype(int).values, device=self.device)
         top_docs_ids[query_indices, rank_indices] = doc_ids
+        t2 = perf_counter()
+        LOGGER.info(f"2 (top_docs_ids) mapping took: {t2 - t1:.5f}s")
 
         # Replace any 0 in top_docs_ids with d_id at rank 0 for that query
         top_docs_ids[top_docs_ids == 0] = top_docs_ids[:, 0].unsqueeze(1).expand_as(top_docs_ids)[top_docs_ids == 0]
+        t3 = perf_counter()
+        LOGGER.info(f"3 (top_docs_ids) zero replacement took: {t3 - t2:.5f}s")
 
         # Retrieve any needed embeddings from the index
         top_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
         if self.index.quantizer is not None:
             top_embs = self.index.quantizer.decode(top_embs)
         top_embs = torch.tensor(top_embs[[x[0] for x in d_idxs]], device=self.device)
+        t4 = perf_counter()
+        LOGGER.info(f"4 (top_embs) lookup took: {t4 - t3:.5f}s")
 
         # Map doc_ids in top_docs_ids to embeddings
         d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
         d_embs[query_indices, rank_indices] = top_embs
+        t5 = perf_counter()
+        LOGGER.info(f"5 (d_embs) mapping took: {t5 - t4:.5f}s")
 
         return d_embs
 
