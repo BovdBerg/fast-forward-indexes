@@ -48,7 +48,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         add_special_tokens: bool = True,
         normalize_q_emb_1: bool = False,
         normalize_q_emb_2: bool = False,
-        calc_rank_scores: bool = False,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -73,7 +72,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             add_special_tokens (bool): Whether to add special tokens to the queries.
             normalize_q_emb_1 (bool): Whether to normalize the lightweight query estimation.
             normalize_q_emb_2 (bool): Whether to normalize the final query embedding.
-            calc_rank_scores (bool): Whether to calculate the average rank scores of the top-ranked documents.
         """
         super().__init__()
         self.index = index
@@ -86,8 +84,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.q_only = q_only
         self.normalize_q_emb_1 = normalize_q_emb_1
         self.normalize_q_emb_2 = normalize_q_emb_2
-        self.calc_rank_scores = calc_rank_scores
-        self.rank_scores = np.zeros(n_docs)
 
         doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
         self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
@@ -226,10 +222,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         # lookup embeddings of top-ranked documents in (in-memory) self.index
         d_embs = self._get_top_docs(queries)
-
-        if self.calc_rank_scores and self.index._verbose:
-            self.rank_scores = np.round(self.rank_scores, 3)
-            LOGGER.info(f"AvgEmbQueryEstimator.rank_scores: [{', '.join(map(str, self.rank_scores))}]")
 
         t2 = perf_counter()
         if self.index._profiling:
