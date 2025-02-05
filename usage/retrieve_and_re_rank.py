@@ -347,10 +347,10 @@ def main(args: argparse.Namespace) -> None:
         docs_only=True,
     )
     ff_avgD = FFScore(index_avgD)
-    int_avgD = FFInterpolate(alpha=0.1)
+    int_avgD = FFInterpolate(alpha=0.09)
     sys_avgD = sys_bm25_cut >> ff_avgD >> int_avgD
 
-    int_comboD = FFInterpolate(alpha=0.5)
+    int_comboD = FFInterpolate(alpha=0.39)
     sys_comboD = sys_avgD >> ff_emb >> int_comboD
 
     index_avg = copy(index_tct)
