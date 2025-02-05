@@ -156,35 +156,33 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
 
-        d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
-
         # Retrieve the top-ranked documents for all queries
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
+        top_docs['rank'] = top_docs.groupby('query')['score'].rank(ascending=False, method='first').astype(int) - 1
         query_to_idx = {query: idx for idx, query in enumerate(queries)}
 
-        # TODO [important]: Can we get rid of this loop?
-        pos_scores = np.zeros(self.n_docs)
-        for query, group in top_docs.groupby("query"):
-            top_embs, d_idxs = self.index._get_vectors(group["id"].unique())
-            if self.index.quantizer is not None:
-                top_embs = self.index.quantizer.decode(top_embs)
-            top_embs = torch.tensor(top_embs[[x[0] for x in d_idxs]], device=self.device)
+        # top_docs_ids with rows resembling queries and columns resembling doc_ids at that rank
+        top_docs_ids = torch.zeros((len(queries), self.n_docs), device=self.device, dtype=torch.long)
+        top_docs_ids[
+            torch.tensor(top_docs["query"].map(query_to_idx).values, device=self.device), 
+            torch.tensor(top_docs["rank"].values, device=self.device)
+        ] = torch.tensor(top_docs["id"].astype(int).values, device=self.device)
 
-            # Repeat d_embs until reaching length n_docs
-            if len(top_embs) < self.n_docs:
-                top_embs = torch.cat([top_embs] * self.n_docs, dim=0)[: self.n_docs]
+        # replace any 0 in top_docs_ids with d_id at rank 0 for that query
+        top_docs_ids[top_docs_ids == 0] = top_docs_ids[:, 0].unsqueeze(1).expand_as(top_docs_ids)[top_docs_ids == 0]
 
-            query_idx = query_to_idx[str(query)]
-            d_embs[query_idx] = top_embs
+        # Retrieve any needed embeddings from the index
+        top_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
+        if self.index.quantizer is not None:
+            top_embs = self.index.quantizer.decode(top_embs)
+        top_embs = torch.tensor(top_embs[[x[0] for x in d_idxs]], device=self.device)
 
-            if self.calc_rank_scores:
-                # Update position scores
-                for i, idx in enumerate(d_idxs):
-                    pos_scores[idx[0]] += group.iloc[i]["score"]
-
-        if self.calc_rank_scores:
-            # Update self.rank_scores with new avg and divide by 2
-            self.rank_scores = (self.rank_scores + pos_scores / len(queries)) / 2
+        # Map doc_ids in top_docs_ids to embeddings
+        d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
+        d_embs[
+            torch.tensor(top_docs["query"].map(query_to_idx).values, device=self.device),
+            torch.tensor(top_docs["rank"].values, device=self.device)
+        ] = top_embs
 
         return d_embs
 
