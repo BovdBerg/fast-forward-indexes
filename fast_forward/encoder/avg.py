@@ -56,8 +56,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         Note that the optimal values for these values are learned during fine-tuning:
         - `self.tok_embs`: the token embeddings
-        - `self.tok_embs_avg_weights`: token embedding weighted averages
-        - `self.embs_avg_weights`: embedding weighted averages
+        - `self.tok_embs_weights`: token embedding weighted averages
+        - `self.embs_weights`: embedding weighted averages
 
         Args:
             index (Index): The index containing document embeddings.
@@ -91,10 +91,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_embs = model.get_input_embeddings()  # Embedding(vocab_size, embedding_dim)
 
         vocab_size = self.tokenizer.vocab_size
-        self.tok_embs_avg_weights = torch.nn.Parameter(torch.ones(vocab_size) / vocab_size)
+        self.tok_embs_weights = torch.nn.Parameter(torch.ones(vocab_size) / vocab_size)
 
         # TODO [maybe]: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
-        self.embs_avg_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
+        self.embs_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
 
         # TODO [maybe]: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
 
@@ -105,7 +105,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.eval()
 
         # Print some information about the model
-        print(f"AvgEmbQueryEstimator.embs_weights: {self.embs_avg_weights}")
+        print(f"AvgEmbQueryEstimator.embs_weights: {self.embs_weights}")
 
     def load_checkpoint(self, ckpt_path: Path) -> None:
         self.ckpt_path = ckpt_path
@@ -206,7 +206,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
             # Apply weights to the q_tok_embs
             if self.tok_w_method == WEIGHT_METHOD.WEIGHTED:
-                q_tok_weights = self.tok_embs_avg_weights[input_ids]
+                q_tok_weights = self.tok_embs_weights[input_ids]
                 q_tok_weights = q_tok_weights * attention_mask  # Mask padding weights
                 q_tok_weights = q_tok_weights / q_tok_weights.sum(dim=1, keepdim=True)  # Normalize
                 q_tok_embs = q_tok_embs * q_tok_weights.unsqueeze(-1)
@@ -235,11 +235,11 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_weights = torch.zeros((self.n_embs), device=self.device)
         if self.docs_only:
             embs_weights[0] = 0.0
-            doc_weights = self.embs_avg_weights[1 : self.n_embs]
+            doc_weights = self.embs_weights[1 : self.n_embs]
             doc_weights = doc_weights / doc_weights.sum()  # Normalize
             embs_weights[1 : self.n_embs] = doc_weights
         else:
-            embs_weights[: self.n_embs] = self.embs_avg_weights[: self.n_embs]
+            embs_weights[: self.n_embs] = self.embs_weights[: self.n_embs]
         embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1).unsqueeze(-1)
 
         q_emb_2 = torch.sum(embs * embs_weights, -2)
