@@ -196,8 +196,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             q_tokens = self.tokenizer(
                 list(queries),
                 padding=True,
-                truncation=True,
-                max_length=512,
                 return_tensors="pt",
                 add_special_tokens=self.add_special_tokens,
             ).to(self.device)
