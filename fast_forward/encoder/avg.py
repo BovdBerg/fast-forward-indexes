@@ -221,17 +221,19 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             attention_mask = q_tokens["attention_mask"]
 
             q_tok_embs = self.tok_embs(input_ids)
-            masked_emb = q_tok_embs * attention_mask.unsqueeze(-1)  # Mask padding tokens
+            q_tok_embs = q_tok_embs * attention_mask.unsqueeze(-1)  # Mask padding tokens
 
             # Compute the mean of the masked embeddings, excluding padding
             match self.tok_w_method:
                 case WEIGHT_METHOD.UNIFORM:
                     n_unmasked = attention_mask.sum(dim=1, keepdim=True)
-                    q_emb_1 = masked_emb.sum(dim=1) / n_unmasked
+                    q_emb_1 = q_tok_embs.sum(dim=1) / n_unmasked
                 case WEIGHT_METHOD.LEARNED:
                     q_tok_weights = torch.nn.functional.softmax(
                         self.tok_embs_avg_weights[input_ids], -1
                     )
+                    q_tok_weights = q_tok_weights * attention_mask  # mask padding weights
+                    q_tok_weights = q_tok_weights / q_tok_weights.sum(dim=1, keepdim=True)  # Normalize to sum to 1
                     q_emb_1 = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)
             if self.normalize_q_emb_1:
                 q_emb_1 = torch.nn.functional.normalize(q_emb_1)
