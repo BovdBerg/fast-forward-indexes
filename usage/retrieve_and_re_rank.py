@@ -327,12 +327,21 @@ def main(args: argparse.Namespace) -> None:
     # Create re-ranking pipeline based on TransformerEmbedding
     index_emb = OnDiskIndex.load(
         args.index_path_emb,
-        StandaloneEncoder(ckpt_path=args.ckpt_path_emb, device=args.device),
         verbose=args.verbose,
         profiling=args.profiling,
     )
     if args.storage == "mem":
         index_emb = index_emb.to_memory(2**15)
+    index_emb.query_encoder = AvgEmbQueryEstimator(
+        index=index_emb,
+        n_docs=1,
+        device=args.device,
+        ckpt_path=args.ckpt_path_emb,
+        tok_w_method="UNIFORM",
+        q_only=True,
+        add_special_tokens=True,
+        normalize_q_emb_1=True,
+    )
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.11)
     emb = bm25 >> ff_emb >> int_emb
