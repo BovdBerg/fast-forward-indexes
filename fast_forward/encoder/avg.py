@@ -167,30 +167,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if self.profiling:
             LOGGER.info(f"1 (top_docs) ranking lookup took: {t1 - t0:.5f}s")
 
-        # Map queries and ranks to document IDs
-        top_docs_ids = torch.zeros(
-            (len(queries), self.n_docs), device=self.device, dtype=torch.long
-        )
-        q_groups = top_docs.groupby("query")
-        q_nos = torch.tensor(q_groups.ngroup(), device=self.device)
-        ranks = torch.tensor(
-            q_groups["score"].rank(ascending=False, method="first").astype(int) - 1,
-            device=self.device,
-        )
-        doc_ids = torch.tensor(top_docs["id"].astype(int).values, device=self.device)
-        top_docs_ids[q_nos, ranks] = doc_ids
-        t2 = perf_counter()
-        if self.profiling:
-            LOGGER.info(f"2 (top_docs_ids) mapping took: {t2 - t1:.5f}s")
-
-        # Replace any 0 in top_docs_ids with d_id at rank 0 for that query
-        top_docs_ids[top_docs_ids == 0] = (
-            top_docs_ids[:, 0].unsqueeze(1).expand_as(top_docs_ids)[top_docs_ids == 0]
-        )
-        t3 = perf_counter()
-        if self.profiling:
-            LOGGER.info(f"3 (top_docs_ids) zero replacement took: {t3 - t2:.5f}s")
-
         # Retrieve any needed embeddings from the index
         top_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
         if self.index.quantizer is not None:
@@ -198,16 +174,22 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         top_embs = torch.tensor(
             top_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
         )
-        t4 = perf_counter()
+        t2 = perf_counter()
         if self.profiling:
-            LOGGER.info(f"4 (top_embs) lookup took: {t4 - t3:.5f}s")
+            LOGGER.info(f"4 (top_embs) lookup took: {t2 - t1:.5f}s")
 
-        # Map doc_ids in top_docs_ids to embeddings
+        # Map doc_ids to embeddings
         d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
+        q_groups = top_docs.groupby("query")
+        q_nos = torch.tensor(q_groups.ngroup(), device=self.device)
+        ranks = torch.tensor(
+            q_groups["score"].rank(ascending=False, method="first").astype(int) - 1,
+            device=self.device,
+        )
         d_embs[q_nos, ranks] = top_embs
-        t5 = perf_counter()
+        t3 = perf_counter()
         if self.profiling:
-            LOGGER.info(f"5 (d_embs) mapping took: {t5 - t4:.5f}s")
+            LOGGER.info(f"5 (d_embs) mapping took: {t3 - t2:.5f}s")
 
         return d_embs
 
