@@ -146,10 +146,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         return self._ranking
 
     @ranking.setter
-    def ranking(self, ranking: Ranking):
+    def ranking(self, ranking: Ranking) -> None:
         self._ranking = ranking.cut(self.n_docs)
 
-    def _get_top_docs_embs(self, queries: Sequence[str]):
+    def _get_top_docs_embs(self, queries: Sequence[str]) -> torch.Tensor:
         t0 = perf_counter()
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
