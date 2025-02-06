@@ -75,7 +75,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             normalize_q_emb_1 (bool): Whether to normalize the lightweight query estimation.
             normalize_q_emb_2 (bool): Whether to normalize the final query embedding.
         """
-        # TODO [important]: Overwrite with dual-encoders AvgEmbQueryEstimator logic
+        assert not (q_only and docs_only), "Cannot use both q_only and docs_only."
+
         super().__init__()
         self.index = index
         self._ranking = ranking
