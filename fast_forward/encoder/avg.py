@@ -46,8 +46,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         q_only: bool = False,
         docs_only: bool = False,
         add_special_tokens: bool = True,  # TODO: might make sense to disable special tokens, e.g. [CLS] will learn a generic embedding
-        normalize_q_emb_1: bool = False,
-        normalize_q_emb_2: bool = False,
         profiling: bool = False,
     ) -> None:
         """
@@ -72,8 +70,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
             add_special_tokens (bool): Whether to add special tokens to the queries.
             profiling (bool): Whether to log profiling information.
-            normalize_q_emb_1 (bool): Whether to normalize the lightweight query estimation.
-            normalize_q_emb_2 (bool): Whether to normalize the final query embedding.
         """
         assert not (q_only and docs_only), "Cannot use both q_only and docs_only."
 
@@ -87,8 +83,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_w_method = WEIGHT_METHOD(tok_w_method)
         self.q_only = q_only
         self.docs_only = docs_only
-        self.normalize_q_emb_1 = normalize_q_emb_1
-        self.normalize_q_emb_2 = normalize_q_emb_2
         self.profiling = profiling
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model)
@@ -141,8 +135,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "add_special_tokens": self.add_special_tokens,
                 "q_only": self.q_only,
                 "docs_only": self.docs_only,
-                "normalize_q_emb_1": self.normalize_q_emb_1,
-                "normalize_q_emb_2": self.normalize_q_emb_2,
             }
         )
 
@@ -227,8 +219,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_tok_weights = q_tok_weights * attention_mask  # Mask padding weights
                     q_tok_weights = q_tok_weights / q_tok_weights.sum(dim=1, keepdim=True)  # Normalize to sum to 1
                     q_emb_1 = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)
-            if self.normalize_q_emb_1:
-                q_emb_1 = torch.nn.functional.normalize(q_emb_1)
 
         t1 = perf_counter()
         if self.profiling:
@@ -260,9 +250,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
 
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
-        if self.normalize_q_emb_2:
-            q_emb_2 = torch.nn.functional.normalize(q_emb_2)
-
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.5f}s")
