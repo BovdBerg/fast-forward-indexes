@@ -340,7 +340,7 @@ def main(args: argparse.Namespace) -> None:
         tok_w_method="UNIFORM",
         q_only=True,
         add_special_tokens=True,
-        normalize_q_emb_1=False,
+        normalize_q_emb_1=True,
     )
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.11)
