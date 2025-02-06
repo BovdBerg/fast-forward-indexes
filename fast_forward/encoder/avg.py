@@ -93,7 +93,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         vocab_size = self.tokenizer.vocab_size
 
         doc_encoder = AutoModel.from_pretrained(doc_encoder_pretrained)
-        self.tok_embs: torch.nn.Module = (
+        self.tok_embs = (
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
 
@@ -109,15 +109,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # TODO [maybe]: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
 
         if ckpt_path is not None:
-            self.ckpt_path = ckpt_path
-            ckpt = torch.load(ckpt_path, map_location=device)
-            state_dict = {}
-            for k, v in ckpt["state_dict"].items():
-                if k in self.state_dict():
-                    state_dict[k] = v
-                if k[len("query_encoder.") :] in self.state_dict():
-                    state_dict[k[len("query_encoder.") :]] = v
-            self.load_state_dict(state_dict)
+            self.load_checkpoint(ckpt_path)
 
         self.to(device)
         self.eval()
@@ -125,6 +117,19 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ## Print some information about the model
         embs_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=0)
         print(f"AvgEmbQueryEstimator.embs_weights (softmaxed): {embs_weights}")
+
+    def load_checkpoint(self, ckpt_path: Path) -> None:
+        self.ckpt_path = ckpt_path
+        ckpt = torch.load(ckpt_path, map_location=self.device)
+        state_dict = {}
+        for k, v in ckpt["state_dict"].items():
+            key = k.replace("query_encoder.", "")
+            if key == "embeddings.weight":
+                self.tok_embs.weight.data.copy_(v)
+                return
+            elif key in self.state_dict():
+                state_dict[key] = v
+        self.load_state_dict(state_dict)
 
     def on_train_start(self) -> None:
         super().on_train_start()
