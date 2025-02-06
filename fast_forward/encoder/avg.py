@@ -111,7 +111,12 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if ckpt_path is not None:
             self.ckpt_path = ckpt_path
             ckpt = torch.load(ckpt_path, map_location=device)
-            state_dict = {k: v for k, v in ckpt["state_dict"].items() if k in self.state_dict()}
+            state_dict = {}
+            for k, v in ckpt["state_dict"].items():
+                if k in self.state_dict():
+                    state_dict[k] = v
+                if k[len("query_encoder."):] in self.state_dict():
+                    state_dict[k[len("query_encoder."):]] = v
             self.load_state_dict(state_dict)
 
         self.to(device)
