@@ -93,7 +93,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         vocab_size = self.tokenizer.vocab_size
 
         doc_encoder = AutoModel.from_pretrained(doc_encoder_pretrained)
-        self.tok_embs = (
+        self.tok_embs: torch.nn.Module = (
             doc_encoder.get_input_embeddings()
         )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
 
@@ -207,16 +207,22 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             q_tokens = self.tokenizer(
                 list(queries),
                 padding=True,
+                truncation=True,
+                max_length=512,
                 return_tensors="pt",
                 add_special_tokens=self.add_special_tokens,
             ).to(self.device)
             input_ids = q_tokens["input_ids"].to(self.device)
+            attention_mask = q_tokens["attention_mask"]
 
-            # estimate lightweight query as weighted average of q_tok_embs
             q_tok_embs = self.tok_embs(input_ids)
+            masked_emb = q_tok_embs * attention_mask.unsqueeze(-1)  # Mask padding tokens
+
+            # Compute the mean of the masked embeddings, excluding padding
             match self.tok_w_method:
                 case WEIGHT_METHOD.UNIFORM:
-                    q_emb_1 = torch.mean(q_tok_embs, 1)
+                    n_unmasked = attention_mask.sum(dim=1, keepdim=True)
+                    q_emb_1 = masked_emb.sum(dim=1) / n_unmasked
                 case WEIGHT_METHOD.LEARNED:
                     q_tok_weights = torch.nn.functional.softmax(
                         self.tok_embs_avg_weights[input_ids], -1
