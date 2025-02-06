@@ -115,8 +115,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             for k, v in ckpt["state_dict"].items():
                 if k in self.state_dict():
                     state_dict[k] = v
-                if k[len("query_encoder."):] in self.state_dict():
-                    state_dict[k[len("query_encoder."):]] = v
+                if k[len("query_encoder.") :] in self.state_dict():
+                    state_dict[k[len("query_encoder.") :]] = v
             self.load_state_dict(state_dict)
 
         self.to(device)
@@ -163,24 +163,30 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         # Retrieve the top-ranked documents for all queries
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
-        top_docs['rank'] = top_docs.groupby('query')['score'].rank(ascending=False, method='first').astype(int) - 1
-        top_docs['q_no'] = top_docs.groupby('query').ngroup()
         t1 = perf_counter()
         if self.profiling:
             LOGGER.info(f"1 (top_docs) ranking lookup took: {t1 - t0:.5f}s")
 
         # Map queries and ranks to document IDs
-        top_docs_ids = torch.zeros((len(queries), self.n_docs), device=self.device, dtype=torch.long)
-        query_indices = torch.tensor(top_docs["q_no"].values, device=self.device)
-        rank_indices = torch.tensor(top_docs["rank"].values, device=self.device)
+        top_docs_ids = torch.zeros(
+            (len(queries), self.n_docs), device=self.device, dtype=torch.long
+        )
+        q_groups = top_docs.groupby("query")
+        q_nos = torch.tensor(q_groups.ngroup(), device=self.device)
+        ranks = torch.tensor(
+            q_groups["score"].rank(ascending=False, method="first").astype(int) - 1,
+            device=self.device,
+        )
         doc_ids = torch.tensor(top_docs["id"].astype(int).values, device=self.device)
-        top_docs_ids[query_indices, rank_indices] = doc_ids
+        top_docs_ids[q_nos, ranks] = doc_ids
         t2 = perf_counter()
         if self.profiling:
             LOGGER.info(f"2 (top_docs_ids) mapping took: {t2 - t1:.5f}s")
 
         # Replace any 0 in top_docs_ids with d_id at rank 0 for that query
-        top_docs_ids[top_docs_ids == 0] = top_docs_ids[:, 0].unsqueeze(1).expand_as(top_docs_ids)[top_docs_ids == 0]
+        top_docs_ids[top_docs_ids == 0] = (
+            top_docs_ids[:, 0].unsqueeze(1).expand_as(top_docs_ids)[top_docs_ids == 0]
+        )
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"3 (top_docs_ids) zero replacement took: {t3 - t2:.5f}s")
@@ -189,14 +195,16 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         top_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
         if self.index.quantizer is not None:
             top_embs = self.index.quantizer.decode(top_embs)
-        top_embs = torch.tensor(top_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device)
+        top_embs = torch.tensor(
+            top_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
+        )
         t4 = perf_counter()
         if self.profiling:
             LOGGER.info(f"4 (top_embs) lookup took: {t4 - t3:.5f}s")
 
         # Map doc_ids in top_docs_ids to embeddings
         d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
-        d_embs[query_indices, rank_indices] = top_embs
+        d_embs[q_nos, ranks] = top_embs
         t5 = perf_counter()
         if self.profiling:
             LOGGER.info(f"5 (d_embs) mapping took: {t5 - t4:.5f}s")
@@ -243,16 +251,22 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         t2 = perf_counter()
         if self.profiling:
-            LOGGER.info(f"Lookup of top-ranked documents (_get_top_docs) took: {t2 - t1:.5f}s")
+            LOGGER.info(
+                f"Lookup of top-ranked documents (_get_top_docs) took: {t2 - t1:.5f}s"
+            )
 
         # estimate query embedding as weighted average of q_emb and d_embs
         embs = torch.cat((q_emb_1.unsqueeze(1), d_embs), -2)
         embs_weights = torch.zeros((self.n_embs), device=self.device)
         if self.docs_only:
             embs_weights[0] = 0.0
-            embs_weights[1:self.n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[1:self.n_embs], 0)
+            embs_weights[1 : self.n_embs] = torch.nn.functional.softmax(
+                self.embs_avg_weights[1 : self.n_embs], 0
+            )
         else:
-            embs_weights[:self.n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:self.n_embs], 0)
+            embs_weights[: self.n_embs] = torch.nn.functional.softmax(
+                self.embs_avg_weights[: self.n_embs], 0
+            )
         embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
 
         q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
