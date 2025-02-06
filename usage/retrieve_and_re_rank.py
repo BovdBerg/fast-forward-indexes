@@ -446,10 +446,10 @@ def main(args: argparse.Namespace) -> None:
             settings_str = print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
 
-            # Save new results to Google Sheets if gsheets_credentials exists
-            if args.gsheets_credentials:
-                settings_str += f"\nTest: '{test_dataset_name}'"
-                append_to_gsheets(results, settings_str)
+            # # Save new results to Google Sheets if gsheets_credentials exists
+            # if args.gsheets_credentials:
+            #     settings_str += f"\nTest: '{test_dataset_name}'"
+            #     append_to_gsheets(results, settings_str)
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
