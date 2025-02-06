@@ -186,11 +186,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # Map doc_ids to embeddings
         d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
         q_groups = top_docs.groupby("query")
-        q_nos = torch.tensor(q_groups.ngroup(), device=self.device)
-        ranks = torch.tensor(
-            q_groups["score"].rank(ascending=False, method="first").astype(int) - 1,
-            device=self.device,
-        )
+        q_nos = torch.tensor(q_groups.ngroup().values, device=self.device)
+        ranks = torch.tensor(q_groups.cumcount().to_numpy(), device=self.device)
         d_embs[q_nos, ranks] = top_embs
         # replace zeros in d_embs with emb at rank 0 (if n_top_docs was < self.n_docs for any queries)
         d_embs[d_embs == 0] = (
