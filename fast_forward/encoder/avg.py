@@ -43,8 +43,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
         tok_w_method: str = "LEARNED",
-        docs_only: bool = False,
         q_only: bool = False,
+        docs_only: bool = False,
         add_special_tokens: bool = True,  # TODO: might make sense to disable special tokens, e.g. [CLS] will learn a generic embedding
         normalize_q_emb_1: bool = False,
         normalize_q_emb_2: bool = False,
@@ -68,9 +68,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
             tok_w_method (str): The WEIGHT_METHOD name to use for token weighting.
-            docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
             q_only (bool): Whether to only use the lightweight query estimation and not the top-ranked documents.
+            docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
             add_special_tokens (bool): Whether to add special tokens to the queries.
+            profiling (bool): Whether to log profiling information.
             normalize_q_emb_1 (bool): Whether to normalize the lightweight query estimation.
             normalize_q_emb_2 (bool): Whether to normalize the final query embedding.
         """
@@ -82,8 +83,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.n_embs = n_docs + 1
         self.add_special_tokens = add_special_tokens
         self.tok_w_method = WEIGHT_METHOD(tok_w_method)
-        self.docs_only = docs_only
         self.q_only = q_only
+        self.docs_only = docs_only
         self.normalize_q_emb_1 = normalize_q_emb_1
         self.normalize_q_emb_2 = normalize_q_emb_2
         self.profiling = profiling
@@ -143,8 +144,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "ckpt_path": getattr(self, "ckpt_path", None),
                 "tok_w_method": self.tok_w_method.value,
                 "add_special_tokens": self.add_special_tokens,
-                "docs_only": self.docs_only,
                 "q_only": self.q_only,
+                "docs_only": self.docs_only,
                 "normalize_q_emb_1": self.normalize_q_emb_1,
                 "normalize_q_emb_2": self.normalize_q_emb_2,
             }
