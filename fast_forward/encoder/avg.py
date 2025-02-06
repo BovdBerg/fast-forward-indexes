@@ -82,6 +82,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self._ranking = ranking
         self.n_docs = n_docs
         self.n_embs = n_docs + 1
+        self.pretrained_model = "bert-base-uncased"
         self.add_special_tokens = add_special_tokens
         self.tok_w_method = WEIGHT_METHOD(tok_w_method)
         self.q_only = q_only
@@ -90,23 +91,16 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.normalize_q_emb_2 = normalize_q_emb_2
         self.profiling = profiling
 
-        doc_encoder_pretrained = "castorini/tct_colbert-msmarco"
-        self.tokenizer = AutoTokenizer.from_pretrained(doc_encoder_pretrained)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model)
+
+        model = AutoModel.from_pretrained(self.pretrained_model)
+        self.tok_embs = model.get_input_embeddings()  # Embedding(vocab_size, embedding_dim)
+
         vocab_size = self.tokenizer.vocab_size
-
-        doc_encoder = AutoModel.from_pretrained(doc_encoder_pretrained)
-        self.tok_embs = (
-            doc_encoder.get_input_embeddings()
-        )  # Maps token_id --> embedding, Embedding(vocab_size, embedding_dim)
-
-        self.tok_embs_avg_weights = torch.nn.Parameter(
-            torch.ones(vocab_size) / vocab_size
-        )  # weights for averaging over q's token embedding, shape (vocab_size,)
+        self.tok_embs_avg_weights = torch.nn.Parameter(torch.ones(vocab_size) / vocab_size)
 
         # TODO [maybe]: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
-        self.embs_avg_weights = torch.nn.Parameter(
-            torch.ones(self.n_embs) / self.n_embs
-        )  # weights for averaging over q_emb1 ++ d_embs, shape (n_embs,)
+        self.embs_avg_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
 
         # TODO [maybe]: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
 
@@ -116,7 +110,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.to(device)
         self.eval()
 
-        ## Print some information about the model
+        # Print some information about the model
         embs_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=0)
         print(f"AvgEmbQueryEstimator.embs_weights (softmaxed): {embs_weights}")
 
@@ -189,12 +183,11 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
         q_groups = top_docs.groupby("query")
         q_nos = torch.tensor(q_groups.ngroup().values, device=self.device)
-        ranks = torch.tensor(q_groups.cumcount().to_numpy(), device=self.device)
-        d_embs[q_nos, ranks] = top_embs
+        d_ranks = torch.tensor(q_groups.cumcount().to_numpy(), device=self.device)
+        d_embs[q_nos, d_ranks] = top_embs
+
         # replace zeros in d_embs with emb at rank 0 (if n_top_docs was < self.n_docs for any queries)
-        d_embs[d_embs == 0] = (
-            d_embs[:, 0].unsqueeze(1).expand_as(d_embs)[d_embs == 0]
-        )
+        d_embs[d_embs == 0] = d_embs[:, 0].unsqueeze(1).expand_as(d_embs)[d_embs == 0]
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"5 (d_embs) mapping took: {t3 - t2:.5f}s")
@@ -207,7 +200,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if self.docs_only:
             q_emb_1 = torch.zeros((len(queries), 768), device=self.device)
         else:
-            # Tokenizer queries
+            # Estimate lightweight query as (weighted) average of q_tok_embs, excluding padding
             q_tokens = self.tokenizer(
                 list(queries),
                 padding=True,
@@ -231,7 +224,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_tok_weights = torch.nn.functional.softmax(
                         self.tok_embs_avg_weights[input_ids], -1
                     )
-                    q_tok_weights = q_tok_weights * attention_mask  # mask padding weights
+                    q_tok_weights = q_tok_weights * attention_mask  # Mask padding weights
                     q_tok_weights = q_tok_weights / q_tok_weights.sum(dim=1, keepdim=True)  # Normalize to sum to 1
                     q_emb_1 = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)
             if self.normalize_q_emb_1:
@@ -244,16 +237,15 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if self.q_only:
             return q_emb_1
 
-        # lookup embeddings of top-ranked documents
+        # Find top-ranked document embeddings
         d_embs = self._get_top_docs_embs(queries)
-
         t2 = perf_counter()
         if self.profiling:
             LOGGER.info(
                 f"Lookup of top-ranked documents (_get_top_docs) took: {t2 - t1:.5f}s"
             )
 
-        # estimate query embedding as weighted average of q_emb and d_embs
+        # Estimate final query embedding as (weighted) average of q_emb ++ d_embs
         embs = torch.cat((q_emb_1.unsqueeze(1), d_embs), -2)
         embs_weights = torch.zeros((self.n_embs), device=self.device)
         if self.docs_only:
