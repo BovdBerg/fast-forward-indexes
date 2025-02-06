@@ -187,6 +187,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             device=self.device,
         )
         d_embs[q_nos, ranks] = top_embs
+        # replace zeros in d_embs with emb at rank 0 (if n_top_docs was < self.n_docs for any queries)
+        d_embs[d_embs == 0] = (
+            d_embs[:, 0].unsqueeze(1).expand_as(d_embs)[d_embs == 0]
+        )
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"5 (d_embs) mapping took: {t3 - t2:.5f}s")
