@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tok_w_method",
         type=str,
-        default="LEARNED",
+        default="WEIGHTED",
         choices=[method.name for method in WEIGHT_METHOD],
         help="Method to weight token embeddings.",
     )

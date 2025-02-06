@@ -27,11 +27,11 @@ class WEIGHT_METHOD(Enum):
 
     Attributes:
         UNIFORM: all tokens are weighted equally.
-        LEARNED: weights are learned during training.
+        WEIGHTED: weights are learned during training.
     """
 
     UNIFORM = "UNIFORM"
-    LEARNED = "LEARNED"
+    WEIGHTED = "WEIGHTED"
 
 
 class AvgEmbQueryEstimator(Encoder, GeneralModule):
@@ -42,7 +42,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         device: str,
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
-        tok_w_method: str = "LEARNED",
+        tok_w_method: str = "WEIGHTED",
         q_only: bool = False,
         docs_only: bool = False,
         add_special_tokens: bool = True,  # TODO: might make sense to disable special tokens, e.g. [CLS] will learn a generic embedding
@@ -105,8 +105,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.eval()
 
         # Print some information about the model
-        embs_weights = torch.nn.functional.softmax(self.embs_avg_weights, dim=0)
-        print(f"AvgEmbQueryEstimator.embs_weights (softmaxed): {embs_weights}")
+        print(f"AvgEmbQueryEstimator.embs_weights: {self.embs_avg_weights}")
 
     def load_checkpoint(self, ckpt_path: Path) -> None:
         self.ckpt_path = ckpt_path
@@ -205,18 +204,16 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             q_tok_embs = self.tok_embs(input_ids)
             q_tok_embs = q_tok_embs * attention_mask.unsqueeze(-1)  # Mask padding tokens
 
+            # Apply weights to the q_tok_embs
+            if self.tok_w_method == WEIGHT_METHOD.WEIGHTED:
+                q_tok_weights = self.tok_embs_avg_weights[input_ids]
+                q_tok_weights = q_tok_weights * attention_mask  # Mask padding weights
+                q_tok_weights = q_tok_weights / q_tok_weights.sum(dim=1, keepdim=True)  # Normalize
+                q_tok_embs = q_tok_embs * q_tok_weights.unsqueeze(-1)
+
             # Compute the mean of the masked embeddings, excluding padding
-            match self.tok_w_method:
-                case WEIGHT_METHOD.UNIFORM:
-                    n_unmasked = attention_mask.sum(dim=1, keepdim=True)
-                    q_emb_1 = q_tok_embs.sum(dim=1) / n_unmasked
-                case WEIGHT_METHOD.LEARNED:
-                    q_tok_weights = torch.nn.functional.softmax(
-                        self.tok_embs_avg_weights[input_ids], -1
-                    )
-                    q_tok_weights = q_tok_weights * attention_mask  # Mask padding weights
-                    q_tok_weights = q_tok_weights / q_tok_weights.sum(dim=1, keepdim=True)  # Normalize to sum to 1
-                    q_emb_1 = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)
+            n_unmasked = attention_mask.sum(dim=1, keepdim=True)
+            q_emb_1 = q_tok_embs.sum(dim=1) / n_unmasked
 
         t1 = perf_counter()
         if self.profiling:
@@ -238,16 +235,14 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_weights = torch.zeros((self.n_embs), device=self.device)
         if self.docs_only:
             embs_weights[0] = 0.0
-            embs_weights[1 : self.n_embs] = torch.nn.functional.softmax(
-                self.embs_avg_weights[1 : self.n_embs], 0
-            )
+            doc_weights = self.embs_avg_weights[1 : self.n_embs]
+            doc_weights = doc_weights / doc_weights.sum()  # Normalize
+            embs_weights[1 : self.n_embs] = doc_weights
         else:
-            embs_weights[: self.n_embs] = torch.nn.functional.softmax(
-                self.embs_avg_weights[: self.n_embs], 0
-            )
-        embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
+            embs_weights[: self.n_embs] = self.embs_avg_weights[: self.n_embs]
+        embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1).unsqueeze(-1)
 
-        q_emb_2 = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
+        q_emb_2 = torch.sum(embs * embs_weights, -2)
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.5f}s")
