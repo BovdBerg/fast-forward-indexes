@@ -337,7 +337,7 @@ def main(args: argparse.Namespace) -> None:
         n_docs=1,
         device=args.device,
         ckpt_path=args.ckpt_path_emb,
-        tok_w_method="UNIFORM",
+        tok_embs_w_method="UNIFORM",
         q_only=True,
         add_special_tokens=True,
     )

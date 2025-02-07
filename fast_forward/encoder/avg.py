@@ -42,7 +42,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         device: str,
         ranking: Optional[Ranking] = None,
         ckpt_path: Optional[Path] = None,
-        tok_w_method: str = "WEIGHTED",
+        tok_embs_w_method: str = "WEIGHTED",
+        embs_w_method: str = "WEIGHTED",
         q_only: bool = False,
         docs_only: bool = False,
         add_special_tokens: bool = True,  # TODO: might make sense to disable special tokens, e.g. [CLS] will learn a generic embedding
@@ -65,7 +66,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             device (str): The device to run the encoder on.
             ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
-            tok_w_method (str): The WEIGHT_METHOD name to use for token weighting.
+            tok_embs_w_method (str): The WEIGHT_METHOD name to use for token embedding weighting.
+            embs_w_method (str): The WEIGHT_METHOD name to use for embedding weighting.
             q_only (bool): Whether to only use the lightweight query estimation and not the top-ranked documents.
             docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
             add_special_tokens (bool): Whether to add special tokens to the queries.
@@ -80,7 +82,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.n_embs = n_docs + 1
         self.pretrained_model = "bert-base-uncased"
         self.add_special_tokens = add_special_tokens
-        self.tok_w_method = WEIGHT_METHOD(tok_w_method)
+        self.tok_embs_w_method = WEIGHT_METHOD(tok_embs_w_method)
+        self.embs_w_method = WEIGHT_METHOD(embs_w_method)
         self.q_only = q_only
         self.docs_only = docs_only
         self.profiling = profiling
@@ -134,7 +137,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "n_docs": self.n_docs,
                 "device": self.device.type,
                 "ckpt_path": getattr(self, "ckpt_path", None),
-                "tok_w_method": self.tok_w_method.value,
+                "tok_embs_w_method": self.tok_embs_w_method.value,
+                "embs_w_method": self.embs_w_method.value,
                 "add_special_tokens": self.add_special_tokens,
                 "q_only": self.q_only,
                 "docs_only": self.docs_only,
@@ -206,7 +210,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             q_tok_embs = q_tok_embs * mask.unsqueeze(-1)  # Mask padding tokens
 
             # Apply weights to the q_tok_embs
-            if self.tok_w_method == WEIGHT_METHOD.WEIGHTED:
+            if self.tok_embs_w_method == WEIGHT_METHOD.WEIGHTED:
                 q_tok_weights = self.tok_embs_weights[input_ids]
                 q_tok_weights = q_tok_weights * mask  # Mask padding weights
                 q_tok_weights = q_tok_weights / q_tok_weights.sum(dim=-1, keepdim=True)  # Normalize
@@ -231,19 +235,25 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 f"Lookup of top-ranked documents (_get_top_docs) took: {t2 - t1:.5f}s"
             )
 
-        # Estimate final query embedding as (weighted) average of q_emb ++ d_embs
         embs = torch.cat((q_emb_1.unsqueeze(1), d_embs), -2)
-        embs_weights = torch.zeros((self.n_embs), device=self.device)
+        mask = (embs != 0).float().sum(dim=-1)  # (batch_size, n_embs, dim) -> (batch_size, n_embs)
+
+        # Apply weights to the embs
+        match self.embs_w_method:
+            case WEIGHT_METHOD.UNIFORM:
+                embs_weights = torch.ones(self.n_embs) / self.n_embs
+            case WEIGHT_METHOD.WEIGHTED:
+                embs_weights = self.embs_weights[: self.n_embs]
+                embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1) # (n_embs) -> (batch_size, n_embs)
+                embs_weights = embs_weights * mask  # Mask zeros
         if self.docs_only:
             embs_weights[0] = 0.0
-            doc_weights = self.embs_weights[1 : self.n_embs]
-            doc_weights = doc_weights / doc_weights.sum()  # Normalize
-            embs_weights[1 : self.n_embs] = doc_weights
-        else:
-            embs_weights[: self.n_embs] = self.embs_weights[: self.n_embs]
-        embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1).unsqueeze(-1)
+        embs_weights = embs_weights / embs_weights.sum(dim=-1, keepdim=True)  # Normalize
+        embs = embs * embs_weights.unsqueeze(-1)
 
-        q_emb_2 = torch.sum(embs * embs_weights, -2)
+        # Compute the mean of the masked embeddings, excluding padding
+        n_masked = mask.sum(dim=-1, keepdim=True)
+        q_emb_2 = embs.sum(dim=-2) / n_masked
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.5f}s")

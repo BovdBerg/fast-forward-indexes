@@ -62,7 +62,7 @@ def parse_args() -> argparse.Namespace:
         help="Number of top-ranked documents to average.",
     )
     parser.add_argument(
-        "--tok_w_method",
+        "--tok_embs_w_method",
         type=str,
         default="WEIGHTED",
         choices=[method.name for method in WEIGHT_METHOD],
@@ -275,7 +275,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         device=args.device,
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
-        tok_w_method=args.tok_w_method,
+        tok_embs_w_method=args.tok_embs_w_method,
         add_special_tokens=args.add_special_tokens,
         docs_only=args.docs_only,
         q_only=args.q_only,
