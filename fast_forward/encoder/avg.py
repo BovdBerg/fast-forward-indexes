@@ -176,9 +176,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         q_nos = torch.tensor(q_groups.ngroup().values, device=self.device)
         d_ranks = torch.tensor(q_groups.cumcount().to_numpy(), device=self.device)
         d_embs[q_nos, d_ranks] = top_embs
-
-        # replace zeros in d_embs with emb at rank 0 (if n_top_docs was < self.n_docs for any queries)
-        d_embs[d_embs == 0] = d_embs[:, 0].unsqueeze(1).expand_as(d_embs)[d_embs == 0]
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"5 (d_embs) mapping took: {t3 - t2:.5f}s")
