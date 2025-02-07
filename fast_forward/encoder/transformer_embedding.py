@@ -53,8 +53,8 @@ class TransformerEmbeddingEncoder(torch.nn.Module):
         masked_emb = tok_embs * mask.unsqueeze(-1)
 
         # Compute the mean of the masked embeddings
-        n_masked = mask.sum(dim=1, keepdim=True)
-        mean_emb = masked_emb.sum(dim=1) / n_masked
+        n_masked = mask.sum(dim=-1, keepdim=True)
+        mean_emb = masked_emb.sum(dim=-2) / n_masked
 
         return mean_emb
 
