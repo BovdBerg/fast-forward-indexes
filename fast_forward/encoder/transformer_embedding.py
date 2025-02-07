@@ -49,12 +49,12 @@ class TransformerEmbeddingEncoder(torch.nn.Module):
         tok_embs = self.embeddings(batch["input_ids"])
 
         # Apply attention mask to remove padding tokens
-        attention_mask = batch["attention_mask"]
-        masked_emb = tok_embs * attention_mask.unsqueeze(-1)
+        mask = batch["attention_mask"]
+        masked_emb = tok_embs * mask.unsqueeze(-1)
 
         # Compute the mean of the masked embeddings
-        n_unmasked = attention_mask.sum(dim=1, keepdim=True)
-        mean_emb = masked_emb.sum(dim=1) / n_unmasked
+        n_masked = mask.sum(dim=1, keepdim=True)
+        mean_emb = masked_emb.sum(dim=1) / n_masked
 
         return mean_emb
 
