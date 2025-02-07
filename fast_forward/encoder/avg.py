@@ -116,6 +116,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             if key == "embeddings.weight":
                 self.tok_embs.weight.data.copy_(v)
                 return
+            elif key == "tok_embs_avg_weights":
+                state_dict["tok_embs_weights"] = v
+            elif key == "embs_avg_weights":
+                state_dict["embs_weights"] = v
             elif key in self.state_dict():
                 state_dict[key] = v
         self.load_state_dict(state_dict)
