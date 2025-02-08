@@ -161,6 +161,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
 
+        print(f"queries: {queries}")
         # Retrieve the top-ranked documents for all queries
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
         t1 = perf_counter()
