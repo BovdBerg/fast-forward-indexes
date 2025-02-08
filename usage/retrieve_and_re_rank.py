@@ -291,8 +291,11 @@ def main(args: argparse.Namespace) -> None:
                 getattr(measures, metric_name)(**param_dict) @ int(at_value)
             )
         else:
-            metric_name, at_value = metric_str.split("@")
-            eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
+            if "@" in metric_str:
+                metric_name, at_value = metric_str.split("@")
+                eval_metrics.append(getattr(measures, metric_name) @ int(at_value))
+            else:
+                eval_metrics.append(getattr(measures, metric_str))
 
     print("\033[96m")  # Prints in this method are cyan
     # Load dataset and create sparse retriever (e.g. BM25)
