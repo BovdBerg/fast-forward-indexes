@@ -211,20 +211,29 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ).to(self.device)
             input_ids = q_tokens["input_ids"].to(self.device)
             mask = q_tokens["attention_mask"]
+            print(f"input_ids: {input_ids}")
+            print(f"mask: {mask}")
 
             q_tok_embs = self.tok_embs(input_ids)
+            print(f"q_tok_embs: {q_tok_embs}")
             q_tok_embs = q_tok_embs * mask.unsqueeze(-1)  # Mask padding tokens
+            print(f"q_tok_embs masked: {q_tok_embs}")
 
             # Apply weights to the q_tok_embs
             if self.tok_embs_w_method == WEIGHT_METHOD.WEIGHTED:
                 q_tok_weights = self.tok_embs_weights[input_ids]
+                print(f"q_tok_weights: {q_tok_weights}")
                 q_tok_weights = q_tok_weights * mask  # Mask padding weights
+                print(f"q_tok_weights masked: {q_tok_weights}")
                 q_tok_weights = q_tok_weights / q_tok_weights.sum(dim=-1, keepdim=True)  # Normalize
+                print(f"q_tok_weights normalized: {q_tok_weights}")
                 q_tok_embs = q_tok_embs * q_tok_weights.unsqueeze(-1)
+                print(f"q_tok_embs weighted: {q_tok_embs}")
 
             # Compute the mean of the masked embeddings, excluding padding
             n_masked = mask.sum(dim=-1, keepdim=True)
             q_emb_1 = q_tok_embs.sum(dim=-2) / n_masked
+            print(f"q_emb_1: {q_emb_1}")
 
         t1 = perf_counter()
         if self.profiling:
