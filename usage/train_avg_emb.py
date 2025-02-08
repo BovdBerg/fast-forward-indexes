@@ -113,6 +113,12 @@ def parse_args() -> argparse.Namespace:
         help="Number of queries to sample from the dataset. If not specified, use all samples.",
     )
     parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=32,
+        help="Batch size for the DataLoader.",
+    )
+    parser.add_argument(
         "--num_workers",
         type=int,
         default=10,
@@ -184,7 +190,7 @@ def create_data(
         shuffle=shuffle,
         num_workers=args.num_workers,
         drop_last=True,
-        batch_size=32,  # 32 = default encoder_batch_size in FF Index
+        batch_size=args.batch_size,
     )
 
     return dataloader, topics
