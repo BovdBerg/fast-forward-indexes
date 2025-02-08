@@ -169,7 +169,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         print(f"top_docs:\n{top_docs}")
 
         # Retrieve any needed embeddings from the index
-        top_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
+        top_embs, d_idxs = self.index._get_vectors(top_docs["id"])
         if self.index.quantizer is not None:
             top_embs = self.index.quantizer.decode(top_embs)
         print(f"top_embs 1:\n{top_embs}")
