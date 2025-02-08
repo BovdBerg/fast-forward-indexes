@@ -166,11 +166,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         t1 = perf_counter()
         if self.profiling:
             LOGGER.info(f"1 (top_docs) ranking lookup took: {t1 - t0:.5f}s")
+        print(f"top_docs:\n{top_docs}")
 
         # Retrieve any needed embeddings from the index
         top_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
         if self.index.quantizer is not None:
             top_embs = self.index.quantizer.decode(top_embs)
+        print(f"top_embs.shape: {top_embs.shape}")
         top_embs = torch.tensor(
             top_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
         )
