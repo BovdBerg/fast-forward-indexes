@@ -241,7 +241,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_tok_weights = self.tok_embs_weights[input_ids]
             q_tok_mask = q_tokens["attention_mask"].to(self.device)
             q_emb_1 = self.compute_weighted_average(
-                q_tok_embs, q_tok_weights, q_tok_mask, false
+                q_tok_embs, q_tok_weights, q_tok_mask, False
             )
         t1 = perf_counter()
         if self.profiling:
@@ -278,7 +278,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_mask[:, 1:] = torch.any(
             top_docs_embs != 0, dim=-1
         )  # Set empty doc embs to 0
-        q_emb_2 = self.compute_weighted_average(embs, embs_weights, embs_mask, true)
+        q_emb_2 = self.compute_weighted_average(embs, embs_weights, embs_mask, True)
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.5f}s")
