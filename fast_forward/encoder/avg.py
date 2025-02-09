@@ -99,7 +99,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_embs_weights = torch.nn.Parameter(torch.randn(vocab_size) * 0.01)
 
         # TODO [maybe]: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
-        self.embs_weights = torch.nn.Parameter(torch.randn(vocab_size) * 0.01)
+        self.embs_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
 
         # TODO [maybe]: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
 
