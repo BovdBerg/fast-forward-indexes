@@ -110,7 +110,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.eval()
 
         # Print some information about the model
-        print(f"AvgEmbQueryEstimator.embs_weights: {self.embs_weights}")
+        LOGGER.info(f"embs_weights: {self.embs_weights}")
+        LOGGER.info(f"parameters: {self.parameters()}")
 
     def load_checkpoint(self, ckpt_path: Path) -> None:
         self.ckpt_path = ckpt_path
