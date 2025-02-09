@@ -132,6 +132,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
     def on_train_start(self) -> None:
         super().on_train_start()
+        self.train()
+
         with open(self.settings_file, "r") as f:
             settings = json.load(f)
 
