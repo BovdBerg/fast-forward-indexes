@@ -284,6 +284,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
         return self.forward(queries).cpu().detach().numpy()
 
-    def validation_epoch_end(self, outputs):
-        super().validation_epoch_end(outputs)
+    def on_validation_epoch_end(self, outputs: Sequence[torch.Tensor]) -> None:
+        super().on_validation_epoch_end(outputs)
         LOGGER.info(f"Current self.embs_weights: {self.embs_weights}")
