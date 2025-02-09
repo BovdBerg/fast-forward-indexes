@@ -312,7 +312,7 @@ def main() -> None:
             else (
                 1.0
                 if len(train_dataloader) <= 1_000
-                else 0.5 if len(train_dataloader) <= 10_000 else 0.25
+                else 0.5 if len(train_dataloader) <= 10_000 else 0.1
             )
         ),
         callbacks=[
