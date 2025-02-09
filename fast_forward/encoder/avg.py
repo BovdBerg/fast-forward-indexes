@@ -166,13 +166,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs: torch.Tensor,
         init_weights: torch.Tensor,
         mask: torch.Tensor,
-        softmax: bool,
     ) -> torch.Tensor:
         weights = init_weights * mask  # Mask padding
-        if softmax:
-            weights = torch.nn.functional.softmax(weights, dim=-1)  # Positive and sum to 1
-        else:
-            weights = weights / weights.sum(-1, keepdim=True)  # Normalize
+        weights = weights / weights.sum(-1, keepdim=True)  # Normalize
 
         embs = embs * weights.unsqueeze(-1)  # Apply weights
         q_estimation = embs.sum(-2)  # Compute weighted sum
@@ -241,7 +237,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_tok_weights = self.tok_embs_weights[input_ids]
             q_tok_mask = q_tokens["attention_mask"].to(self.device)
             q_emb_1 = self.compute_weighted_average(
-                q_tok_embs, q_tok_weights, q_tok_mask, False
+                q_tok_embs, q_tok_weights, q_tok_mask
             )
         t1 = perf_counter()
         if self.profiling:
@@ -270,6 +266,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 embs_weights = self.embs_weights.unsqueeze(0).expand(
                     batch_size, -1
                 )  # (batch_size, n_embs), repeated values
+                embs_weights = torch.nn.functional.softmax(embs_weights, dim=-1)  # Softmax to ensure prob. distr. (positive, sum to 1)
         if self.docs_only:
             embs_weights[0] = 0.0
         embs_mask = torch.ones(
@@ -278,7 +275,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_mask[:, 1:] = torch.any(
             top_docs_embs != 0, dim=-1
         )  # Set empty doc embs to 0
-        q_emb_2 = self.compute_weighted_average(embs, embs_weights, embs_mask, True)
+        q_emb_2 = self.compute_weighted_average(embs, embs_weights, embs_mask)
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.5f}s")
