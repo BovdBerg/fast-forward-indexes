@@ -91,7 +91,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model)
 
         model = AutoModel.from_pretrained(self.pretrained_model)
-        self.tok_embs = model.get_input_embeddings()  # Embedding(vocab_size, embedding_dim)
+        self.tok_embs = (
+            model.get_input_embeddings()
+        )  # Embedding(vocab_size, embedding_dim)
 
         vocab_size = self.tokenizer.vocab_size
         self.tok_embs_weights = torch.nn.Parameter(torch.ones(vocab_size) / vocab_size)
@@ -156,48 +158,58 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
     def ranking(self, ranking: Ranking) -> None:
         self._ranking = ranking.cut(self.n_docs)
 
+    def compute_weighted_average(
+        self,
+        embs: torch.Tensor,
+        init_weights: torch.Tensor,
+        mask: torch.Tensor,
+    ) -> torch.Tensor:
+        weights = init_weights * mask  # Mask padding
+        weights = weights / weights.sum(dim=-1, keepdim=True)  # Normalize
+
+        embs = embs * weights.unsqueeze(-1)  # Apply weights
+        q_estimation = embs.sum(-2)  # Compute weighted sum
+        return q_estimation
+
     def _get_top_docs_embs(self, queries: Sequence[str]) -> torch.Tensor:
         t0 = perf_counter()
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
 
-        print(f"queries: {queries}")
         # Retrieve the top-ranked documents for all queries
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
         t1 = perf_counter()
         if self.profiling:
             LOGGER.info(f"1 (top_docs) ranking lookup took: {t1 - t0:.5f}s")
-        print(f"top_docs:\n{top_docs}")
 
         # Retrieve any needed embeddings from the index
-        top_embs, d_idxs = self.index._get_vectors(top_docs["id"])
+        d_embs, d_idxs = self.index._get_vectors(top_docs["id"])
         if self.index.quantizer is not None:
-            top_embs = self.index.quantizer.decode(top_embs)
-        print(f"top_embs 1:\n{top_embs}")
-        print(f"top_embs 1: {top_embs.shape}")
-        top_embs = torch.tensor(
-            top_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
+            d_embs = self.index.quantizer.decode(d_embs)
+        d_embs = torch.tensor(
+            d_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
         )
-        print(f"top_embs 2:\n{top_embs}")  # 0s should have been filled with 1st value. No other values may be overwritten.
-        print(f"top_embs 2:{top_embs.shape}")
         t2 = perf_counter()
         if self.profiling:
-            LOGGER.info(f"4 (top_embs) lookup took: {t2 - t1:.5f}s")
+            LOGGER.info(f"2 (d_embs) lookup took: {t2 - t1:.5f}s")
 
         # Map doc_ids to embeddings
-        d_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
+        top_docs_embs = torch.zeros(
+            (len(queries), self.n_docs, 768), device=self.device
+        )
         q_groups = top_docs.groupby("query")
         q_nos = torch.tensor(q_groups.ngroup().values, device=self.device)
         d_ranks = torch.tensor(q_groups.cumcount().to_numpy(), device=self.device)
-        d_embs[q_nos, d_ranks] = top_embs
+        top_docs_embs[q_nos, d_ranks] = d_embs
         t3 = perf_counter()
         if self.profiling:
-            LOGGER.info(f"5 (d_embs) mapping took: {t3 - t2:.5f}s")
+            LOGGER.info(f"3 (top_docs_embs) mapping took: {t3 - t2:.5f}s")
 
-        return d_embs
+        return top_docs_embs
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         t0 = perf_counter()
+        batch_size = len(queries)
 
         if self.docs_only:
             q_emb_1 = torch.zeros((len(queries), 768), device=self.device)
@@ -210,31 +222,20 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 add_special_tokens=self.add_special_tokens,
             ).to(self.device)
             input_ids = q_tokens["input_ids"].to(self.device)
-            mask = q_tokens["attention_mask"]
-            print(f"input_ids: {input_ids}")
-            print(f"mask: {mask}")
+            max_len = input_ids.size(1)
 
             q_tok_embs = self.tok_embs(input_ids)
-            print(f"q_tok_embs: {q_tok_embs}")
-            q_tok_embs = q_tok_embs * mask.unsqueeze(-1)  # Mask padding tokens
-            print(f"q_tok_embs masked: {q_tok_embs}")
-
-            # Apply weights to the q_tok_embs
-            if self.tok_embs_w_method == WEIGHT_METHOD.WEIGHTED:
-                q_tok_weights = self.tok_embs_weights[input_ids]
-                print(f"q_tok_weights: {q_tok_weights}")
-                q_tok_weights = q_tok_weights * mask  # Mask padding weights
-                print(f"q_tok_weights masked: {q_tok_weights}")
-                q_tok_weights = q_tok_weights / q_tok_weights.sum(dim=-1, keepdim=True)  # Normalize
-                print(f"q_tok_weights normalized: {q_tok_weights}")
-                q_tok_embs = q_tok_embs * q_tok_weights.unsqueeze(-1)
-                print(f"q_tok_embs weighted: {q_tok_embs}")
-
-            # Compute the mean of the masked embeddings, excluding padding
-            n_masked = mask.sum(dim=-1, keepdim=True)
-            q_emb_1 = q_tok_embs.sum(dim=-2) / n_masked
-            print(f"q_emb_1: {q_emb_1}")
-
+            match self.tok_embs_w_method:
+                case WEIGHT_METHOD.UNIFORM:
+                    q_tok_weights = (
+                        torch.ones_like(input_ids, dtype=torch.float) / max_len
+                    )
+                case WEIGHT_METHOD.WEIGHTED:
+                    q_tok_weights = self.tok_embs_weights[input_ids]
+            q_tok_mask = q_tokens["attention_mask"].to(self.device)
+            q_emb_1 = self.compute_weighted_average(
+                q_tok_embs, q_tok_weights, q_tok_mask
+            )
         t1 = perf_counter()
         if self.profiling:
             LOGGER.info(f"Lightweight query estimation (q_emb_1) took: {t1 - t0:.5f}s")
@@ -243,32 +244,34 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             return q_emb_1
 
         # Find top-ranked document embeddings
-        d_embs = self._get_top_docs_embs(queries)
+        top_docs_embs = self._get_top_docs_embs(queries)
         t2 = perf_counter()
         if self.profiling:
             LOGGER.info(
                 f"Lookup of top-ranked documents (_get_top_docs) took: {t2 - t1:.5f}s"
             )
 
-        embs = torch.cat((q_emb_1.unsqueeze(1), d_embs), -2)
-        mask = (embs != 0).float().sum(dim=-1)  # (batch_size, n_embs, dim) -> (batch_size, n_embs)
-
-        # Apply weights to the embs
-        match self.embs_w_method:
+        # Estimate final query as (weighted) average of q_emb_1 ++ top_docs_embs
+        embs = torch.cat((q_emb_1.unsqueeze(1), top_docs_embs), -2)
+        match self.embs_w_method:  # embs_weights: (batch_size, n_embs)
             case WEIGHT_METHOD.UNIFORM:
-                embs_weights = torch.ones(self.n_embs) / self.n_embs
+                embs_weights = (
+                    torch.ones((batch_size, self.n_embs), device=self.device)
+                    / self.n_embs
+                )
             case WEIGHT_METHOD.WEIGHTED:
-                embs_weights = self.embs_weights[: self.n_embs]
-                embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1) # (n_embs) -> (batch_size, n_embs)
-                embs_weights = embs_weights * mask  # Mask zeros
+                embs_weights = self.embs_weights.unsqueeze(0).expand(
+                    batch_size, -1
+                )  # (batch_size, n_embs), repeated values
         if self.docs_only:
             embs_weights[0] = 0.0
-        embs_weights = embs_weights / embs_weights.sum(dim=-1, keepdim=True)  # Normalize
-        embs = embs * embs_weights.unsqueeze(-1)
-
-        # Compute the mean of the masked embeddings, excluding padding
-        n_masked = mask.sum(dim=-1, keepdim=True)
-        q_emb_2 = embs.sum(dim=-2) / n_masked
+        embs_mask = torch.ones(
+            (batch_size, self.n_embs), device=self.device
+        )  # (batch_size, n_embs), 1 for each non-zero emb
+        embs_mask[:, 1:] = torch.any(
+            top_docs_embs != 0, dim=-1
+        )  # Set empty doc embs to 0
+        q_emb_2 = self.compute_weighted_average(embs, embs_weights, embs_mask)
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.5f}s")
