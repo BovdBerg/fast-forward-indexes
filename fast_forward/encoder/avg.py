@@ -166,9 +166,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs: torch.Tensor,
         init_weights: torch.Tensor,
         mask: torch.Tensor,
+        softmax: bool = True,
     ) -> torch.Tensor:
         weights = init_weights * mask  # Mask padding
-        weights = torch.nn.functional.softmax(weights, dim=-1)  # Positive and sum to 1
+        if softmax:
+            weights = torch.nn.functional.softmax(weights, dim=-1)  # Positive and sum to 1
+        else:
+            weights = weights / weights.sum(-1, keepdim=True)  # Normalize
 
         embs = embs * weights.unsqueeze(-1)  # Apply weights
         q_estimation = embs.sum(-2)  # Compute weighted sum
@@ -237,7 +241,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_tok_weights = self.tok_embs_weights[input_ids]
             q_tok_mask = q_tokens["attention_mask"].to(self.device)
             q_emb_1 = self.compute_weighted_average(
-                q_tok_embs, q_tok_weights, q_tok_mask
+                q_tok_embs, q_tok_weights, q_tok_mask, false
             )
         t1 = perf_counter()
         if self.profiling:
@@ -274,7 +278,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_mask[:, 1:] = torch.any(
             top_docs_embs != 0, dim=-1
         )  # Set empty doc embs to 0
-        q_emb_2 = self.compute_weighted_average(embs, embs_weights, embs_mask)
+        q_emb_2 = self.compute_weighted_average(embs, embs_weights, embs_mask, true)
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.5f}s")
