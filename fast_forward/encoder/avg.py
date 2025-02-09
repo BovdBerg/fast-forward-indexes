@@ -166,7 +166,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs: torch.Tensor,
         init_weights: torch.Tensor,
         mask: torch.Tensor,
-        softmax: bool = True,
+        softmax: bool,
     ) -> torch.Tensor:
         weights = init_weights * mask  # Mask padding
         if softmax:
