@@ -46,7 +46,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_w_method: str = "WEIGHTED",
         q_only: bool = False,
         docs_only: bool = False,
-        add_special_tokens: bool = True,  # TODO: might make sense to disable special tokens, e.g. [CLS] will learn a generic embedding
+        add_special_tokens: bool = False,
         profiling: bool = False,
     ) -> None:
         """
