@@ -327,26 +327,18 @@ def main(args: argparse.Namespace) -> None:
     int_tct = FFInterpolate(alpha=0.1)
     tct = bm25 >> ff_tct >> int_tct
 
-    # Create re-ranking pipeline based on TransformerEmbedding
-    index_emb = OnDiskIndex.load(
-        args.index_path_emb,
-        verbose=args.verbose,
+    index_avg = copy(index_tct)
+    index_avg.query_encoder = AvgEmbQueryEstimator(
+        index=index_avg,
+        n_docs=args.n_docs,
+        device=args.device,
+        ckpt_path=args.ckpt_path,
+        q_only=args.q_only,
         profiling=args.profiling,
     )
-    if args.storage == "mem":
-        index_emb = index_emb.to_memory(2**15)
-    index_emb.query_encoder = AvgEmbQueryEstimator(
-        index=index_emb,
-        n_docs=1,
-        device=args.device,
-        ckpt_path=args.ckpt_path_emb,
-        tok_embs_w_method="UNIFORM",
-        q_only=True,
-        add_special_tokens=True,
-    )
-    ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.11)
-    emb = bm25 >> ff_emb >> int_emb
+    ff_avg = FFScore(index_avg)
+    int_avg = FFInterpolate(alpha=0.1)
+    avg = bm25 >> ff_avg >> int_avg
 
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avgD = copy(index_tct)
@@ -362,21 +354,39 @@ def main(args: argparse.Namespace) -> None:
     int_avgD = FFInterpolate(alpha=0.09)
     avgD = bm25 >> ff_avgD >> int_avgD
 
+    # # Create re-ranking pipeline based on TransformerEmbedding
+    # index_emb = OnDiskIndex.load(
+    #     args.index_path_emb,
+    #     verbose=args.verbose,
+    #     profiling=args.profiling,
+    # )
+    # if args.storage == "mem":
+    #     index_emb = index_emb.to_memory(2**15)
+    # index_emb.query_encoder = AvgEmbQueryEstimator(
+    #     index=index_emb,
+    #     n_docs=1,
+    #     device=args.device,
+    #     ckpt_path=args.ckpt_path_emb,
+    #     tok_embs_w_method="UNIFORM",
+    #     q_only=True,
+    #     add_special_tokens=True,
+    # )
+    index_emb = copy(index_tct)
+    index_emb.query_encoder = AvgEmbQueryEstimator(
+        index=index_emb,
+        n_docs=1,
+        device=args.device,
+        ckpt_path=args.ckpt_path_emb,
+        tok_embs_w_method="WEIGHTED",
+        q_only=True,
+        add_special_tokens=False,
+    )
+    ff_emb = FFScore(index_emb)
+    int_emb = FFInterpolate(alpha=0.11)
+    emb = bm25 >> ff_emb >> int_emb
+
     int_comboD = FFInterpolate(alpha=0.39)
     comboD = avgD >> ff_emb >> int_comboD
-
-    index_avg = copy(index_tct)
-    index_avg.query_encoder = AvgEmbQueryEstimator(
-        index=index_avg,
-        n_docs=args.n_docs,
-        device=args.device,
-        ckpt_path=args.ckpt_path,
-        q_only=args.q_only,
-        profiling=args.profiling,
-    )
-    ff_avg = FFScore(index_avg)
-    int_avg = FFInterpolate(alpha=0.03)
-    avg = bm25 >> ff_avg >> int_avg
 
     pipelines = [
         ("bm25", "BM25", ~bm25, None),
