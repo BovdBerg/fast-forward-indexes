@@ -44,6 +44,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ckpt_path: Optional[Path] = None,
         tok_embs_w_method: str = "WEIGHTED",
         embs_w_method: str = "WEIGHTED",
+        ckpt_path_tok_embs: Optional[Path] = None,
         q_only: bool = False,
         docs_only: bool = False,
         add_special_tokens: bool = False,
@@ -68,6 +69,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
             tok_embs_w_method (str): The WEIGHT_METHOD name to use for token embedding weighting.
             embs_w_method (str): The WEIGHT_METHOD name to use for embedding weighting.
+            ckpt_path_tok_embs (Optional[Path]): Path to a checkpoint to load token embeddings. Overwrites `tok_embs`.
             q_only (bool): Whether to only use the lightweight query estimation and not the top-ranked documents.
             docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
             add_special_tokens (bool): Whether to add special tokens to the queries.
@@ -105,6 +107,15 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         if ckpt_path is not None:
             self.load_checkpoint(ckpt_path)
+
+        if ckpt_path_tok_embs is not None:
+            # Load tok_embs checkpoint, use its params, and freeze tok_embs
+            ckpt = torch.load(ckpt_path_tok_embs, map_location=device)
+            for k, v in ckpt["state_dict"].items():
+                if k == "query_encoder.embeddings.weight":
+                    self.tok_embs.weight.data.copy_(v)
+                    break
+            self.tok_embs.requires_grad = False  # IMPORTANT: line only needed for train_avg_emb.py (training tok_embs_weights and embs_weights), NOT FOR dual-encoders!
 
         self.to(device)
 
