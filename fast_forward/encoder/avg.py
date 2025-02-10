@@ -115,6 +115,18 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
     def embs_weights(self) -> torch.Tensor:
         return torch.nn.functional.softmax(self._embs_weights, dim=-1)
 
+    @embs_weights.setter
+    def embs_weights(self, embs_weights: torch.Tensor) -> None:
+        self._embs_weights = embs_weights
+
+    @property
+    def ranking(self) -> Optional[Ranking]:
+        return self._ranking
+
+    @ranking.setter
+    def ranking(self, ranking: Ranking) -> None:
+        self._ranking = ranking.cut(self.n_docs)
+
     def load_checkpoint(self, ckpt_path: Path) -> None:
         self.ckpt_path = ckpt_path
         ckpt = torch.load(ckpt_path, map_location=self.device)
@@ -154,14 +166,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=4)
-
-    @property
-    def ranking(self) -> Optional[Ranking]:
-        return self._ranking
-
-    @ranking.setter
-    def ranking(self, ranking: Ranking) -> None:
-        self._ranking = ranking.cut(self.n_docs)
 
     def compute_weighted_average(
         self,
