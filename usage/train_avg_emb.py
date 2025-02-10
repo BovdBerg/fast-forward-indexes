@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tok_embs_w_method",
         type=str,
-        default="WEIGHTED",
+        default="UNIFORM",
         choices=[method.name for method in WEIGHT_METHOD],
         help="Method to weight token embeddings.",
     )
@@ -78,7 +78,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--add_special_tokens",
         type=bool,
-        default=False,
+        default=True,
         help="Whether to add special tokens to the queries.",
     )
     parser.add_argument(
@@ -94,10 +94,10 @@ def parse_args() -> argparse.Namespace:
         help="Path to a checkpoint file to load the model from.",
     )
     parser.add_argument(
-        "--docs_only",
-        type=bool,
-        default=False,
-        help="Whether to disable the lightweight query estimation and only use the top-ranked documents.",
+        "--ckpt_path_emb",
+        type=Path,
+        default="/home/bvdb9/models/emb_bert.ckpt",
+        help="Path to a checkpoint file to load the token embeddings weights from.",
     )
     parser.add_argument(
         "--q_only",
@@ -291,7 +291,6 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         tok_embs_w_method=args.tok_embs_w_method,
         embs_w_method=args.embs_w_method,
         add_special_tokens=args.add_special_tokens,
-        docs_only=args.docs_only,
         q_only=args.q_only,
     )
 
