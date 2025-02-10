@@ -205,7 +205,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         #     LOGGER.info(f"1 (top_docs) ranking lookup took: {t1 - t0:.5f}s")
 
         # # Retrieve any needed embeddings from the index
-        # d_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
+        # d_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())  # TODO: is unique right here?
         # if self.index.quantizer is not None:
         #     d_embs = self.index.quantizer.decode(d_embs)
         # d_embs = torch.tensor(
