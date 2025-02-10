@@ -139,7 +139,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             elif key == "tok_embs_avg_weights":
                 state_dict["tok_embs_weights"] = v
             elif key == "embs_avg_weights":
-                state_dict["embs_weights"] = v
+                state_dict["_embs_weights"] = v
             elif key in self.state_dict():
                 state_dict[key] = v
         self.load_state_dict(state_dict)
