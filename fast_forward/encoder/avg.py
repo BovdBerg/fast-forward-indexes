@@ -195,9 +195,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if self.index.quantizer is not None:
             d_embs = self.index.quantizer.decode(d_embs)
         print(f"d_embs 1: {d_embs}")
-        d_embs = torch.tensor(
-            d_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
-        )
+        # TODO: Unroll somewhere else?
+        # d_embs = torch.tensor(
+        #     d_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
+        # )
         print(f"d_embs 2: {d_embs}")
         t2 = perf_counter()
         if self.profiling:
