@@ -181,36 +181,53 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
 
-        # Retrieve the top-ranked documents for all queries
-        top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
-        t1 = perf_counter()
-        if self.profiling:
-            LOGGER.info(f"1 (top_docs) ranking lookup took: {t1 - t0:.5f}s")
-
-        # Retrieve any needed embeddings from the index
-        d_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
-        if self.index.quantizer is not None:
-            d_embs = self.index.quantizer.decode(d_embs)
-        d_embs = torch.tensor(
-            d_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
-        )
-        t2 = perf_counter()
-        if self.profiling:
-            LOGGER.info(f"2 (d_embs) lookup took: {t2 - t1:.5f}s")
-
-        # Map doc_ids to embeddings
         top_docs_embs = torch.zeros(
             (len(queries), self.n_docs, 768), device=self.device
         )
-        q_groups = top_docs.groupby("query")
-        q_nos = torch.tensor(q_groups.ngroup().values, device=self.device)
-        d_ranks = torch.tensor(q_groups.cumcount().to_numpy(), device=self.device)
-        top_docs_embs[q_nos, d_ranks] = d_embs
-        t3 = perf_counter()
-        if self.profiling:
-            LOGGER.info(f"3 (top_docs_embs) mapping took: {t3 - t2:.5f}s")
+        for q_no, query in enumerate(queries):
+            try:
+                q_top_docs = self.ranking._df[self.ranking._df["query"] == query].copy()
+                q_top_docs_embs, d_idxs = self.index.get_vectors(q_top_docs["id"])
+                if self.index.quantizer is not None:
+                    q_top_docs_embs = self.index.quantizer.decode(q_top_docs_embs)
+                q_top_docs_embs = torch.tensor(
+                    q_top_docs_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
+                )
+                top_docs_embs[q_no] = q_top_docs_embs
+            except Exception as e:
+                continue
 
         return top_docs_embs
+        # # Retrieve the top-ranked documents for all queries
+        # top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
+        # t1 = perf_counter()
+        # if self.profiling:
+        #     LOGGER.info(f"1 (top_docs) ranking lookup took: {t1 - t0:.5f}s")
+
+        # # Retrieve any needed embeddings from the index
+        # d_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
+        # if self.index.quantizer is not None:
+        #     d_embs = self.index.quantizer.decode(d_embs)
+        # d_embs = torch.tensor(
+        #     d_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
+        # )
+        # t2 = perf_counter()
+        # if self.profiling:
+        #     LOGGER.info(f"2 (d_embs) lookup took: {t2 - t1:.5f}s")
+
+        # # Map doc_ids to embeddings
+        # top_docs_embs = torch.zeros(
+        #     (len(queries), self.n_docs, 768), device=self.device
+        # )
+        # q_groups = top_docs.groupby("query")
+        # q_nos = torch.tensor(q_groups.ngroup().values, device=self.device)
+        # d_ranks = torch.tensor(q_groups.cumcount().to_numpy(), device=self.device)
+        # top_docs_embs[q_nos, d_ranks] = d_embs
+        # t3 = perf_counter()
+        # if self.profiling:
+        #     LOGGER.info(f"3 (top_docs_embs) mapping took: {t3 - t2:.5f}s")
+
+        # return top_docs_embs
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         t0 = perf_counter()
