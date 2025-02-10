@@ -99,7 +99,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tok_embs_weights = torch.nn.Parameter(torch.ones(vocab_size) / vocab_size)
 
         # TODO [maybe]: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
-        self.embs_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
+        self._embs_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
 
         # TODO [maybe]: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
 
@@ -107,11 +107,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             self.load_checkpoint(ckpt_path)
 
         self.to(device)
-        self.eval()
 
         # Print some information about the model
         LOGGER.info(f"embs_weights: {self.embs_weights}")
-        LOGGER.info(f"parameters: {self.parameters()}")
+
+    @property
+    def embs_weights(self) -> torch.Tensor:
+        return torch.nn.functional.softmax(self._embs_weights, dim=-1)
 
     def load_checkpoint(self, ckpt_path: Path) -> None:
         self.ckpt_path = ckpt_path
@@ -235,6 +237,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     )
                 case WEIGHT_METHOD.WEIGHTED:
                     q_tok_weights = self.tok_embs_weights[input_ids]
+                    q_tok_weights = torch.nn.functional.softmax(q_tok_weights, dim=-1)
             q_tok_mask = q_tokens["attention_mask"].to(self.device)
             q_emb_1 = self.compute_weighted_average(
                 q_tok_embs, q_tok_weights, q_tok_mask
@@ -266,7 +269,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 embs_weights = self.embs_weights.unsqueeze(0).expand(
                     batch_size, -1
                 )  # (batch_size, n_embs), repeated values
-                embs_weights = torch.nn.functional.softmax(embs_weights, dim=-1)  # Softmax to ensure prob. distr. (positive, sum to 1)
         if self.docs_only:
             embs_weights[0] = 0.0
         embs_mask = torch.ones(
