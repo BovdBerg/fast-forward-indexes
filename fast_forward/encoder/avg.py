@@ -191,76 +191,106 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         q_estimation = embs.sum(-2)  # Compute weighted sum
         return q_estimation
 
+    # ### OLD APPROACH WITHOUT FOR-LOOP. ValueError: setting an array element with a sequence. The requested array has an inhomogeneous shape after 1 dimensions. The detected shape was (330,) + inhomogeneous part.
+    # def _get_top_docs_embs(self, queries: Sequence[str]) -> torch.Tensor:
+    #     assert self.ranking is not None, "Provide a ranking before encoding."
+    #     assert self.index.dim is not None, "Index dimension cannot be None."
+
+    #     # Retrieve the top-ranked documents for all queries
+    #     top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
+
+    #     # Retrieve any needed embeddings from the index
+    #     d_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
+    #     if self.index.quantizer is not None:
+    #         d_embs = self.index.quantizer.decode(d_embs)
+    #     d_idxs = np.array(d_idxs)
+    #     if d_idxs.ndim == 1:
+    #         d_idxs = d_idxs[:, None]
+    #     d_embs = torch.tensor(
+    #         d_embs[d_idxs[:, 0].tolist()], device=self.device
+    #     )
+
+    #     # Map doc_ids to embeddings
+    #     top_docs_embs = torch.zeros(
+    #         (len(queries), self.n_docs, 768), device=self.device
+    #     )
+    #     q_groups = top_docs.groupby("query")
+    #     q_nos = torch.tensor(q_groups.ngroup().values, device=self.device)
+    #     d_ranks = torch.tensor(q_groups.cumcount().to_numpy(), device=self.device)
+    #     top_docs_embs[q_nos, d_ranks] = d_embs
+
+    #     return top_docs_embs
+
+    ### OLD APPROACH (FOR-LOOP):
     def _get_top_docs_embs(self, queries: Sequence[str]) -> torch.Tensor:
         assert self.ranking is not None, "Provide a ranking before encoding."
-        assert self.index.dim is not None, "Index dimension cannot be None."
 
-        ### OLD APPROACH (NO FOR-LOOP):
-        # Retrieve the top-ranked documents for all queries
-        top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
-
-        # Retrieve any needed embeddings from the index
-        d_embs, d_idxs = self.index._get_vectors(top_docs["id"])  # .unique()?
-        if self.index.quantizer is not None:
-            d_embs = self.index.quantizer.decode(d_embs)
-        d_embs = torch.tensor(
-            d_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
-        )
-
-        # Map doc_ids to embeddings
-        top_docs_embs = torch.zeros(
-            (len(queries), self.n_docs, 768), device=self.device
-        )
-        q_groups = top_docs.groupby("query")
-        q_nos = torch.tensor(q_groups.ngroup().values, device=self.device)
-        d_ranks = torch.tensor(q_groups.cumcount().to_numpy(), device=self.device)
-        top_docs_embs[q_nos, d_ranks] = d_embs
+        top_docs_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
+        for q_no, query in enumerate(queries):
+            try:
+                q_top_docs = self.ranking._df[self.ranking._df["query"] == query].copy()
+                if "text" not in q_top_docs.keys():
+                    continue
+                q_top_docs_texts = q_top_docs["text"].tolist()
+                q_top_docs_toks = self.doc_tokenizer(q_top_docs_texts).to(self.device)
+            except Exception as e:
+                LOGGER.warning(f"Suppressed error for query {query} in _get_top_docs_embs: {e}")
+                continue
+            q_top_docs_embs = torch.zeros((self.n_docs, 768), device=self.device)
+            q_top_docs_embs[: len(q_top_docs)] = self.doc_encoder(q_top_docs_toks)
+            top_docs_embs[q_no] = q_top_docs_embs
 
         return top_docs_embs
 
+    # ### OLD APPROACH WITH FOR LOOP:
+    # def _get_top_docs_embs(self, queries: Sequence[str]) -> torch.Tensor:
+    #     assert self.ranking is not None, "Provide a ranking before encoding."
 
-        # ### OLD APPROACH WITH FOR LOOP (WORKING!):
-        # top_docs_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
+    #     top_docs_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
 
-        # # Retrieve the top-ranked documents for all queries
-        # top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
-        # query_to_idx = {query: idx for idx, query in enumerate(queries)}
+    #     # Retrieve the top-ranked documents for all queries
+    #     top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
+    #     query_to_idx = {query: idx for idx, query in enumerate(queries)}
 
-        # # TODO [efficiency important]: Can we get rid of this loop?
-        # for query, group in top_docs.groupby("query"):
-        #     top_embs, d_idxs = self.index._get_vectors(group["id"])  #.unique()?
-        #     if self.index.quantizer is not None:
-        #         top_embs = self.index.quantizer.decode(top_embs)
-        #     top_embs = torch.tensor(top_embs[[x[0] for x in d_idxs]], device=self.device)
+    #     # TODO [efficiency important]: Can we get rid of this loop?
+    #     for query, group in top_docs.groupby("query"):
+    #         # TODO: possibly add `try except: continue` here
+    #         top_embs, d_idxs = self.index._get_vectors(group["id"].unique())
+    #         if self.index.quantizer is not None:
+    #             top_embs = self.index.quantizer.decode(top_embs)
+    #         top_embs = torch.tensor(top_embs[[x[0] for x in d_idxs]], device=self.device)
 
-        #     # TODO: possibly remove this condition as we divide by n_unmasked later
-        #     # # Repeat d_embs until reaching length n_docs
-        #     # if len(top_embs) < self.n_docs:
-        #     #     top_embs = torch.cat([top_embs] * self.n_docs, dim=0)[: self.n_docs]
+    #         # TODO: possibly remove this condition as we divide by n_unmasked later
+    #         # # Repeat d_embs until reaching length n_docs
+    #         # if len(top_embs) < self.n_docs:
+    #         #     top_embs = torch.cat([top_embs] * self.n_docs, dim=0)[: self.n_docs]
 
-        #     query_idx = query_to_idx[str(query)]
-        #     top_docs_embs[query_idx] = top_embs
+    #         query_idx = query_to_idx[str(query)]
+    #         top_docs_embs[query_idx] = top_embs
 
-        # return top_docs_embs
+    #     return top_docs_embs
 
 
-        ### BUGGY NEWEST APPROACH:
-        # top_docs_embs = torch.zeros(
-        #     (len(queries), self.n_docs, 768), device=self.device
-        # )
-        # for q_no, query in enumerate(queries):
-        #     try:
-        #         q_top_docs = self.ranking._df[self.ranking._df["query"] == query].copy()
-        #         q_top_docs_embs, d_idxs = self.index.get_vectors(q_top_docs["id"])
-        #         if self.index.quantizer is not None:
-        #             q_top_docs_embs = self.index.quantizer.decode(q_top_docs_embs)
-        #         q_top_docs_embs = torch.tensor(
-        #             q_top_docs_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
-        #         )
-        #         top_docs_embs[q_no] = q_top_docs_embs
-        #     except Exception as e:
-        #         continue
-        # return top_docs_embs
+    # ### SLOW BUT SIMPLER NEWEST APPROACH:
+    # def _get_top_docs_embs(self, queries: Sequence[str]) -> torch.Tensor:
+    #     assert self.ranking is not None, "Provide a ranking before encoding."
+
+    #     top_docs_embs = torch.zeros(
+    #         (len(queries), self.n_docs, 768), device=self.device
+    #     )
+    #     for q_no, query in enumerate(queries):
+    #         try:
+    #             q_top_docs = self.ranking._df[self.ranking._df["query"] == query].copy()
+    #             q_top_docs_embs, d_idxs = self.index.get_vectors(q_top_docs["id"])
+    #             if self.index.quantizer is not None:
+    #                 q_top_docs_embs = self.index.quantizer.decode(q_top_docs_embs)
+    #             q_top_docs_embs = torch.tensor(
+    #                 q_top_docs_embs[np.array(d_idxs)[:, 0].tolist()], device=self.device
+    #             )
+    #             top_docs_embs[q_no] = q_top_docs_embs
+    #         except Exception as e:
+    #             continue
+    #     return top_docs_embs
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         t0 = perf_counter()
