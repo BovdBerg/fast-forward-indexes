@@ -103,7 +103,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # TODO [maybe]: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
         self._embs_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
 
-        # TODO [maybe]: add different WEIGHT_METHODs for d_emb weighting (excluding q_emb_1)
+        # TODO [maybe]: add different WEIGHT_METHODs for d_emb weighting (excluding q_light)
 
         if ckpt_path is not None:
             self.load_checkpoint(ckpt_path)
@@ -178,7 +178,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=4)
 
-    def compute_weighted_average(
+    def _compute_query(
         self,
         embs: torch.Tensor,
         init_weights: torch.Tensor,
@@ -297,7 +297,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         batch_size = len(queries)
 
         if self.docs_only:
-            q_emb_1 = torch.zeros((len(queries), 768), device=self.device)
+            q_light = torch.zeros((len(queries), 768), device=self.device)
         else:
             # Estimate lightweight query as (weighted) average of q_tok_embs, excluding padding
             q_tokens = self.tokenizer(
@@ -319,15 +319,15 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_tok_weights = self.tok_embs_weights[input_ids]
                     q_tok_weights = torch.nn.functional.softmax(q_tok_weights, dim=-1)
             q_tok_mask = q_tokens["attention_mask"].to(self.device)
-            q_emb_1 = self.compute_weighted_average(
+            q_light = self._compute_query(
                 q_tok_embs, q_tok_weights, q_tok_mask
             )
         t1 = perf_counter()
         if self.profiling:
-            LOGGER.info(f"Lightweight query estimation (q_emb_1) took: {t1 - t0:.5f}s")
+            LOGGER.info(f"Lightweight query estimation (q_light) took: {t1 - t0:.5f}s")
 
         if self.q_only:
-            return q_emb_1
+            return q_light
 
         # Find top-ranked document embeddings
         top_docs_embs = self._get_top_docs_embs(queries)
@@ -337,8 +337,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 f"Lookup of top-ranked documents (_get_top_docs) took: {t2 - t1:.5f}s"
             )
 
-        # Estimate final query as (weighted) average of q_emb_1 ++ top_docs_embs
-        embs = torch.cat((q_emb_1.unsqueeze(1), top_docs_embs), -2)
+        # Estimate final query as (weighted) average of q_light ++ top_docs_embs
+        embs = torch.cat((q_light.unsqueeze(1), top_docs_embs), -2)
         match self.embs_w_method:  # embs_weights: (batch_size, n_embs)
             case WEIGHT_METHOD.UNIFORM:
                 embs_weights = (
@@ -357,12 +357,12 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_mask[:, 1:] = torch.any(
             top_docs_embs != 0, dim=-1
         )  # Set empty doc embs to 0
-        q_emb_2 = self.compute_weighted_average(embs, embs_weights, embs_mask)
+        q_estimation = self._compute_query(embs, embs_weights, embs_mask)
         t3 = perf_counter()
         if self.profiling:
             LOGGER.info(f"Query embedding estimation (q_emb_2) took: {t3 - t2:.5f}s")
 
-        return q_emb_2
+        return q_estimation
 
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
         return self.forward(queries).cpu().detach().numpy()
