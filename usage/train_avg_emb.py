@@ -289,6 +289,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
         tok_embs_w_method=args.tok_embs_w_method,
+        ckpt_path_tok_embs=args.ckpt_path_emb,
         embs_w_method=args.embs_w_method,
         add_special_tokens=args.add_special_tokens,
         q_only=args.q_only,
