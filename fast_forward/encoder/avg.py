@@ -166,7 +166,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             {
                 "n_docs": self.n_docs,
                 "device": self.device.type,
-                "ckpt_path": getattr(self, "ckpt_path", None),
+                "ckpt_path": str(getattr(self, "ckpt_path", None)),
                 "tok_embs_w_method": self.tok_embs_w_method.value,
                 "embs_w_method": self.embs_w_method.value,
                 "add_special_tokens": self.add_special_tokens,
