@@ -244,8 +244,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         for q_no in range(len(queries)):
             q_top_docs = top_docs[top_docs["query"] == queries[q_no]]
             if len(q_top_docs) > 0:
-                q_top_docs_ids = q_top_docs["id"].astype(int).values.to_numpy()
-                q_top_docs_embs = d_embs[np.where(np.isin(d_order, q_top_docs_ids))[0]]
+                q_top_docs_ids = q_top_docs["id"].astype(int).values
+                q_top_docs_embs = d_embs[np.where(np.isin(d_order, q_top_docs_ids))[0]]  # type: ignore
                 top_docs_embs[q_no, :len(q_top_docs_embs)] = q_top_docs_embs
 
         return top_docs_embs
