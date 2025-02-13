@@ -189,6 +189,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         embs = embs * weights.unsqueeze(-1)  # Apply weights
         q_estimation = embs.sum(-2)  # Compute weighted sum
+        # TODO: normalize embs? `return torch.nn.functional.normalize(q_estimation)`
         return q_estimation
 
     ### OLD APPROACH (DIFFERENT FOR-LOOP)
@@ -211,11 +212,15 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             (len(queries), self.n_docs, 768), device=self.device
         )
         # TODO [important]: this for-loop is slow but needed because some q have less than n_docs top_docs. Can we do better?
-        for q_no in range(len(queries)):
+        emb_count = 0
+        for q_no, query in enumerate(queries):
             q_top_docs = top_docs[top_docs["query"] == queries[q_no]]
             if len(q_top_docs) > 0:
-                q_top_docs_ids = q_top_docs["id"].astype(int).values
-                q_top_docs_embs = d_embs[np.where(np.isin(d_order, q_top_docs_ids))[0]]  # type: ignore
+                lb = emb_count
+                emb_count += len(q_top_docs)
+                ub = emb_count
+
+                q_top_docs_embs = d_embs[lb:ub]
                 top_docs_embs[q_no, :len(q_top_docs_embs)] = q_top_docs_embs
 
         return top_docs_embs
