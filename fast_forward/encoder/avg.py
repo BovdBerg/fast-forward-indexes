@@ -210,32 +210,12 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         top_docs_embs = torch.zeros(
             (len(queries), self.n_docs, 768), device=self.device
         )
-
-        # for q_no in range(len(queries)):
-        #     q_top_docs = top_docs[top_docs["query"] == queries[q_no]]
-        #     if len(q_top_docs) > 0:
-        #         q_top_docs_ids = q_top_docs["id"].astype(int).values
-        #         q_top_docs_embs = d_embs[np.where(np.isin(d_order, q_top_docs_ids))[0]]  # type: ignore
-        #         top_docs_embs[q_no, :len(q_top_docs_embs)] = q_top_docs_embs
-
-        top_docs_mask = torch.zeros((len(queries)), device=self.device)
-        top_docs_count = top_docs.groupby("query").size()  # tensor of shape (batch_size,)
-        top_docs_mask[top_docs_count.values == self.n_docs] = 1  # mask if q has n_docs top docs
-
-        # First handle the simple queries, aka top_docs_mask == 1
-        q_simple = top_docs_mask == 1
-        q_simple_idxs = torch.where(q_simple)[0]
-        q_simple_ids = top_docs["id"].astype(int).values[q_simple_idxs]
-        q_simple_embs = d_embs[np.where(np.isin(d_order, q_simple_ids))[0]]
-        top_docs_embs[q_simple_idxs, 0] = q_simple_embs        
-
-        # Then handle the more complex queries in a for-loop
-        q_complex = ~q_simple
-        for q_no in torch.where(q_complex)[0]:
-            q_top_docs = top_docs[top_docs["query"] == queries[q_no]]  # type: ignore
+        # TODO [important]: this for-loop is slow but needed because some q have less than n_docs top_docs. Can we do better?
+        for q_no in range(len(queries)):
+            q_top_docs = top_docs[top_docs["query"] == queries[q_no]]
             if len(q_top_docs) > 0:
                 q_top_docs_ids = q_top_docs["id"].astype(int).values
-                q_top_docs_embs = d_embs[np.where(np.isin(d_order, q_top_docs_ids))[0]]
+                q_top_docs_embs = d_embs[np.where(np.isin(d_order, q_top_docs_ids))[0]]  # type: ignore
                 top_docs_embs[q_no, :len(q_top_docs_embs)] = q_top_docs_embs
 
         return top_docs_embs
