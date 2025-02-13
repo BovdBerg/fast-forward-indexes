@@ -94,12 +94,6 @@ def parse_args() -> argparse.Namespace:
         help="Path to a checkpoint file to load the model from.",
     )
     parser.add_argument(
-        "--ckpt_path_emb",
-        type=Path,
-        default="/home/bvdb9/models/emb_bert.ckpt",
-        help="Path to a checkpoint file to load the token embeddings weights from.",
-    )
-    parser.add_argument(
         "--q_only",
         type=bool,
         default=False,
@@ -289,7 +283,6 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
         tok_embs_w_method=args.tok_embs_w_method,
-        ckpt_path_tok_embs=args.ckpt_path_emb,
         embs_w_method=args.embs_w_method,
         add_special_tokens=args.add_special_tokens,
         q_only=args.q_only,
