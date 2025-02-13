@@ -192,7 +192,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # TODO: normalize embs? `return torch.nn.functional.normalize(q_estimation)`
         return q_estimation
 
-    ### OLD APPROACH (DIFFERENT FOR-LOOP)
     def _get_top_docs_embs(self, queries: Sequence[str]) -> torch.Tensor:
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
@@ -214,7 +213,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # TODO [important]: this for-loop is slow but needed because some q have less than n_docs top_docs. Can we do better?
         emb_count = 0
         for q_no, query in enumerate(queries):
-            q_top_docs = top_docs[top_docs["query"] == queries[q_no]]
+            q_top_docs = top_docs[top_docs["query"] == queries[q_no]].head(self.n_docs)
             if len(q_top_docs) > 0:
                 lb = emb_count
                 emb_count += len(q_top_docs)
