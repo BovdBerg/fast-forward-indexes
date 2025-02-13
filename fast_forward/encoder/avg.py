@@ -230,8 +230,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         d_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
         if self.index.quantizer is not None:
             d_embs = self.index.quantizer.decode(d_embs)
-        order = np.array(d_idxs).flatten()  # [[0], [2], [1]] --> [0, 2, 1]
-        d_embs = torch.tensor(d_embs[order], device=self.device)  # sort d_embs on d_ids order
+        d_order = np.array(d_idxs).flatten()  # [[0], [2], [1]] --> [0, 2, 1]
+        d_embs = torch.tensor(d_embs[d_order], device=self.device)  # sort d_embs on d_ids order
 
         # Map doc_ids to embeddings
         top_docs_embs = torch.zeros(
