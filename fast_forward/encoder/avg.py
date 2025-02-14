@@ -332,7 +332,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         if self.docs_only:
-            q_emb_1 = torch.zeros((len(queries), 768), device=self.device)
+            q_light = torch.zeros((len(queries), 768), device=self.device)
         else:
             # Tokenizer queries
             q_tokens = self.tokenizer(
@@ -349,18 +349,23 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             q_tok_embs = q_tok_embs * attention_mask.unsqueeze(-1)
             match self.tok_embs_w_method:
                 case WEIGHT_METHOD.UNIFORM:
-                    q_emb_1 = torch.mean(q_tok_embs, 1)
+                    # q_light = torch.mean(q_tok_embs, 1)
+                    n_masked = attention_mask.sum(dim=-1, keepdim=True)
+                    q_light = q_tok_embs.sum(dim=-2) / n_masked  # Compute mean, excluding padding
                 case WEIGHT_METHOD.WEIGHTED:
+                    # TODO: these weights could probably benefit from excluding padding tokens
                     q_tok_weights = torch.nn.functional.softmax(
                         self.tok_embs_weights[input_ids], -1
                     )
-                    q_emb_1 = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)
+                    q_light = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)
+        if self.q_only:
+            return q_light
 
-        # lookup embeddings of top-ranked documents in (in-memory) self.index
+        # Find top-ranked document embeddings
         top_docs_embs, n_embs_per_q = self._get_top_docs_embs(queries)
 
-        # estimate query embedding as weighted average of q_emb and d_embs
-        embs = torch.cat((q_emb_1.unsqueeze(1), top_docs_embs), -2)
+        # Estimate final query as (weighted) average of q_light ++ top_docs_embs
+        embs = torch.cat((q_light.unsqueeze(1), top_docs_embs), -2)
         embs_weights = torch.zeros((len(queries), embs.shape[-2]), device=self.device)
         # assign self.embs_avg_weights to embs_avg_weights, but only up to the number of top-ranked documents per query
         for i, n_embs in enumerate(n_embs_per_q):
