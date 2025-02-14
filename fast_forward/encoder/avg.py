@@ -353,8 +353,10 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     n_masked = attention_mask.sum(dim=-1, keepdim=True)
                     q_light = q_tok_embs.sum(dim=-2) / n_masked  # Compute mean, excluding padding
                 case WEIGHT_METHOD.WEIGHTED:
-                    # TODO: these weights could probably benefit from excluding padding tokens
                     q_tok_weights = torch.nn.functional.softmax(self.tok_embs_weights[input_ids], -1)
+                    # TODO: should padding be removed from the weights?
+                    q_tok_weights = q_tok_weights * attention_mask  # Mask padding
+                    q_tok_weights = q_tok_weights / q_tok_weights.sum(-1, keepdim=True)  # Normalize
                     q_light = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)  # Weighted average
         if self.q_only:
             return q_light
