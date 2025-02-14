@@ -372,7 +372,7 @@ def main(args: argparse.Namespace) -> None:
         index_emb = index_emb.to_memory(2**15)
     index_emb.query_encoder = AvgEmbQueryEstimator(
         index=index_emb,
-        n_docs=1,
+        n_docs=args.n_docs,
         device=args.device,
         ckpt_path=args.ckpt_path,
         ckpt_path_tok_embs=args.ckpt_path_emb,
