@@ -346,6 +346,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             # estimate lightweight query as weighted average of q_tok_embs
             q_tok_embs = self.tok_embs(input_ids)
             q_tok_embs = q_tok_embs * attention_mask.unsqueeze(-1)
+            # TODO [out of scope]: Probably good use to remove stopwords before averaging.
             match self.tok_embs_w_method:
                 case WEIGHT_METHOD.UNIFORM:
                     # q_light = torch.mean(q_tok_embs, 1)
