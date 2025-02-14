@@ -20,7 +20,7 @@ from gspread_formatting import (
 )
 from ir_measures import measures
 
-from fast_forward.encoder.avg import AvgEmbQueryEstimator
+from fast_forward.encoder.avg import AvgEmbQueryEstimator, WEIGHT_METHOD
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
@@ -100,6 +100,13 @@ def parse_args():
         type=int,
         default=10,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
+    )
+    parser.add_argument(
+        "--tok_embs_w_method",
+        type=str,
+        default="WEIGHTED",
+        choices=WEIGHT_METHOD.__members__,
+        help="Method to weight the token embeddings for the WeightedAvgEncoder.",
     )
     parser.add_argument(
         "--q_only",
