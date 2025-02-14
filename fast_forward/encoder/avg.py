@@ -311,24 +311,23 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         # Create tensors for padding and total embedding counts
         top_docs_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
-        n_embs_per_q = torch.ones((len(queries)), dtype=torch.int, device=self.device)
+        q_n_embs = torch.ones((len(queries)), dtype=torch.int, device=self.device)
 
         # Retrieve the top-ranked documents for all queries
         top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)]
-        query_to_idx = {query: idx for idx, query in enumerate(queries)}
+        q_to_idx = {query: idx for idx, query in enumerate(queries)}
 
-        for query, group in top_docs.groupby("query"):
-            d_embs, d_idxs = self.index._get_vectors(group["id"].unique())
+        for query, q_top_docs in top_docs.groupby("query"):
+            d_embs, d_idxs = self.index._get_vectors(q_top_docs["id"].unique())
             if self.index.quantizer is not None:
                 d_embs = self.index.quantizer.decode(d_embs)
-            d_embs = torch.tensor(d_embs[[x[0] for x in d_idxs]], device=self.device)
+            d_embs = torch.tensor(d_embs[np.array(d_idxs).flatten()], device=self.device)
 
-            # Pad and count embeddings for this query
-            query_idx = query_to_idx[str(query)]
-            top_docs_embs[query_idx, : len(d_embs)] = d_embs
-            n_embs_per_q[query_idx] += len(d_embs)
+            q_no = q_to_idx[str(query)]
+            top_docs_embs[q_no, : len(d_embs)] = d_embs
+            q_n_embs[q_no] += len(d_embs)
 
-        return top_docs_embs, n_embs_per_q
+        return top_docs_embs, q_n_embs
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         if self.docs_only:
@@ -362,18 +361,18 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             return q_light
 
         # Find top-ranked document embeddings
-        top_docs_embs, n_embs_per_q = self._get_top_docs_embs(queries)
+        top_docs_embs, q_n_embs = self._get_top_docs_embs(queries)
 
         # Estimate final query as (weighted) average of q_light ++ top_docs_embs
         embs = torch.cat((q_light.unsqueeze(1), top_docs_embs), -2)
         embs_weights = torch.zeros((len(queries), embs.shape[-2]), device=self.device)
         # assign self.embs_avg_weights to embs_avg_weights, but only up to the number of top-ranked documents per query
-        for i, n_embs in enumerate(n_embs_per_q):
+        for q_no, n_embs in enumerate(q_n_embs):
+            # TODO: what if we use regular normalization to self._embs_weights[:n_embs]? or none at all?
             if self.docs_only:
-                embs_weights[i, 0] = 0.0
-                embs_weights[i, 1:n_embs] = torch.nn.functional.softmax(self._embs_weights[1:n_embs], 0)
+                embs_weights[q_no, 0] = 0.0
+                embs_weights[q_no, 1:n_embs] = torch.nn.functional.softmax(self._embs_weights[1:n_embs], 0)
             else:
-                embs_weights[i, :n_embs] = torch.nn.functional.softmax(self._embs_weights[:n_embs], 0)
-
+                embs_weights[q_no, :n_embs] = torch.nn.functional.softmax(self._embs_weights[:n_embs], 0)
         q_estimation = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         return q_estimation
