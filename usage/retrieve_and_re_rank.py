@@ -323,9 +323,9 @@ def main(args: argparse.Namespace) -> None:
     )
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
-    ff_tct = FFScore(index_tct)
-    int_tct = FFInterpolate(alpha=0.1)
-    tct = bm25 >> ff_tct >> int_tct
+    # ff_tct = FFScore(index_tct)
+    # int_tct = FFInterpolate(alpha=0.1)
+    # tct = bm25 >> ff_tct >> int_tct
 
     index_avg = copy(index_tct)
     index_avg.query_encoder = AvgEmbQueryEstimator(
@@ -333,6 +333,7 @@ def main(args: argparse.Namespace) -> None:
         n_docs=args.n_docs,
         device=args.device,
         ckpt_path=args.ckpt_path,
+        tok_embs_w_method=args.tok_embs_w_method,
         q_only=args.q_only,
         profiling=args.profiling,
     )
@@ -340,53 +341,47 @@ def main(args: argparse.Namespace) -> None:
     int_avg = FFInterpolate(alpha=0.1)
     avg = bm25 >> ff_avg >> int_avg
 
-    # Create re-ranking pipeline based on WeightedAvgEncoder
-    index_avgD = copy(index_tct)
-    index_avgD.query_encoder = AvgEmbQueryEstimator(
-        index=index_avgD,
-        n_docs=args.n_docs,
-        device=args.device,
-        ckpt_path=args.ckpt_path,
-        docs_only=True,
-        profiling=args.profiling,
-    )
-    ff_avgD = FFScore(index_avgD)
-    int_avgD = FFInterpolate(alpha=0.09)
-    avgD = bm25 >> ff_avgD >> int_avgD
-
-    # # Create re-ranking pipeline based on TransformerEmbedding
-    # index_emb = OnDiskIndex.load(
-    #     args.index_path_emb,
-    #     verbose=args.verbose,
+    # # Create re-ranking pipeline based on WeightedAvgEncoder
+    # index_avgD = copy(index_tct)
+    # index_avgD.query_encoder = AvgEmbQueryEstimator(
+    #     index=index_avgD,
+    #     n_docs=args.n_docs,
+    #     device=args.device,
+    #     ckpt_path=args.ckpt_path,
+    #     docs_only=True,
     #     profiling=args.profiling,
     # )
-    # if args.storage == "mem":
-    #     index_emb = index_emb.to_memory(2**15)
-    # index_emb.query_encoder = AvgEmbQueryEstimator(
-    #     index=index_emb,
-    #     n_docs=1,
-    #     device=args.device,
-    #     ckpt_path=args.ckpt_path_emb,
-    #     tok_embs_w_method="UNIFORM",
-    #     q_only=True,
-    #     add_special_tokens=True,
-    # )
-    index_emb = copy(index_tct)
+    # ff_avgD = FFScore(index_avgD)
+    # int_avgD = FFInterpolate(alpha=0.09)
+    # avgD = bm25 >> ff_avgD >> int_avgD
+
+    # Create re-ranking pipeline based on TransformerEmbedding
+    index_emb = OnDiskIndex.load(
+        args.index_path_emb,
+        verbose=args.verbose,
+        profiling=args.profiling,
+    )
+    if args.storage == "mem":
+        index_emb = index_emb.to_memory(2**15)
     index_emb.query_encoder = AvgEmbQueryEstimator(
         index=index_emb,
         n_docs=1,
         device=args.device,
-        ckpt_path=args.ckpt_path_emb,
-        tok_embs_w_method="WEIGHTED",
+        ckpt_path=args.ckpt_path,
+        ckpt_path_tok_embs=args.ckpt_path_emb,
+        add_special_tokens=True,
+        tok_embs_w_method="UNIFORM",
         q_only=True,
-        add_special_tokens=False,
     )
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.11)
     emb = bm25 >> ff_emb >> int_emb
 
-    int_comboD = FFInterpolate(alpha=0.39)
-    comboD = avgD >> ff_emb >> int_comboD
+    # int_comboD = FFInterpolate(alpha=0.39)
+    # comboD = avgD >> ff_emb >> int_comboD
+
+    int_combo = FFInterpolate(alpha=0.39)
+    combo = avg >> ff_emb >> int_combo
 
     pipelines = [
         ("bm25", "BM25", ~bm25, None),
@@ -395,6 +390,7 @@ def main(args: argparse.Namespace) -> None:
         # ("avgD", "AvgEmb_docs", avgD, int_avgD),
         # ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
         ("avg", "AvgEmb", avg, int_avg),
+        ("combo", "AvgEmb + AvgTokEmb", combo, int_combo),
     ]
 
     # Validation and parameter tuning on dev set
