@@ -114,6 +114,12 @@ def parse_args():
         default=False,
         help="Only use the query embeddings for the WeightedAvgEncoder.",
     )
+    parser.add_argument(
+        "--add_special_tokens_emb",
+        type=bool,
+        default=False,
+        help="Add special tokens to the token embeddings for the TransformerEmbedding.",
+    )
     # VALIDATION
     parser.add_argument(
         "--dev_dataset",
@@ -376,7 +382,7 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
         ckpt_path=args.ckpt_path,
         ckpt_path_tok_embs=args.ckpt_path_emb,
-        add_special_tokens=True,
+        add_special_tokens=args.add_special_tokens_emb,
         tok_embs_w_method="UNIFORM",
         q_only=True,
     )
