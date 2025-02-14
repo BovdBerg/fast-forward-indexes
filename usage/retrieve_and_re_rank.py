@@ -323,9 +323,9 @@ def main(args: argparse.Namespace) -> None:
     )
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
-    # ff_tct = FFScore(index_tct)
-    # int_tct = FFInterpolate(alpha=0.1)
-    # tct = bm25 >> ff_tct >> int_tct
+    ff_tct = FFScore(index_tct)
+    int_tct = FFInterpolate(alpha=0.1)
+    tct = bm25 >> ff_tct >> int_tct
 
     index_avg = copy(index_tct)
     index_avg.query_encoder = AvgEmbQueryEstimator(
