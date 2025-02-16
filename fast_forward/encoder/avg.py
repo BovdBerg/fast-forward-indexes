@@ -288,6 +288,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         else:
             embs_weights[:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[:self.n_embs], 0)
         embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
+        # TODO: might want to remove padding from the weights and renormalize here (after softmax!)
 
         q_estimation = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         return q_estimation
