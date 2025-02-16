@@ -392,12 +392,10 @@ def main(args: argparse.Namespace) -> None:
         index=index_est_as_emb,
         n_docs=args.n_docs,
         device=args.device,
-        ckpt_path=args.ckpt_path,
         ckpt_path_tok_embs=args.ckpt_path_emb,
         add_special_tokens=True,
         tok_embs_w_method="UNIFORM",
         q_only=True,
-        profiling=args.profiling,
     )
     ff_est_as_emb = FFScore(index_est_as_emb)
     int_est_as_emb = FFInterpolate(alpha=0.11)
