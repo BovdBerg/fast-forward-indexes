@@ -32,6 +32,7 @@ def plot(data: Dict[str, Any], ax: Any):
     # Normalize weights
     weights_normalized = np.array(weights)
     weights_normalized = weights_normalized / np.sum(weights_normalized) * 100
+    ax.set_ylim(0, 45)
 
     # Ignore the first element and normalize
     weights = np.array(weights[1:])
@@ -88,6 +89,7 @@ def main(args: argparse.Namespace) -> None:
     plot(data_10, ax1)
     plot(data_50, ax2)
 
+    fig.tight_layout()
     fig.savefig("plot_data/figures/weight_methods.png", transparent=True)
     plt.show()
 

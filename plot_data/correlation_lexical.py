@@ -71,11 +71,19 @@ def parse_args():
         default=10,
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
+    parser.add_argument(
+        "--docs_only",
+        action="store_true",
+        help="Only use the documents for encoding. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
+    )
     return parser.parse_args()
 
 
 def load_or_generate_df():
     cache_file = Path(f"cache/performance_per_query_cache_{args.n_docs}_{args.samples}.pt")
+    if args.docs_only:
+        # Append "_docs_only" to the cache file name
+        cache_file = cache_file.with_name(f"{cache_file.stem}_docs_only{cache_file.suffix}")
 
     if cache_file.exists():
         df = torch.load(cache_file, map_location=args.device)
@@ -96,6 +104,7 @@ def load_or_generate_df():
             n_docs=args.n_docs,
             device=args.device,
             ckpt_path=args.ckpt_path,
+            docs_only=args.docs_only,
         )
         ff_avg = FFScore(index)
         sys_avg = sys_bm25_cut >> ff_avg
@@ -115,18 +124,24 @@ def load_or_generate_df():
 
 def plot_data(bm25_scores: List[float], avg_scores: List[float]):
     fig, ax = plt.subplots()
-    ax.set_xlabel("BM25 scores")
+    ax.set_xlabel("BM25 score")
     ax.set_ylabel("AvgEmb score")
 
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
+    # ax.set_xlim(0, 1)
+    # ax.set_ylim(0, 1)
 
     ax.scatter(bm25_scores, avg_scores, alpha=0.5)
 
+    # Add diagonal line y=x
+    min_score = min(min(bm25_scores), min(avg_scores))
+    max_score = max(max(bm25_scores), max(avg_scores))
+    ax.plot([min(bm25_scores), max(bm25_scores)], [min(avg_scores), max(avg_scores)], color='red', linestyle='--')
+
     ax.grid(True)
 
+    print(f"docs_only={args.docs_only}")
     fig.savefig(
-        "plot_data/figures/performance_per_query.png", transparent=True
+        f"plot_data/figures/correlation_lexical_docs_only={args.docs_only}.png", transparent=True
     )
     plt.show()
 
@@ -147,7 +162,7 @@ def main(args: argparse.Namespace) -> None:
     print("\033[96m")  # Prints during setup are colored cyan
     pt.init()
 
-    df = load_or_generate_df()
+    df = load_or_generate_df()#.head(args.n_docs)
     print("\033[0m")  # Reset color
     print(f"df:\n{df}")
 
@@ -155,10 +170,10 @@ def main(args: argparse.Namespace) -> None:
     avg_scores = df["score"]
 
     # Normalize the scores
-    bm25_scores = (bm25_scores - bm25_scores.min()) / (
-        bm25_scores.max() - bm25_scores.min()
-    )
-    avg_scores = (avg_scores - avg_scores.min()) / (avg_scores.max() - avg_scores.min())
+    # bm25_scores = (bm25_scores - bm25_scores.min()) / (
+    #     bm25_scores.max() - bm25_scores.min()
+    # )
+    # avg_scores = (avg_scores - avg_scores.min()) / (avg_scores.max() - avg_scores.min())
 
     plot_data(bm25_scores, avg_scores)
 
