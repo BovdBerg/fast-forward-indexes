@@ -32,9 +32,9 @@ def plot_runtimes(profiles: Dict[str, float]):
 
     bars = [
         ("Other", other, 0),
-        ("Initial Lightweight Query-Encoding", q_emb_2, other),
+        ("Estimate Final Query Vector", q_emb_2, other),
         ("Retrieve Top-Ranked Doc Embeddings", _get_top_docs, other + q_emb_2),
-        ("Estimate Query Embedding", q_emb_1, other + q_emb_2 + _get_top_docs),
+        ("Initial Lightweight Query-Encoding", q_emb_1, other + q_emb_2 + _get_top_docs),
     ]
     for label, value, bottom in bars:
         ax.bar(0, value, label=label, bottom=bottom)
@@ -65,7 +65,7 @@ def plot_runtimes(profiles: Dict[str, float]):
 
     # handles, labels = ax.get_legend_handles_labels()
     # ax.legend(handles[::-1], labels[::-1], bbox_to_anchor=(1, 0.5), loc='center left')
-    # fig.tight_layout()
+    fig.tight_layout()
 
     fig.savefig("plot_data/figures/q_enc_distribution.png", transparent=True)
     plt.show()

@@ -43,8 +43,13 @@ def plot(data: Dict[str, Any]):
         # Normalize x-axis values
         x_values = np.linspace(0, 100, len(weights_normalized))
 
-        # Plot the weights as a line plot with dots
-        ax1.plot(x_values, weights_normalized, marker='.', label=f"n_docs={n_docs}")
+        # Plot the first element separately
+        ax1.plot(x_values[0], weights_normalized[0], marker='X', color=f"C{(i % 9)}", markersize=10)
+        if i == 0:
+            ax1.text(x_values[0] + 2, weights_normalized[0] - 1, '← q_light', fontsize=12, verticalalignment='center', fontweight='bold')
+
+        # Plot the rest of the elements
+        ax1.plot(x_values[1:], weights_normalized[1:], marker='.', color=f"C{(i % 9)}", label=f"n_docs={n_docs}", markersize=10)
 
         # Ignore the first element and normalize
         weights_ignored = weights[1:]
@@ -54,17 +59,14 @@ def plot(data: Dict[str, Any]):
         # Normalize x-axis values
         x_values_ignored = np.linspace(0, 100, len(weights_ignored))
 
-        # Highlight the dot of n_docs=1 more
-        if n_docs == 1:
-            # ax2.plot(x_values_ignored[0], weights_ignored[0], marker='')
-            # ax2.axhline(y=weights_ignored[0], linestyle='-', label="n_docs=1")
-            pass
-        else:
-            ax2.plot(x_values_ignored, weights_ignored, marker='.', label=f"n_docs={n_docs}", color=f"C{(i % 9)}")
+        # Plot just the document weights, excluding n_docs=1
+        if n_docs != 1:
+            ax2.plot(x_values[1:], weights_normalized[1:], marker='.', color=f"C{(i % 9)}", label=f"n_docs={n_docs}", markersize=10)
 
     for ax in [ax1, ax2]:
         ax.legend()
 
+    fig.tight_layout()
     fig.savefig("plot_data/figures/weights_per_n_docs.png", transparent=True)
     plt.show()
 
