@@ -346,7 +346,7 @@ def main(args: argparse.Namespace) -> None:
         profiling=args.profiling,
     )
     ff_avg = FFScore(index_avg)
-    int_avg = FFInterpolate(alpha=0.1)
+    int_avg = FFInterpolate(alpha=0.03)
     avg = bm25 >> ff_avg >> int_avg
 
     # Create re-ranking pipeline based on WeightedAvgEncoder
