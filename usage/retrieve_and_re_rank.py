@@ -384,7 +384,7 @@ def main(args: argparse.Namespace) -> None:
     int_comboD = FFInterpolate(alpha=0.39)
     comboD = avgD >> ff_emb >> int_comboD
 
-    index_est_as_emb = copy(index_tct)
+    index_est_as_emb = copy(index_emb)
     index_est_as_emb.query_encoder = AvgEmbQueryEstimator(
         index=index_est_as_emb,
         n_docs=args.n_docs,
