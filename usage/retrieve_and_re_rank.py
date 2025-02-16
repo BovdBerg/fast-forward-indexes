@@ -114,12 +114,6 @@ def parse_args():
         default=False,
         help="Only use the query embeddings for the WeightedAvgEncoder.",
     )
-    parser.add_argument(
-        "--add_special_tokens_emb",
-        type=bool,
-        default=False,
-        help="Add special tokens to the token embeddings for the TransformerEmbedding.",
-    )
     # VALIDATION
     parser.add_argument(
         "--dev_dataset",
@@ -389,14 +383,31 @@ def main(args: argparse.Namespace) -> None:
     int_comboD = FFInterpolate(alpha=0.39)
     comboD = avgD >> ff_emb >> int_comboD
 
-    int_combo = FFInterpolate(alpha=0.39)
-    combo = avg >> ff_emb >> int_combo
+    index_est_as_emb = copy(index_tct)
+    index_est_as_emb.query_encoder = AvgEmbQueryEstimator(
+        index=index_est_as_emb,
+        n_docs=args.n_docs,
+        device=args.device,
+        ckpt_path=args.ckpt_path,
+        ckpt_path_tok_embs=args.ckpt_path_emb,
+        add_special_tokens=True,
+        tok_embs_w_method="UNIFORM",
+        q_only=True,
+        profiling=args.profiling,
+    )
+    ff_est_as_emb = FFScore(index_est_as_emb)
+    int_est_as_emb = FFInterpolate(alpha=0.11)
+    est_as_emb = bm25 >> ff_est_as_emb >> int_est_as_emb
+
+    # int_combo = FFInterpolate(alpha=0.39)
+    # combo = avg >> ff_emb >> int_combo
 
     pipelines = [
         ("bm25", "BM25", ~bm25, None),
         ("tct_0", "TCT-ColBERT (no interpolation)", tct_0, None),
         ("tct", "TCT-ColBERT", tct, int_tct),
         ("emb", "AvgTokEmb", emb, int_emb),
+        ("est_as_emb", "EstEmb", est_as_emb, int_est_as_emb),
         ("avgD", "AvgEmb_docs", avgD, int_avgD),
         ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
         ("avg", "AvgEmb", avg, int_avg),
