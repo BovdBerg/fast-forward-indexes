@@ -355,19 +355,20 @@ def main(args: argparse.Namespace) -> None:
     int_avg = FFInterpolate(alpha=0.1)
     avg = bm25 >> ff_avg >> int_avg
 
-    # # Create re-ranking pipeline based on WeightedAvgEncoder
-    # index_avgD = copy(index_tct)
-    # index_avgD.query_encoder = AvgEmbQueryEstimator(
-    #     index=index_avgD,
-    #     n_docs=args.n_docs,
-    #     device=args.device,
-    #     ckpt_path=args.ckpt_path,
-    #     docs_only=True,
-    #     profiling=args.profiling,
-    # )
-    # ff_avgD = FFScore(index_avgD)
-    # int_avgD = FFInterpolate(alpha=0.09)
-    # avgD = bm25 >> ff_avgD >> int_avgD
+    # Create re-ranking pipeline based on WeightedAvgEncoder
+    index_avgD = copy(index_tct)
+    index_avgD.query_encoder = AvgEmbQueryEstimator(
+        index=index_avgD,
+        n_docs=args.n_docs,
+        device=args.device,
+        ckpt_path=args.ckpt_path,
+        tok_embs_w_method=args.tok_embs_w_method,
+        docs_only=True,
+        profiling=args.profiling,
+    )
+    ff_avgD = FFScore(index_avgD)
+    int_avgD = FFInterpolate(alpha=0.09)
+    avgD = bm25 >> ff_avgD >> int_avgD
 
     # Create re-ranking pipeline based on TransformerEmbedding
     index_emb = OnDiskIndex.load(
@@ -391,8 +392,8 @@ def main(args: argparse.Namespace) -> None:
     int_emb = FFInterpolate(alpha=0.11)
     emb = bm25 >> ff_emb >> int_emb
 
-    # int_comboD = FFInterpolate(alpha=0.39)
-    # comboD = avgD >> ff_emb >> int_comboD
+    int_comboD = FFInterpolate(alpha=0.39)
+    comboD = avgD >> ff_emb >> int_comboD
 
     int_combo = FFInterpolate(alpha=0.39)
     combo = avg >> ff_emb >> int_combo
@@ -402,8 +403,8 @@ def main(args: argparse.Namespace) -> None:
         ("tct_0", "TCT-ColBERT (no interpolation)", tct_0, None),
         ("tct", "TCT-ColBERT", tct, int_tct),
         ("emb", "AvgTokEmb", emb, int_emb),
-        # ("avgD", "AvgEmb_docs", avgD, int_avgD),
-        # ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
+        ("avgD", "AvgEmb_docs", avgD, int_avgD),
+        ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
         ("avg", "AvgEmb", avg, int_avg),
         ("combo", "AvgEmb + AvgTokEmb", combo, int_combo),
     ]
