@@ -378,15 +378,9 @@ def main(args: argparse.Namespace) -> None:
     )
     if args.storage == "mem":
         index_emb = index_emb.to_memory(2**15)
-    index_emb.query_encoder = AvgEmbQueryEstimator(
-        index=index_emb,
-        n_docs=args.n_docs,
+    index_emb.query_encoder = StandaloneEncoder(
+        ckpt_path=args.ckpt_path_emb,
         device=args.device,
-        ckpt_path=args.ckpt_path,
-        ckpt_path_tok_embs=args.ckpt_path_emb,
-        add_special_tokens=True,
-        tok_embs_w_method="UNIFORM",
-        q_only=True,
     )
     ff_emb = FFScore(index_emb)
     int_emb = FFInterpolate(alpha=0.11)
