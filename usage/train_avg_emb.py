@@ -69,13 +69,6 @@ def parse_args() -> argparse.Namespace:
         help="Method to weight token embeddings.",
     )
     parser.add_argument(
-        "--embs_w_method",
-        type=str,
-        default="WEIGHTED",
-        choices=[method.name for method in WEIGHT_METHOD],
-        help="Method to weight q++docs embeddings.",
-    )
-    parser.add_argument(
         "--add_special_tokens",
         type=bool,
         default=True,
@@ -282,8 +275,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         device=args.device,
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
-        tok_embs_w_method=args.tok_embs_w_method,
-        embs_w_method=args.embs_w_method,
+        tok_embs_w_method=args.tok_w_method,
         add_special_tokens=args.add_special_tokens,
         q_only=args.q_only,
     )
