@@ -52,35 +52,6 @@ def parse_args():
         help="Print more information during re-ranking.",
     )
     parser.add_argument(
-        "--profiling",
-        action="store_true",
-        help="Profile the re-ranking process.",
-    )
-    parser.add_argument(
-        "--index_path",
-        type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
-        help="Path to the index file.",
-    )
-    parser.add_argument(
-        "--ckpt_path",
-        type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt",
-        help="Path to the avg checkpoint file. Create it by running usage/train.py",
-    )
-    parser.add_argument(
-        "--index_path_emb",
-        type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
-        help="Path to the index file.",
-    )
-    parser.add_argument(
-        "--ckpt_path_emb",
-        type=Path,
-        default="/home/bvdb9/models/emb_bert.ckpt",
-        help="Path to the emb checkpoint file. Create it by running usage/train.py",
-    )
-    parser.add_argument(
         "--storage",
         type=str,
         choices=["disk", "mem"],
@@ -95,6 +66,18 @@ def parse_args():
         help="Device to use for encoding queries.",
     )
     # WeightedAvgEncoder
+    parser.add_argument(
+        "--index_path",
+        type=Path,
+        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
+        help="Path to the index file.",
+    )
+    parser.add_argument(
+        "--ckpt_path",
+        type=Path,
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt",
+        help="Path to the avg checkpoint file. Create it by running usage/train.py",
+    )
     parser.add_argument(
         "--n_docs",
         type=int,
@@ -114,6 +97,26 @@ def parse_args():
         default=False,
         help="Only use the query embeddings for the WeightedAvgEncoder.",
     )
+    parser.add_argument(
+        "--profiling",
+        action="store_true",
+        help="Profile the re-ranking process.",
+    )
+
+    # StandaloneEncoder
+    parser.add_argument(
+        "--index_path_emb",
+        type=Path,
+        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
+        help="Path to the index file.",
+    )
+    parser.add_argument(
+        "--ckpt_path_emb",
+        type=Path,
+        default="/home/bvdb9/models/emb_bert.ckpt",
+        help="Path to the emb checkpoint file. Create it by running usage/train.py",
+    )
+
     # VALIDATION
     parser.add_argument(
         "--dev_dataset",
