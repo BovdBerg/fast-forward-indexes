@@ -338,6 +338,7 @@ def main(args: argparse.Namespace) -> None:
         index_tct = index_tct.to_memory(2**15)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.1)
+    tct_0 = bm25 >> ff_tct
     tct = bm25 >> ff_tct >> int_tct
 
     index_avg = copy(index_tct)
@@ -398,6 +399,7 @@ def main(args: argparse.Namespace) -> None:
 
     pipelines = [
         ("bm25", "BM25", ~bm25, None),
+        ("tct_0", "TCT-ColBERT (no interpolation)", tct_0, None),
         ("tct", "TCT-ColBERT", tct, int_tct),
         ("emb", "AvgTokEmb", emb, int_emb),
         # ("avgD", "AvgEmb_docs", avgD, int_avgD),
