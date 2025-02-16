@@ -369,12 +369,20 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs = torch.cat((q_light.unsqueeze(1), top_docs_embs), -2)
         embs_weights = torch.zeros((len(queries), embs.shape[-2]), device=self.device)
         # assign self.embs_avg_weights to embs_avg_weights, but only up to the number of top-ranked documents per query
-        for q_no, n_embs in enumerate(q_n_embs):
-            # TODO: what if we use regular normalization to self._embs_weights[:n_embs]? or none at all?
-            if self.docs_only:
-                embs_weights[q_no, 0] = 0.0
-                embs_weights[q_no, 1:n_embs] = torch.nn.functional.softmax(self._embs_weights[1:n_embs], 0)
-            else:
-                embs_weights[q_no, :n_embs] = torch.nn.functional.softmax(self._embs_weights[:n_embs], 0)
+        # for q_no, n_embs in enumerate(q_n_embs):
+        #     # TODO: what if we use regular normalization to self._embs_weights[:n_embs]? or none at all?
+        #     if self.docs_only:
+        #         embs_weights[q_no, 0] = 0.0
+        #         embs_weights[q_no, 1:n_embs] = torch.nn.functional.softmax(self._embs_weights[1:n_embs], 0)
+        #     else:
+        #         embs_weights[q_no, :n_embs] = torch.nn.functional.softmax(self._embs_weights[:n_embs], 0)
+        # TODO: the best performing results were from when I didn't factor in q_n_embs:
+        if self.docs_only:
+            embs_weights[0] = 0.0
+            embs_weights[1:self.n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[1:self.n_embs], 0)
+        else:
+            embs_weights[:self.n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:self.n_embs], 0)
+        embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
+
         q_estimation = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         return q_estimation
