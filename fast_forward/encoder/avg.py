@@ -379,9 +379,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         # TODO: the best performing results were from when I didn't factor in q_n_embs:
         if self.docs_only:
             embs_weights[0] = 0.0
-            embs_weights[1:self.n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[1:self.n_embs], 0)
+            embs_weights[1:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[1:self.n_embs], 0)
         else:
-            embs_weights[:self.n_embs] = torch.nn.functional.softmax(self.embs_avg_weights[:self.n_embs], 0)
+            embs_weights[:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[:self.n_embs], 0)
         embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
 
         q_estimation = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
