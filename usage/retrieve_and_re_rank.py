@@ -342,6 +342,7 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
         ckpt_path=args.ckpt_path,
         tok_embs_w_method=args.tok_embs_w_method,
+        add_special_tokens=True,
         q_only=args.q_only,
         profiling=args.profiling,
     )
