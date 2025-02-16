@@ -263,7 +263,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_tok_weights = q_tok_weights * attention_mask  # Mask padding
                     q_tok_weights = q_tok_weights / q_tok_weights.sum(-1, keepdim=True)  # Normalize
                     q_light = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)  # Weighted average
-        q_light = torch.nn.functional.normalize(q_light)  # Normalize
+        # q_light = torch.nn.functional.normalize(q_light)  # Normalize
         if self.q_only:
             return q_light
 
