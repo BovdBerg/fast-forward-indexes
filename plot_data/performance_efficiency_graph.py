@@ -36,7 +36,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     ax1.set_xlabel('nDCG@10')
     ax1.set_ylabel('Re-ranking latency (ms)')
     for i in range(len(names)):
-        ax1.scatter(nDCG[i], latency[i], label=names[i], marker='*' if i < 2 else 's')
+        ax1.scatter(nDCG[i], latency[i], label=names[i], marker='*' if i < 2 else 's', s=150, zorder=3 if i < 2 else 2)
     ax1.legend(bbox_to_anchor=(0, 1), loc='upper left')
     ax1.set_title('Full re-ranking')
 
@@ -44,7 +44,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     ax2.set_xlabel('nDCG@10')
     ax2.set_ylabel('Query-encoding latency (ms)')
     for i in range(len(names)):
-        ax2.scatter(nDCG[i], latency_enc[i], label=names[i], marker='*' if i < 2 else 's')
+        ax2.scatter(nDCG[i], latency_enc[i], label=names[i], marker='*' if i < 2 else 's', s=150)
     ax2.legend(bbox_to_anchor=(0, 1), loc='upper left')
     ax2.set_title('Query-encoding')
 
@@ -68,31 +68,31 @@ def main(args: argparse.Namespace) -> None:
             "name": "TCT-ColBERT",
             "latency": 2609,
             "latency_enc": 1021,
-            "nDCG@10": 0.684,
+            "nDCG@10": 0.694,
         },
         {
             "name": "AvgTokEmb",
             "latency": 1634,
             "latency_enc": 7.09,
-            "nDCG@10": 0.673,
+            "nDCG@10": 0.677,
         },
         {
             "name": "AvgEmb_docs",
             "latency": 1636,
             "latency_enc": 64.8,
-            "nDCG@10": 0.555,
+            "nDCG@10": 0.553,
         },
         {
             "name": "AvgEmb_docs + AvgTokEmb",
             "latency": 3350,
             "latency_enc": 68.59,
-            "nDCG@10": 0.685,
+            "nDCG@10": 0.692,
         },
         {
             "name": "AvgEmb",
             "latency": 1671,
             "latency_enc": 75.98,
-            "nDCG@10": 0.653,
+            "nDCG@10": 0.678,
         },
     ]
 
