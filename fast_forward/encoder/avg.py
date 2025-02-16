@@ -232,7 +232,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             top_docs_embs[q_no, : len(d_embs)] = d_embs
             q_n_embs[q_no] += len(d_embs)
 
-        return top_docs_embs, q_n_embs
+        return top_docs_embs#, q_n_embs
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         if self.docs_only:
