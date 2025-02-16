@@ -406,7 +406,7 @@ def main(args: argparse.Namespace) -> None:
         ("avgD", "AvgEmb_docs", avgD, int_avgD),
         ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
         ("avg", "AvgEmb", avg, int_avg),
-        ("combo", "AvgEmb + AvgTokEmb", combo, int_combo),
+        # ("combo", "AvgEmb + AvgTokEmb", combo, int_combo),
     ]
 
     # Validation and parameter tuning on dev set
