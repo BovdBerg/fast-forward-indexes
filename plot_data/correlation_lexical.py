@@ -182,6 +182,11 @@ def main(args: argparse.Namespace) -> None:
             performances[qno] = results
         torch.save(performances, cache_file)
 
+    # Remove (no int.) pipelines
+    for i in performances:
+        performances[i] = performances[i][~performances[i]['name'].str.contains(r'\(no int.\)')]
+        performances[i].reset_index(drop=True, inplace=True)
+
     # Average each pipeline's performance per 3 queries
     combine_n_queries = args.combine_n_queries
     for i in range(0, len(performances), combine_n_queries):
