@@ -36,13 +36,13 @@ def parse_args():
     parser.add_argument(
         "--index_path",
         type=str,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT.h5",
+        default=Path("/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5"),
         help="Path to the index file.",
     )
     parser.add_argument(
         "--ckpt_path",
         type=str,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt",
+        default=Path("/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt"),
         help="Path to the checkpoint file.",
     )
     parser.add_argument(
