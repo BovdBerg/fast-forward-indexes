@@ -19,7 +19,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def plot(data: Dict[str, Any], ax: Any):
+def plot(data: Dict[str, Any], ax: Any, include_scaled: bool = False) -> None:
     n_docs = data["n_docs"]
     weights = data["weights"]
     rank_scores = data["rank_scores"]
@@ -44,19 +44,29 @@ def plot(data: Dict[str, Any], ax: Any):
 
     # Add a horizontal line for uniform weight distribution
     uniform_weight = 100 / len(weights)
-    ax.axhline(y=uniform_weight, color='r', linestyle='--', label='Uniform')
+    ax.axhline(y=uniform_weight, color='r', linestyle=(0, (5, 5)), label='Uniform')
 
     # Add exponential weight distribution
     exp_factor = 0.5
     exponential_approximation = np.array([np.exp(-i**exp_factor) for i in range(len(weights))])
     exponential_approximation = exponential_approximation / np.sum(exponential_approximation) * 100
-    ax.plot(x_values, exponential_approximation, linestyle='--', label=f'Exponential decay (-x$^{{{exp_factor}}}$)')
+    ax.plot(x_values, exponential_approximation, linestyle=(0, (5, 5)), label=f'Exponential decay (-x$^{{{exp_factor}}}$)')
+
+    # if include_scaled:
+    #     # Scale exponential_approximation to start at 2 and end at 35
+    #     exponential_approximation = 1 + (exponential_approximation - np.min(exponential_approximation)) * (35 - 1) / (np.max(exponential_approximation) - np.min(exponential_approximation))
+    #     ax.plot(x_values, exponential_approximation, linestyle=':', label='Exonential decay (scaled)')
 
     # Normalize and softmax position scores and plot them as weight distribution
     rank_scores = np.array(rank_scores)
     rank_scores_normalized = rank_scores / np.sum(rank_scores) * 100
     softmax_rank_scores = np.exp(rank_scores_normalized) / np.sum(np.exp(rank_scores_normalized)) * 100
-    ax.plot(x_values, softmax_rank_scores, linestyle='--', label='Softmax norm. rank scores')
+    ax.plot(x_values, softmax_rank_scores, linestyle=(0, (5, 5)), label='Softmax norm. rank scores')
+
+    if include_scaled:
+        # Scale softmax_rank_scores to start at 2 and end at 35
+        softmax_rank_scores = 1 + (softmax_rank_scores - np.min(softmax_rank_scores)) * (37 - 1) / (np.max(softmax_rank_scores) - np.min(softmax_rank_scores))
+        ax.plot(x_values, softmax_rank_scores, linestyle=(0, (5, 5)), label='Softmax norm. rank scores (scaled)')
 
     ax.legend()
 
@@ -86,8 +96,8 @@ def main(args: argparse.Namespace) -> None:
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 10))
     plt.subplots_adjust(hspace=0.3)
 
-    plot(data_10, ax1)
-    plot(data_50, ax2)
+    plot(data_10, ax1, include_scaled=True)
+    plot(data_50, ax2, include_scaled=False)
 
     fig.tight_layout()
     fig.savefig("plot_data/figures/weight_methods.png", transparent=True)
