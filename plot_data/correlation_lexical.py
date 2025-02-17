@@ -99,53 +99,6 @@ def main(args: argparse.Namespace) -> None:
     print("\033[96m")  # Prints during setup are colored cyan
     pt.init()
 
-    bm25 = pt.BatchRetrieve.from_dataset(
-        pt.get_dataset("msmarco_passage"), "terrier_stemmed", wmodel="BM25", memory=True
-    )
-    bm25 = ~bm25 % 1000
-
-    index = OnDiskIndex.load(args.index_path)
-    if args.storage == "mem":
-        index = index.to_memory(2**15)
-    index.query_encoder = AvgEmbQueryEstimator(
-        index=index,
-        n_docs=10,
-        device=args.device,
-        ckpt_path=args.ckpt_path,
-    )
-    ff_avg = FFScore(index)
-    int_avg = FFInterpolate(alpha=0.03)
-    avg_0 = ~bm25 >> ff_avg
-    avg = ~bm25 >> ff_avg >> int_avg
-
-    index_avgD = copy(index)
-    if isinstance(index_avgD.query_encoder, AvgEmbQueryEstimator):
-        index_avgD.query_encoder.docs_only = True
-    ff_avgD = FFScore(index_avgD)
-    int_avgD = FFInterpolate(alpha=0.09)
-    avgD_0 = ~bm25 >> ff_avgD
-    avgD = ~bm25 >> ff_avgD >> int_avgD
-
-    index_tct = copy(index)
-    index_tct.query_encoder = TCTColBERTQueryEncoder(
-        "castorini/tct_colbert-msmarco",
-        device=args.device,
-    )
-    ff_tct = FFScore(index_tct)
-    int_tct = FFInterpolate(alpha=0.03)
-    tct_0 = ~bm25 >> ff_tct
-    tct = ~bm25 >> ff_tct >> int_tct
-
-    pipelines = [
-        ("bm25", "BM25", ~bm25, None),
-        ("tct_0", "TCT-ColBERT (no int.)", tct_0, None),
-        ("tct", "TCT-ColBERT", tct, int_tct),
-        ("avgD_0", "AvgEmbD (no int.)", avgD_0, None),
-        ("avgD", "AvgEmbD", avgD, int_avgD),
-        ("avg", "AvgEmb (no int.)", avg_0, None),
-        ("avg", "AvgEmb", avg, int_avg),
-    ]
-
     test_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
     test_topics = test_dataset.get_topics()
     print(f"test_topics: {test_topics}")
@@ -155,9 +108,56 @@ def main(args: argparse.Namespace) -> None:
         performances = torch.load(cache_file, map_location=args.device)
         print(f"Loaded df from cache file: {cache_file}")
     else:
+        bm25 = pt.BatchRetrieve.from_dataset(
+            pt.get_dataset("msmarco_passage"), "terrier_stemmed", wmodel="BM25", memory=True
+        )
+        bm25 = ~bm25 % 1000
+
+        index = OnDiskIndex.load(args.index_path)
+        if args.storage == "mem":
+            index = index.to_memory(2**15)
+        index.query_encoder = AvgEmbQueryEstimator(
+            index=index,
+            n_docs=10,
+            device=args.device,
+            ckpt_path=args.ckpt_path,
+        )
+        ff_avg = FFScore(index)
+        int_avg = FFInterpolate(alpha=0.03)
+        avg_0 = ~bm25 >> ff_avg
+        avg = ~bm25 >> ff_avg >> int_avg
+
+        index_avgD = copy(index)
+        if isinstance(index_avgD.query_encoder, AvgEmbQueryEstimator):
+            index_avgD.query_encoder.docs_only = True
+        ff_avgD = FFScore(index_avgD)
+        int_avgD = FFInterpolate(alpha=0.09)
+        avgD_0 = ~bm25 >> ff_avgD
+        avgD = ~bm25 >> ff_avgD >> int_avgD
+
+        index_tct = copy(index)
+        index_tct.query_encoder = TCTColBERTQueryEncoder(
+            "castorini/tct_colbert-msmarco",
+            device=args.device,
+        )
+        ff_tct = FFScore(index_tct)
+        int_tct = FFInterpolate(alpha=0.03)
+        tct_0 = ~bm25 >> ff_tct
+        tct = ~bm25 >> ff_tct >> int_tct
+
+        pipelines = [
+            ("bm25", "BM25", ~bm25, None),
+            # ("tct_0", "TCT-ColBERT (no int.)", tct_0, None),
+            ("tct", "TCT-ColBERT", tct, int_tct),
+            # ("avgD_0", "AvgEmbD (no int.)", avgD_0, None),
+            ("avgD", "AvgEmbD", avgD, int_avgD),
+            # ("avg", "AvgEmb (no int.)", avg_0, None),
+            ("avg", "AvgEmb", avg, int_avg),
+        ]
+
         performances = {qno: None for qno in range(len(test_topics))}
         for qno in range(0, len(test_topics)):
-            q = test_topics.iloc[qno:qno + 1]
+            q = test_topics.iloc[qno : qno + 1]
             print(f"q:\n{q}")
             results = pt.Experiment(
                 [pipeline for _, _, pipeline, _ in pipelines],
