@@ -1,4 +1,5 @@
 import argparse
+from copy import copy
 import time
 import warnings
 from pathlib import Path
@@ -8,9 +9,10 @@ import matplotlib.pyplot as plt
 import pyterrier as pt
 import torch
 
+from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.encoder.avg import AvgEmbQueryEstimator
 from fast_forward.index.disk import OnDiskIndex
-from fast_forward.util.pyterrier import FFScore
+from fast_forward.util.pyterrier import FFScore, FFInterpolate
 
 PREV_RESULTS = Path("results.json")
 warnings.filterwarnings(
@@ -31,19 +33,6 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Re-rank documents based on query embeddings."
     )
-    # TODO [final]: Remove default paths (index_path, ckpt_path) form the arguments
-    parser.add_argument(
-        "--index_path",
-        type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
-        help="Path to the index file.",
-    )
-    parser.add_argument(
-        "--ckpt_path",
-        type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt",
-        help="Path to the avg checkpoint file. Create it by running usage/train.py",
-    )
     parser.add_argument(
         "--storage",
         type=str,
@@ -58,91 +47,27 @@ def parse_args():
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to use for encoding queries.",
     )
-    parser.add_argument(
-        "--samples",
-        type=int,
-        default=10,
-        help="Number of queries to sample for validation.",
-    )
-    # WeightedAvgEncoder
-    parser.add_argument(
-        "--n_docs",
-        type=int,
-        default=10,
-        help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
-    )
-    parser.add_argument(
-        "--docs_only",
-        action="store_true",
-        help="Only use the documents for encoding. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
-    )
     return parser.parse_args()
 
 
-def load_or_generate_df():
-    cache_file = Path(f"cache/performance_per_query_cache_{args.n_docs}_{args.samples}.pt")
-    if args.docs_only:
-        # Append "_docs_only" to the cache file name
-        cache_file = cache_file.with_name(f"{cache_file.stem}_docs_only{cache_file.suffix}")
+def plot_performances(performances: dict):
+    """
+    Plot the performances of different pipelines for each query.
 
-    if cache_file.exists():
-        df = torch.load(cache_file, map_location=args.device)
-        print(f"Loaded df from cache file: {cache_file}")
-    else:
-        dataset = pt.get_dataset("msmarco_passage")
-        sys_bm25 = pt.BatchRetrieve.from_dataset(
-            dataset, "terrier_stemmed", wmodel="BM25", memory=True
-        )
-        sys_bm25_cut = ~sys_bm25 % args.n_docs
-
-        # Create re-ranking pipeline based on WeightedAvgEncoder
-        index = OnDiskIndex.load(args.index_path)
-        if args.storage == "mem":
-            index = index.to_memory(2**15)
-        index.query_encoder = AvgEmbQueryEstimator(
-            index=index,
-            n_docs=args.n_docs,
-            device=args.device,
-            ckpt_path=args.ckpt_path,
-            docs_only=args.docs_only,
-        )
-        ff_avg = FFScore(index)
-        sys_avg = sys_bm25_cut >> ff_avg
-
-        topics = (
-            pt.get_dataset("irds:msmarco-passage/dev")
-            .get_topics()
-            .sample(args.samples, random_state=42)
-        )
-
-        df = sys_avg.transform(topics)
-        torch.save(df, cache_file)
-        print(f"Saved df to cache file: {cache_file}")
-
-    return df
-
-
-def plot_data(bm25_scores: List[float], avg_scores: List[float]):
-    fig, ax = plt.subplots()
-    ax.set_xlabel("BM25 score")
-    ax.set_ylabel("AvgEmb score")
-
-    # ax.set_xlim(0, 1)
-    # ax.set_ylim(0, 1)
-
-    ax.scatter(bm25_scores, avg_scores, alpha=0.5)
-
-    # Add diagonal line y=x
-    min_score = min(min(bm25_scores), min(avg_scores))
-    max_score = max(max(bm25_scores), max(avg_scores))
-    ax.plot([min(bm25_scores), max(bm25_scores)], [min(avg_scores), max(avg_scores)], color='red', linestyle='--')
-
-    ax.grid(True)
-
-    print(f"docs_only={args.docs_only}")
-    fig.savefig(
-        f"plot_data/figures/correlation_lexical_docs_only={args.docs_only}.png", transparent=True
-    )
+    Args:
+        performances (dict): Dictionary containing performance results for each query.
+    """
+    plt.figure(figsize=(10, 6))
+    
+    queries = list(performances.keys())
+    for i, query in enumerate(queries):
+        for j, score in enumerate(performances[query]['ndcg_cut_10']):
+            plt.scatter(query, score, label=f"Pipeline {j}" if i == 0 else "", color=f"C{j % 10}")
+    
+    plt.xlabel("Query Number")
+    plt.ylabel("Score")
+    plt.title("Performance Scores per Query")
+    plt.legend()
     plt.show()
 
 
@@ -162,20 +87,86 @@ def main(args: argparse.Namespace) -> None:
     print("\033[96m")  # Prints during setup are colored cyan
     pt.init()
 
-    df = load_or_generate_df()#.head(args.n_docs)
+    bm25 = pt.BatchRetrieve.from_dataset(
+        pt.get_dataset("msmarco_passage"), "terrier_stemmed", wmodel="BM25", memory=True
+    )
+    bm25 = ~bm25 % 1000
+
+    index = OnDiskIndex.load(Path("/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT.h5"))
+    if args.storage == "mem":
+        index = index.to_memory(2**15)
+    index.query_encoder = AvgEmbQueryEstimator(
+        index=index,
+        n_docs=10,
+        device=args.device,
+        ckpt_path=Path("/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt"),
+    )
+    ff_avg = FFScore(index)
+    int_avg = FFInterpolate(alpha=0.03)
+    avg_0 = ~bm25 >> ff_avg
+    avg = ~bm25 >> ff_avg >> int_avg
+
+    index_avgD = copy(index)
+    if isinstance(index_avgD.query_encoder, AvgEmbQueryEstimator):
+        index_avgD.query_encoder.docs_only = True
+    ff_avgD = FFScore(index_avgD)
+    int_avgD = FFInterpolate(alpha=0.09)
+    avgD_0 = ~bm25 >> ff_avgD
+    avgD = ~bm25 >> ff_avgD >> int_avgD
+
+    index_tct = copy(index)
+    index_tct.query_encoder = TCTColBERTQueryEncoder(
+        "castorini/tct_colbert-msmarco",
+        device=args.device,
+    )
+    ff_tct = FFScore(index_tct)
+    int_tct = FFInterpolate(alpha=0.03)
+    tct_0 = ~bm25 >> ff_tct
+    tct = ~bm25 >> ff_tct >> int_tct
+
+    pipelines = [
+        ("bm25", "BM25", ~bm25, None),
+        ("tct_0", "TCT-ColBERT (no int.)", tct_0, None),
+        ("tct", "TCT-ColBERT", tct, int_tct),
+        ("avgD_0", "AvgEmbD (no int.)", avgD_0, None),
+        ("avgD", "AvgEmbD", avgD, int_avgD),
+        ("avg", "AvgEmb (no int.)", avg_0, None),
+        ("avg", "AvgEmb", avg, int_avg),
+    ]
+
+    test_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
+    test_topics = test_dataset.get_topics()
+    print(f"test_topics: {test_topics}")
+
+    cache_file = Path(f"cache/performance_per_query_cache.pt")
+    if cache_file.exists():
+        performances = torch.load(cache_file, map_location=args.device)
+        print(f"Loaded df from cache file: {cache_file}")
+    else:
+        performances = {qno: None for qno in range(len(test_topics))}
+        for qno in range(0, len(test_topics)):
+            q = test_topics.iloc[qno:qno + 1]
+            print(f"q:\n{q}")
+            results = pt.Experiment(
+                [pipeline for _, _, pipeline, _ in pipelines],
+                q,
+                test_dataset.get_qrels(),
+                eval_metrics=["ndcg_cut_10"],
+                names=[
+                    name if not tunable else f"{name}, α=[{tunable.alpha}]"
+                    for _, name, _, tunable in pipelines
+                ],
+                round=3,
+                verbose=True,
+            )
+            print(results)
+            performances[qno] = results
+        torch.save(performances, cache_file)
+
     print("\033[0m")  # Reset color
-    print(f"df:\n{df}")
+    print(f"performances: {performances}")
 
-    bm25_scores = df["score_0"]
-    avg_scores = df["score"]
-
-    # Normalize the scores
-    # bm25_scores = (bm25_scores - bm25_scores.min()) / (
-    #     bm25_scores.max() - bm25_scores.min()
-    # )
-    # avg_scores = (avg_scores - avg_scores.min()) / (avg_scores.max() - avg_scores.min())
-
-    plot_data(bm25_scores, avg_scores)
+    plot_performances(performances)
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
