@@ -46,6 +46,12 @@ def parse_args():
         help="Path to the checkpoint file.",
     )
     parser.add_argument(
+        "--combine_n_queries",
+        type=int,
+        default=1,
+        help="Number of queries to combine for average performance.",
+    )
+    parser.add_argument(
         "--storage",
         type=str,
         choices=["disk", "mem"],
@@ -174,6 +180,23 @@ def main(args: argparse.Namespace) -> None:
             print(results)
             performances[qno] = results
         torch.save(performances, cache_file)
+
+    # Average each pipeline's performance per 3 queries
+    combine_n_queries = args.combine_n_queries
+    for i in range(0, len(performances), combine_n_queries):
+        combined_performance = performances[i].copy()
+        for j in range(1, combine_n_queries):
+            if i + j < len(performances):
+                for k in range(len(combined_performance)):
+                    combined_performance.iloc[k, 1] += performances[i + j].iloc[k, 1]
+        for k in range(len(combined_performance)):
+            combined_performance.iloc[k, 1] /= combine_n_queries
+        performances[i] = combined_performance
+
+    # Remove the extra entries
+    for i in range(len(performances) - 1, -1, -1):
+        if i % combine_n_queries != 0:
+            del performances[i]
 
     # Sort performances on BM25 performance
     performances = dict(sorted(performances.items(), key=lambda item: item[1]['ndcg_cut_10'][0] if item[1] is not None else float('inf')))
