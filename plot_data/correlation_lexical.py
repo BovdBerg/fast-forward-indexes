@@ -83,10 +83,15 @@ def plot_performances(performances: dict):
         for j, score in enumerate(performances[query]['ndcg_cut_10']):
             plt.scatter(query, score, label=pipeline_names[j] if i == 0 else "", color=f"C{j % 10}")
     
-    plt.xlabel("Batch of queries")
-    plt.ylabel("nDCG@10")
-    plt.title("Performance Scores per Query")
+    plt.xlabel(f"Batches of {args.combine_n_queries} queries")
+    plt.ylabel("Average nDCG@10")
+    plt.title("Correlation of performances between pipelines")
     plt.legend()
+
+    plt.xticks(ticks=range(len(performances)), labels=[])  # Keep ticks but remove tick labels
+
+    plt.tight_layout()
+    plt.savefig("plot_data/figures/correlation_lexical.png")
     plt.show()
 
 
