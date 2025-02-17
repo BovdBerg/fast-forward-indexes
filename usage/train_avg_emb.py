@@ -77,7 +77,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--exclude_padding_from_weights",
         type=bool,
-        dedfault=True,
+        default=True,
         help="Whether to remove padding from the tok weights and renormalize them."
     )
     parser.add_argument(
