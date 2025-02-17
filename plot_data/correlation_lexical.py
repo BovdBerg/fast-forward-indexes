@@ -34,6 +34,18 @@ def parse_args():
         description="Re-rank documents based on query embeddings."
     )
     parser.add_argument(
+        "--index_path",
+        type=str,
+        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT.h5",
+        help="Path to the index file.",
+    )
+    parser.add_argument(
+        "--ckpt_path",
+        type=str,
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt",
+        help="Path to the checkpoint file.",
+    )
+    parser.add_argument(
         "--storage",
         type=str,
         choices=["disk", "mem"],
@@ -92,14 +104,14 @@ def main(args: argparse.Namespace) -> None:
     )
     bm25 = ~bm25 % 1000
 
-    index = OnDiskIndex.load(Path("/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT.h5"))
+    index = OnDiskIndex.load(args.index_path)
     if args.storage == "mem":
         index = index.to_memory(2**15)
     index.query_encoder = AvgEmbQueryEstimator(
         index=index,
         n_docs=10,
         device=args.device,
-        ckpt_path=Path("/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt"),
+        ckpt_path=args.ckpt_path,
     )
     ff_avg = FFScore(index)
     int_avg = FFInterpolate(alpha=0.03)
