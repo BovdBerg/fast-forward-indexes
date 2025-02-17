@@ -36,7 +36,10 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     ax1.set_xlabel('nDCG@10')
     ax1.set_ylabel('Re-ranking latency (ms)')
     for i in range(len(names)):
-        ax1.scatter(nDCG[i], latency[i], label=names[i], marker='*' if i < 2 else 's', s=100)
+        color = f"C{i}"
+        if color >= "C3":
+            color = f"C{i + 1}"
+        ax1.scatter(nDCG[i], latency[i], label=names[i], marker='*' if i < 2 else 's', s=150, zorder=3 if i < 2 else 2, color=color)
     ax1.legend(bbox_to_anchor=(0, 1), loc='upper left')
     ax1.set_title('Full re-ranking')
 
@@ -44,7 +47,10 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     ax2.set_xlabel('nDCG@10')
     ax2.set_ylabel('Query-encoding latency (ms)')
     for i in range(len(names)):
-        ax2.scatter(nDCG[i], latency_enc[i], label=names[i], marker='*' if i < 2 else 's', s=100)
+        color = f"C{i}"
+        if color >= "C3":
+            color = f"C{i + 1}"
+        ax2.scatter(nDCG[i], latency_enc[i], label=names[i], marker='*' if i < 2 else 's', s=150, zorder=3 if i < 2 else 2, color=color)
     ax2.legend(bbox_to_anchor=(0, 1), loc='upper left')
     ax2.set_title('Query-encoding')
 
@@ -79,13 +85,13 @@ def main(args: argparse.Namespace) -> None:
             "name": "n_docs=0 (=q_only)",
             "latency": 1636,
             "latency_enc": 15.49,
-            "nDCG@10": 0.650,
+            "nDCG@10": 0.668,
         },
         {
             "name": "n_docs=1",
-            "latency": 1907,
+            "latency": 1677,
             "latency_enc": 55.27,
-            "nDCG@10": 0.659,
+            "nDCG@10": 0.677,
         },
         {
             "name": "n_docs=10",
@@ -95,9 +101,9 @@ def main(args: argparse.Namespace) -> None:
         },
         {
             "name": "n_docs=50",
-            "latency": 1591,
+            "latency": 1691,
             "latency_enc": 79.53,
-            "nDCG@10": 0.656,
+            "nDCG@10": 0.676,
         },
     ]
 
