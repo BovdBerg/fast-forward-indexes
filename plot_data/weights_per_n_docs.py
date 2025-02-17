@@ -27,8 +27,9 @@ def plot(data: Dict[str, Any]):
         ax.set_ylabel('Weight distribution (%)')
     ax1.set_title('All weights')
     ax2.set_title('Excluding lightweight query encoding')
-    ax1.set_ylim(0, 105)
-    
+    ax1.set_ylim(0, 100)
+    ax2.set_ylim(0, 10)
+
     plt.subplots_adjust(hspace=0.3)
 
     # For each n_docs, plot the weights of the embeddings as a line plot with dots. The first element should be left and the last should be right.
@@ -36,32 +37,28 @@ def plot(data: Dict[str, Any]):
         n_docs = data[i]["n_docs"]
         weights = data[i]["weights"]
 
-        # Normalize weights
-        weights_normalized = np.array(weights)
-        weights_normalized = weights_normalized / np.sum(weights_normalized) * 100
+        # # Normalize weights
+        weights = np.array(weights) * 100
 
-        # Normalize x-axis values
-        x_values = np.linspace(0, 100, len(weights_normalized))
+        # Use index for x-axis values
+        x_values = np.arange(len(weights))
 
         # Plot the first element separately
-        ax1.plot(x_values[0], weights_normalized[0], marker='X', color=f"C{(i % 9)}", markersize=10)
+        ax1.plot(x_values[0], weights[0], marker='X', color=f"C{(i % 9)}", markersize=10)
         if i == 0:
-            ax1.text(x_values[0] + 2, weights_normalized[0] - 1, '← q_light', fontsize=12, verticalalignment='center', fontweight='bold')
+            ax1.text(x_values[0] + 1, weights[0] - 1, '← q_light', fontsize=12, verticalalignment='center', fontweight='bold')
 
         # Plot the rest of the elements
-        ax1.plot(x_values[1:], weights_normalized[1:], marker='.', color=f"C{(i % 9)}", label=f"n_docs={n_docs}", markersize=10)
+        ax1.plot(x_values[1:], weights[1:], marker='.', color=f"C{(i % 9)}", label=f"n_docs={n_docs}", markersize=10, zorder=len(data) - i)
 
         # Ignore the first element and normalize
         weights_ignored = weights[1:]
-        weights_ignored = np.array(weights_ignored)
-        weights_ignored = weights_ignored / np.sum(weights_ignored) * 100
 
-        # Normalize x-axis values
-        x_values_ignored = np.linspace(0, 100, len(weights_ignored))
+        # Use index for x-axis values
+        x_values_ignored = np.arange(1, len(weights_ignored) + 1)
 
-        # Plot just the document weights, excluding n_docs=1
-        if n_docs != 1:
-            ax2.plot(x_values[1:], weights_normalized[1:], marker='.', color=f"C{(i % 9)}", label=f"n_docs={n_docs}", markersize=10)
+        # Plot just the document weights, excluding q_light
+        ax2.plot(x_values_ignored, weights_ignored, marker='.', color=f"C{(i % 9)}", label=f"n_docs={n_docs}", markersize=10, zorder=len(data) - i)
 
     for ax in [ax1, ax2]:
         ax.legend()
