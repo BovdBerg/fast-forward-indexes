@@ -175,6 +175,12 @@ def main(args: argparse.Namespace) -> None:
             performances[qno] = results
         torch.save(performances, cache_file)
 
+    # Sort performances on BM25 performance
+    performances = dict(sorted(performances.items(), key=lambda item: item[1]['ndcg_cut_10'][0] if item[1] is not None else float('inf')))
+
+    # Reindex
+    performances = {i: performances[qno] for i, qno in enumerate(performances)}
+
     print("\033[0m")  # Reset color
     print(f"performances: {performances}")
 
