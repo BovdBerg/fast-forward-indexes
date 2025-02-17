@@ -48,7 +48,7 @@ def parse_args():
     parser.add_argument(
         "--combine_n_queries",
         type=int,
-        default=1,
+        default=6,
         help="Number of queries to combine for average performance.",
     )
     parser.add_argument(
