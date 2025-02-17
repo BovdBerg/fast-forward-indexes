@@ -78,9 +78,10 @@ def plot_performances(performances: dict):
     plt.figure(figsize=(10, 6))
     
     queries = list(performances.keys())
+    pipeline_names = performances[queries[0]]['name'] if performances[queries[0]] is not None else []
     for i, query in enumerate(queries):
         for j, score in enumerate(performances[query]['ndcg_cut_10']):
-            plt.scatter(query, score, label=f"Pipeline {j}" if i == 0 else "", color=f"C{j % 10}")
+            plt.scatter(query, score, label=pipeline_names[j] if i == 0 else "", color=f"C{j % 10}")
     
     plt.xlabel("Query Number")
     plt.ylabel("Score")
