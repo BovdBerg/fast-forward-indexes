@@ -83,8 +83,8 @@ def plot_performances(performances: dict):
         for j, score in enumerate(performances[query]['ndcg_cut_10']):
             plt.scatter(query, score, label=pipeline_names[j] if i == 0 else "", color=f"C{j % 10}")
     
-    plt.xlabel("Query Number")
-    plt.ylabel("Score")
+    plt.xlabel("Batch of queries")
+    plt.ylabel("nDCG@10")
     plt.title("Performance Scores per Query")
     plt.legend()
     plt.show()
