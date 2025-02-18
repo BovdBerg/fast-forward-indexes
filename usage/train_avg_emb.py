@@ -62,18 +62,6 @@ def parse_args() -> argparse.Namespace:
         help="Number of top-ranked documents to average.",
     )
     parser.add_argument(
-        "--tok_embs_w_method",
-        type=str,
-        default="WEIGHTED",
-        choices=[method.name for method in WEIGHT_METHOD],
-        help="Method to weight token embeddings.",
-    )
-    parser.add_argument(
-        "--add_special_tokens",
-        action="store_true",
-        help="Whether to add special tokens to the queries.",
-    )
-    parser.add_argument(
         "--device",
         type=str,
         default="cuda" if torch.cuda.is_available() else "cpu",
@@ -273,8 +261,6 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         device=args.device,
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
-        tok_embs_w_method=args.tok_embs_w_method,
-        add_special_tokens=args.add_special_tokens,
         q_only=args.q_only,
     )
 
