@@ -85,6 +85,11 @@ def parse_args():
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     parser.add_argument(
+        "--no_special_tokens",
+        action="store_false",
+        help="Do not add special tokens to the query embeddings.",
+    )
+    parser.add_argument(
         "--tok_embs_w_method",
         type=str,
         default="WEIGHTED",
@@ -349,7 +354,7 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
         ckpt_path=args.ckpt_path,
         tok_embs_w_method=args.tok_embs_w_method,
-        add_special_tokens=True,
+        add_special_tokens=args.no_special_tokens,  # TODO: +special ckpt uses True
         q_only=args.q_only,
         profiling=args.profiling,
         exclude_padding_weights=args.exclude_padding_weights,
