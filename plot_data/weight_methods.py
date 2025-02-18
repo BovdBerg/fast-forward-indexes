@@ -24,10 +24,10 @@ def plot(data: Dict[str, Any], ax: Any) -> None:
     weights = data["weights"]
     rank_scores = data["rank_scores"]
 
-    ax.set_title(f"n_docs={n_docs}")
+    ax.set_title(f"n_docs={n_docs}", fontsize=20)
     ax.set_xlim(0, n_docs)
-    ax.set_xlabel('Document rank')
-    ax.set_ylabel('Weight distribution (%)')
+    ax.set_xlabel('Document rank', fontsize=18)
+    ax.set_ylabel('Weight distribution (%)', fontsize=18)
 
     # Normalize weights
     weights_normalized = np.array(weights)
@@ -55,7 +55,7 @@ def plot(data: Dict[str, Any], ax: Any) -> None:
     # Exponential Decay: y = 0.52 * e^(-0.42 * x)
     exp_decay = 0.52 * np.exp(-0.42 * np.arange(0, n_docs))
     exp_decay = exp_decay / np.sum(exp_decay) * 100
-    ax.plot(x_values, exp_decay, linestyle=(0, (5, 5)), label='Exponential decay y=0.52 * e^(-0.42x)')
+    ax.plot(x_values, exp_decay, linestyle=(0, (5, 5)), label='Exponential decay, y=0.52 * e^(-0.42x)')
 
     # Normalize and softmax position scores and plot them as weight distribution
     rank_scores = np.array(rank_scores)
@@ -65,9 +65,9 @@ def plot(data: Dict[str, Any], ax: Any) -> None:
 
     # Scale softmax_rank_scores to start at 2 and end at 35
     softmax_rank_scores = 1 + (softmax_rank_scores - np.min(softmax_rank_scores)) * (37 - 1) / (np.max(softmax_rank_scores) - np.min(softmax_rank_scores))
-    ax.plot(x_values, softmax_rank_scores, linestyle=(0, (5, 5)), label='Softmax rank scores (normalized, scaled)')
+    ax.plot(x_values, softmax_rank_scores, linestyle=(0, (5, 5)), label='Softmax average BM25 score at document rank')
 
-    ax.legend()
+    ax.legend(fontsize=16)
 
 def main(args: argparse.Namespace) -> None:
     data_10 = {

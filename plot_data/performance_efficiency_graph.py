@@ -33,20 +33,20 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     ax2.set_ylim(bottom=0, top=latency_enc.max() * 1.1)
 
     # Plot for latency vs nDCG@10
-    ax1.set_xlabel('nDCG@10')
-    ax1.set_ylabel('Re-ranking latency (ms)')
+    ax1.set_xlabel('nDCG@10', fontsize=18)
+    ax1.set_ylabel('Re-ranking latency (ms)', fontsize=18)
     for i in range(len(names)):
         ax1.scatter(nDCG[i], latency[i], label=names[i], marker='*' if i < 2 else 's', s=150, zorder=3 if i < 2 else 2)
-    ax1.legend(bbox_to_anchor=(0, 1), loc='upper left')
-    ax1.set_title('Full re-ranking')
+    ax1.legend(bbox_to_anchor=(0, 1), loc='upper left', fontsize=14)
+    ax1.set_title('Full re-ranking', fontsize=20)
 
     # Plot for latency_enc vs nDCG@10
-    ax2.set_xlabel('nDCG@10')
-    ax2.set_ylabel('Query-encoding latency (ms)')
+    ax2.set_xlabel('nDCG@10', fontsize=18)
+    ax2.set_ylabel('Query-encoding latency (ms)', fontsize=18)
     for i in range(len(names)):
         ax2.scatter(nDCG[i], latency_enc[i], label=names[i], marker='*' if i < 2 else 's', s=150)
-    ax2.legend(bbox_to_anchor=(0, 1), loc='upper left')
-    ax2.set_title('Query-encoding')
+    ax2.legend(bbox_to_anchor=(0, 1), loc='upper left', fontsize=14)
+    ax2.set_title('Query-encoding', fontsize=20)
 
     fig.tight_layout()
 

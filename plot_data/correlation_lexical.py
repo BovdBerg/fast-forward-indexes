@@ -83,13 +83,13 @@ def plot_performances(performances: dict):
         for j, score in enumerate(performances[query]['ndcg_cut_10']):
             markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
             plt.scatter(query, score, label=pipeline_names[j] if i == 0 else "", color=f"C{j % 10}", marker=markers[j % len(markers)])
-    
-    plt.xlabel(f"Batches of {args.combine_n_queries} queries")
-    plt.ylabel("Average nDCG@10")
-    plt.xlim(0, len(performances))
-    plt.ylim(0, 1)
-    plt.title("Correlation of performances between pipelines")
-    plt.legend()
+
+    plt.xlabel(f"Queries sorted on BM25 performance", fontsize=18)
+    plt.ylabel("nDCG@10", fontsize=18)
+    plt.xlim(-0.25, len(performances) - 1 + 0.25)
+    plt.ylim(-0.01, 1.01)
+    # plt.title("Correlation of performances between pipelines")
+    plt.legend(loc='lower right', fontsize=18)
 
     plt.xticks(ticks=range(len(performances)), labels=[])  # Keep ticks but remove tick labels
 
@@ -112,17 +112,17 @@ def main(args: argparse.Namespace) -> None:
     """
     start_time = time.time()
     print("\033[96m")  # Prints during setup are colored cyan
-    pt.init()
-
-    test_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
-    test_topics = test_dataset.get_topics()
-    print(f"test_topics: {test_topics}")
 
     cache_file = Path(f"cache/performance_per_query_cache.pt")
     if cache_file.exists():
         performances = torch.load(cache_file, map_location=args.device)
         print(f"Loaded df from cache file: {cache_file}")
     else:
+        pt.init()
+        test_dataset = pt.get_dataset("irds:msmarco-passage/trec-dl-2019/judged")
+        test_topics = test_dataset.get_topics()
+        print(f"test_topics: {test_topics}")
+
         bm25 = pt.BatchRetrieve.from_dataset(
             pt.get_dataset("msmarco_passage"), "terrier_stemmed", wmodel="BM25", memory=True
         )
@@ -195,7 +195,15 @@ def main(args: argparse.Namespace) -> None:
     # Remove (no int.) pipelines
     for i in performances:
         performances[i] = performances[i][~performances[i]['name'].str.contains(r'\(no int.\)')]
+        # performances[i] = performances[i][~performances[i]['name'].str.contains(r'TCT-ColBERT')]
+        # performances[i] = performances[i][~performances[i]['name'].str.contains(r'AvgEmb,')]
         performances[i].reset_index(drop=True, inplace=True)
+
+    # Rename AvgEmbD pipeline to AvgEmb_docs
+    for i in performances:
+        for j in range(len(performances[i])):
+            if performances[i].iloc[j, 0] == "AvgEmbD":
+                performances[i].iloc[j, 0] = "AvgEmb_docs"
 
     # Average each pipeline's performance per 3 queries
     combine_n_queries = args.combine_n_queries

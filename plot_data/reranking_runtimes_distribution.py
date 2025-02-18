@@ -54,7 +54,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
                     ha='center',
                     va='bottom',
                     color='white',
-                    fontsize=10,
+                    fontsize=11,
                     fontweight='bold',
                 )
 
@@ -73,8 +73,8 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
         )
 
     # ax.set_xlabel('Pipelines')
-    ax.set_ylabel('Re-ranking runtime (ms)')
-    ax.legend(bbox_to_anchor=(1, 0.5), loc='center left')
+    ax.set_ylabel('Re-ranking runtime (ms)', fontsize=13)
+    ax.legend(bbox_to_anchor=(1, 0.5), loc='center left', fontsize=11)
 
     # Rotate the names under the X-axis vertically
     ax.set_xticks(np.arange(len(names)))

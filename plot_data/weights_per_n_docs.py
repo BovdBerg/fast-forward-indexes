@@ -23,10 +23,10 @@ def plot(data: Dict[str, Any]):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
 
     for ax in [ax1, ax2]:
-        ax.set_xlabel('Embeddings position (%)')
-        ax.set_ylabel('Weight distribution (%)')
-    ax1.set_title('All weights')
-    ax2.set_title('Excluding lightweight query encoding')
+        ax.set_xlabel('Embeddings position (%)', fontsize=18)
+        ax.set_ylabel('Weight distribution (%)', fontsize=18)
+    ax1.set_title('All weights', fontsize=20)
+    ax2.set_title('Excluding lightweight query encoding', fontsize=20)
     ax1.set_ylim(0, 100)
     ax2.set_ylim(0, 10)
 
@@ -61,7 +61,7 @@ def plot(data: Dict[str, Any]):
         ax2.plot(x_values_ignored, weights_ignored, marker='.', color=f"C{(i % 9)}", label=f"n_docs={n_docs}", markersize=10, zorder=len(data) - i)
 
     for ax in [ax1, ax2]:
-        ax.legend()
+        ax.legend(fontsize=16)
 
     fig.tight_layout()
     fig.savefig("plot_data/figures/weights_per_n_docs.png", transparent=True)

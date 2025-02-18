@@ -33,26 +33,26 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
     ax2.set_ylim(bottom=0, top=latency_enc.max() * 1.1)
 
     # Plot for latency vs nDCG@10
-    ax1.set_xlabel('nDCG@10')
-    ax1.set_ylabel('Re-ranking latency (ms)')
+    ax1.set_xlabel('nDCG@10', fontsize=18)
+    ax1.set_ylabel('Re-ranking latency (ms)', fontsize=18)
     for i in range(len(names)):
         color = f"C{i}"
         if color >= "C3":
             color = f"C{i + 1}"
         ax1.scatter(nDCG[i], latency[i], label=names[i], marker='*' if i < 2 else 's', s=150, zorder=3 if i < 2 else 2, color=color)
-    ax1.legend(bbox_to_anchor=(0, 1), loc='upper left')
-    ax1.set_title('Full re-ranking')
+    ax1.legend(bbox_to_anchor=(0, 1), loc='upper left', fontsize=12)
+    ax1.set_title('Full re-ranking', fontsize=20)
 
     # Plot for latency_enc vs nDCG@10
-    ax2.set_xlabel('nDCG@10')
-    ax2.set_ylabel('Query-encoding latency (ms)')
+    ax2.set_xlabel('nDCG@10', fontsize=18)
+    ax2.set_ylabel('Query-encoding latency (ms)', fontsize=18)
     for i in range(len(names)):
         color = f"C{i}"
         if color >= "C3":
             color = f"C{i + 1}"
         ax2.scatter(nDCG[i], latency_enc[i], label=names[i], marker='*' if i < 2 else 's', s=150, zorder=3 if i < 2 else 2, color=color)
-    ax2.legend(bbox_to_anchor=(0, 1), loc='upper left')
-    ax2.set_title('Query-encoding')
+    ax2.legend(bbox_to_anchor=(0, 1), loc='upper left', fontsize=12)
+    ax2.set_title('Query-encoding', fontsize=20)
 
     fig.tight_layout()
     fig.savefig("plot_data/figures/performance_efficiency_per_n_docs.png", transparent=True)

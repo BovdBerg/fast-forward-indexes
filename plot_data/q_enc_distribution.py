@@ -27,7 +27,7 @@ def plot_runtimes(profiles: Dict[str, float]):
     other = total - q_emb_1 - _get_top_docs - q_emb_2
 
     fig, ax = plt.subplots()
-    ax.set_ylabel("Re-ranking latency (ms)")
+    ax.set_ylabel("Re-ranking latency (ms)", fontsize=18)
     ax.set_ylim(0, total * 1.15)
 
     bars = [
@@ -45,7 +45,7 @@ def plot_runtimes(profiles: Dict[str, float]):
             ha="center",
             va="center",
             color="white",
-            fontsize=11,
+            fontsize=13,
             fontweight="bold",
         )
 
