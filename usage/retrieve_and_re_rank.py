@@ -373,38 +373,38 @@ def main(args: argparse.Namespace) -> None:
     int_avgD = FFInterpolate(alpha=0.09)
     avgD = bm25 >> ff_avgD >> int_avgD
 
-    # Create re-ranking pipeline based on TransformerEmbedding
-    index_emb = OnDiskIndex.load(
-        args.index_path_emb,
-        verbose=args.verbose,
-        profiling=args.profiling,
-    )
-    if args.storage == "mem":
-        index_emb = index_emb.to_memory(2**15)
-    index_emb.query_encoder = StandaloneEncoder(
-        ckpt_path=args.ckpt_path_emb,
-        device=args.device,
-    )
-    ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.11)
-    emb = bm25 >> ff_emb >> int_emb
+    # # Create re-ranking pipeline based on TransformerEmbedding
+    # index_emb = OnDiskIndex.load(
+    #     args.index_path_emb,
+    #     verbose=args.verbose,
+    #     profiling=args.profiling,
+    # )
+    # if args.storage == "mem":
+    #     index_emb = index_emb.to_memory(2**15)
+    # index_emb.query_encoder = StandaloneEncoder(
+    #     ckpt_path=args.ckpt_path_emb,
+    #     device=args.device,
+    # )
+    # ff_emb = FFScore(index_emb)
+    # int_emb = FFInterpolate(alpha=0.11)
+    # emb = bm25 >> ff_emb >> int_emb
 
-    int_comboD = FFInterpolate(alpha=0.39)
-    comboD = avgD >> ff_emb >> int_comboD
+    # int_comboD = FFInterpolate(alpha=0.39)
+    # comboD = avgD >> ff_emb >> int_comboD
 
-    index_est_as_emb = copy(index_emb)
-    index_est_as_emb.query_encoder = AvgEmbQueryEstimator(
-        index=index_est_as_emb,
-        n_docs=args.n_docs,
-        device=args.device,
-        ckpt_path_tok_embs=args.ckpt_path_emb,
-        add_special_tokens=True,
-        tok_embs_w_method="UNIFORM",
-        q_only=True,
-    )
-    ff_est_as_emb = FFScore(index_est_as_emb)
-    int_est_as_emb = FFInterpolate(alpha=0.11)
-    est_as_emb = bm25 >> ff_est_as_emb >> int_est_as_emb
+    # index_est_as_emb = copy(index_emb)
+    # index_est_as_emb.query_encoder = AvgEmbQueryEstimator(
+    #     index=index_est_as_emb,
+    #     n_docs=args.n_docs,
+    #     device=args.device,
+    #     ckpt_path_tok_embs=args.ckpt_path_emb,
+    #     add_special_tokens=True,
+    #     tok_embs_w_method="UNIFORM",
+    #     q_only=True,
+    # )
+    # ff_est_as_emb = FFScore(index_est_as_emb)
+    # int_est_as_emb = FFInterpolate(alpha=0.11)
+    # est_as_emb = bm25 >> ff_est_as_emb >> int_est_as_emb
 
     # int_combo = FFInterpolate(alpha=0.39)
     # combo = avg >> ff_emb >> int_combo
@@ -413,10 +413,10 @@ def main(args: argparse.Namespace) -> None:
         # ("bm25", "BM25", ~bm25, None),
         # ("tct_0", "TCT-ColBERT (no interpolation)", tct_0, None),
         # ("tct", "TCT-ColBERT", tct, int_tct),
-        ("emb", "AvgTokEmb", emb, int_emb),
+        # ("emb", "AvgTokEmb", emb, int_emb),
         # ("est_as_emb", "EstEmb", est_as_emb, int_est_as_emb),
-        ("avgD", "AvgEmb_docs", avgD, int_avgD),
-        ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
+        # ("avgD", "AvgEmb_docs", avgD, int_avgD),
+        # ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
         ("avg", "AvgEmb", avg, int_avg),
         # ("combo", "AvgEmb + AvgTokEmb", combo, int_combo),
     ]
