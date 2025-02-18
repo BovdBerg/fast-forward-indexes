@@ -172,6 +172,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             }
         )
 
+        print(f"Settings: {settings}")
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=4)
 
