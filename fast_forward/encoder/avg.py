@@ -259,7 +259,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     if self.exclude_padding_weights:
                         # TODO: should padding be removed from the weights by default?
                         q_tok_weights = q_tok_weights * attention_mask  # Mask padding
-                        q_tok_weights = q_tok_weights / q_tok_weights.sum(-1, keepdim=True)  # Normalize
+                        q_tok_weights = q_tok_weights / (q_tok_weights.sum(-1, keepdim=True) + 1e-6)  # Normalize
                     q_light = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)  # Weighted average
         # q_light = torch.nn.functional.normalize(q_light)  # Normalize
         if self.q_only:
@@ -290,7 +290,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         if self.exclude_padding_weights:
             # TODO: should padding be removed from the weights by default?
             embs_weights = embs_weights * (embs.sum(-1) != 0).float()  # Mask padding
-            embs_weights = embs_weights / embs_weights.sum(-1, keepdim=True)  # Normalize
+            embs_weights = embs_weights / (embs_weights.sum(-1, keepdim=True) + 1e-6)  # Normalize
 
         q_estimation = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         return q_estimation
