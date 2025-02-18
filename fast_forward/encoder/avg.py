@@ -47,7 +47,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ckpt_path_tok_embs: Optional[Path] = None,
         q_only: bool = False,
         docs_only: bool = False,
-        add_special_tokens: bool = False,
+        add_special_tokens: bool = True,
         profiling: bool = False,
         exclude_padding_weights: bool = False,
     ) -> None:

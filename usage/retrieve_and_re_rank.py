@@ -75,7 +75,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/new_est/10d_tokWeighted+sp-padWeights_0.00208.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
@@ -88,6 +88,11 @@ def parse_args():
         "--no_special_tokens",
         action="store_false",
         help="Do not add special tokens to the query embeddings.",
+    )
+    parser.add_argument(
+        "--no_exclude_padding_weights",
+        action="store_false",
+        help="Exclude padding weights from the WeightedAvgEncoder.",
     )
     parser.add_argument(
         "--tok_embs_w_method",
@@ -105,11 +110,6 @@ def parse_args():
         "--profiling",
         action="store_true",
         help="Profile the re-ranking process.",
-    )
-    parser.add_argument(
-        "--exclude_padding_weights",
-        action="store_true",
-        help="Exclude padding weights from the WeightedAvgEncoder.",
     )
 
     # StandaloneEncoder
@@ -343,7 +343,7 @@ def main(args: argparse.Namespace) -> None:
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
     ff_tct = FFScore(index_tct)
-    int_tct = FFInterpolate(alpha=0.03)
+    int_tct = FFInterpolate(alpha=0.02)
     tct_0 = bm25 >> ff_tct
     tct = bm25 >> ff_tct >> int_tct
 
@@ -354,29 +354,22 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
         ckpt_path=args.ckpt_path,
         tok_embs_w_method=args.tok_embs_w_method,
-        add_special_tokens=args.no_special_tokens,  # TODO: +special ckpt uses True
+        add_special_tokens=args.no_special_tokens,
         q_only=args.q_only,
         profiling=args.profiling,
-        exclude_padding_weights=args.exclude_padding_weights,
+        exclude_padding_weights=args.no_exclude_padding_weights,
     )
     ff_avg = FFScore(index_avg)
     int_avg = FFInterpolate(alpha=0.03)
     avg = bm25 >> ff_avg >> int_avg
 
-    # Create re-ranking pipeline based on WeightedAvgEncoder
-    index_avgD = copy(index_tct)
-    index_avgD.query_encoder = AvgEmbQueryEstimator(
-        index=index_avgD,
-        n_docs=args.n_docs,
-        device=args.device,
-        ckpt_path=args.ckpt_path,
-        tok_embs_w_method=args.tok_embs_w_method,
-        docs_only=True,
-        profiling=args.profiling,
-    )
-    ff_avgD = FFScore(index_avgD)
-    int_avgD = FFInterpolate(alpha=0.09)
-    avgD = bm25 >> ff_avgD >> int_avgD
+    # # Create re-ranking pipeline based on WeightedAvgEncoder
+    # index_avgD = copy(index)
+    # if isinstance(index_avgD.query_encoder, AvgEmbQueryEstimator):
+    #     index_avgD.query_encoder.docs_only = True
+    # ff_avgD = FFScore(index_avgD)
+    # int_avgD = FFInterpolate(alpha=0.09)
+    # avgD = bm25 >> ff_avgD >> int_avgD
 
     # # Create re-ranking pipeline based on TransformerEmbedding
     # index_emb = OnDiskIndex.load(
