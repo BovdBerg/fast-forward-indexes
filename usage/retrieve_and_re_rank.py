@@ -85,18 +85,6 @@ def parse_args():
         help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
     )
     parser.add_argument(
-        "--no_special_tokens",
-        action="store_false",
-        help="Do not add special tokens to the query embeddings.",
-    )
-    parser.add_argument(
-        "--tok_embs_w_method",
-        type=str,
-        default="WEIGHTED",
-        choices=WEIGHT_METHOD.__members__,
-        help="Method to weight the token embeddings for the WeightedAvgEncoder.",
-    )
-    parser.add_argument(
         "--q_only",
         action="store_true",
         help="Only use the query embeddings for the WeightedAvgEncoder.",
@@ -348,8 +336,6 @@ def main(args: argparse.Namespace) -> None:
         n_docs=args.n_docs,
         device=args.device,
         ckpt_path=args.ckpt_path,
-        tok_embs_w_method=args.tok_embs_w_method,
-        add_special_tokens=args.no_special_tokens,
         q_only=args.q_only,
         profiling=args.profiling,
     )
@@ -390,7 +376,6 @@ def main(args: argparse.Namespace) -> None:
     #     n_docs=args.n_docs,
     #     device=args.device,
     #     ckpt_path_tok_embs=args.ckpt_path_emb,
-    #     add_special_tokens=True,
     #     tok_embs_w_method="UNIFORM",
     #     q_only=True,
     # )
