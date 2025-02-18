@@ -253,7 +253,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 case WEIGHT_METHOD.WEIGHTED:
                     q_tok_weights = torch.nn.functional.softmax(self.tok_embs_weights[input_ids], -1)
                     q_tok_weights = q_tok_weights * attention_mask  # Mask padding
-                    q_tok_weights = q_tok_weights / (q_tok_weights.sum(-1, keepdim=True) + 1e-6)  # Normalize
+                    q_tok_weights = q_tok_weights / (q_tok_weights.sum(-1, keepdim=True) + 1e-9)  # Normalize
 
                     q_light = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)  # Weighted average
         # q_light = torch.nn.functional.normalize(q_light)  # Normalize
@@ -282,7 +282,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             embs_weights[:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[:self.n_embs], 0)
         embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
         embs_weights = embs_weights * (embs.sum(-1) != 0).float()  # Mask padding
-        embs_weights = embs_weights / (embs_weights.sum(-1, keepdim=True) + 1e-6)  # Normalize
+        embs_weights = embs_weights / (embs_weights.sum(-1, keepdim=True) + 1e-9)  # Normalize
 
         q_estimation = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
         return q_estimation
