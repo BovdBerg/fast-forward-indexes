@@ -70,14 +70,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--add_special_tokens",
-        type=bool,
-        default=True,
+        action="store_true",
         help="Whether to add special tokens to the queries.",
     )
     parser.add_argument(
         "--exclude_padding_weights",
-        type=bool,
-        default=True,
+        action="store_true",
         help="Whether to remove padding from the tok weights and renormalize them."
     )
     parser.add_argument(
@@ -94,8 +92,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--q_only",
-        type=bool,
-        default=False,
+        action="store_true",
         help="Whether to only use the lightweight query estimation and not the top-ranked documents.",
     )
 

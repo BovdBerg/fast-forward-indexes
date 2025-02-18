@@ -93,8 +93,7 @@ def parse_args():
     )
     parser.add_argument(
         "--q_only",
-        type=bool,
-        default=False,
+        action="store_true",
         help="Only use the query embeddings for the WeightedAvgEncoder.",
     )
     parser.add_argument(
@@ -104,8 +103,7 @@ def parse_args():
     )
     parser.add_argument(
         "--exclude_padding_weights",
-        type=bool,
-        default=False,
+        action="store_true",
         help="Exclude padding weights from the WeightedAvgEncoder.",
     )
 
