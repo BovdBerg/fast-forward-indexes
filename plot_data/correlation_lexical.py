@@ -48,7 +48,7 @@ def parse_args():
     parser.add_argument(
         "--combine_n_queries",
         type=int,
-        default=6,
+        default=1,
         help="Number of queries to combine for average performance.",
     )
     parser.add_argument(
@@ -75,16 +75,19 @@ def plot_performances(performances: dict):
     Args:
         performances (dict): Dictionary containing performance results for each query.
     """
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(18, 6))
     
     queries = list(performances.keys())
     pipeline_names = performances[queries[0]]['name'] if performances[queries[0]] is not None else []
     for i, query in enumerate(queries):
         for j, score in enumerate(performances[query]['ndcg_cut_10']):
-            plt.scatter(query, score, label=pipeline_names[j] if i == 0 else "", color=f"C{j % 10}")
+            markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
+            plt.scatter(query, score, label=pipeline_names[j] if i == 0 else "", color=f"C{j % 10}", marker=markers[j % len(markers)])
     
     plt.xlabel(f"Batches of {args.combine_n_queries} queries")
     plt.ylabel("Average nDCG@10")
+    plt.xlim(0, len(performances))
+    plt.ylim(0, 1)
     plt.title("Correlation of performances between pipelines")
     plt.legend()
 
@@ -133,6 +136,8 @@ def main(args: argparse.Namespace) -> None:
             n_docs=10,
             device=args.device,
             ckpt_path=args.ckpt_path,
+            add_special_tokens=True,
+            tok_embs_w_method="WEIGHTED",
         )
         ff_avg = FFScore(index)
         int_avg = FFInterpolate(alpha=0.03)
