@@ -75,7 +75,7 @@ def parse_args() -> argparse.Namespace:
         help="Whether to add special tokens to the queries.",
     )
     parser.add_argument(
-        "--exclude_padding_from_weights",
+        "--exclude_padding_weights",
         type=bool,
         default=True,
         help="Whether to remove padding from the tok weights and renormalize them."
@@ -283,7 +283,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         ckpt_path=args.ckpt_path,
         tok_embs_w_method=args.tok_embs_w_method,
         add_special_tokens=args.add_special_tokens,
-        exclude_padding_from_weights=args.exclude_padding_from_weights,
+        exclude_padding_weights=args.exclude_padding_weights,
         q_only=args.q_only,
     )
 

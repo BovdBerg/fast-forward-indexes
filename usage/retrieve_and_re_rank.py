@@ -102,6 +102,12 @@ def parse_args():
         action="store_true",
         help="Profile the re-ranking process.",
     )
+    parser.add_argument(
+        "--exclude_padding_weights",
+        type=bool,
+        default=False,
+        help="Exclude padding weights from the WeightedAvgEncoder.",
+    )
 
     # StandaloneEncoder
     parser.add_argument(
@@ -348,6 +354,7 @@ def main(args: argparse.Namespace) -> None:
         add_special_tokens=True,
         q_only=args.q_only,
         profiling=args.profiling,
+        exclude_padding_weights=args.exclude_padding_weights,
     )
     ff_avg = FFScore(index_avg)
     int_avg = FFInterpolate(alpha=0.03)
