@@ -136,8 +136,6 @@ def main(args: argparse.Namespace) -> None:
             n_docs=10,
             device=args.device,
             ckpt_path=args.ckpt_path,
-            add_special_tokens=True,
-            tok_embs_w_method="WEIGHTED",
         )
         ff_avg = FFScore(index)
         int_avg = FFInterpolate(alpha=0.03)
@@ -145,8 +143,13 @@ def main(args: argparse.Namespace) -> None:
         avg = ~bm25 >> ff_avg >> int_avg
 
         index_avgD = copy(index)
-        if isinstance(index_avgD.query_encoder, AvgEmbQueryEstimator):
-            index_avgD.query_encoder.docs_only = True
+        index_avgD.query_encoder = AvgEmbQueryEstimator(
+            index=index,
+            n_docs=10,
+            device=args.device,
+            ckpt_path=args.ckpt_path,
+            docs_only=True,
+        )
         ff_avgD = FFScore(index_avgD)
         int_avgD = FFInterpolate(alpha=0.09)
         avgD_0 = ~bm25 >> ff_avgD
