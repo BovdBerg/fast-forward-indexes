@@ -285,13 +285,16 @@ def main(args: argparse.Namespace) -> None:
     for metric_str in args.eval_metrics:
         if "(" in metric_str:
             metric_name, rest = metric_str.split("(")
-            params, at_value = rest.split(")@")
+            params, at_value = rest.split("@") if "@" in rest else (rest[:-1], None)
             param_dict = {
                 k: int(v) for k, v in (param.split("=") for param in params.split(","))
             }
-            eval_metrics.append(
-                getattr(measures, metric_name)(**param_dict) @ int(at_value)
-            )
+            if at_value:
+                eval_metrics.append(
+                    getattr(measures, metric_name)(**param_dict) @ int(at_value)
+                )
+            else:
+                eval_metrics.append(getattr(measures, metric_name)(**param_dict))
         else:
             if "@" in metric_str:
                 metric_name, at_value = metric_str.split("@")
