@@ -167,8 +167,8 @@ def parse_args():
         nargs="+",
         default=[
             "nDCG@10",
-            "RR(rel=2)@10",
-            "AP(rel=2)@10",
+            "RR(rel=2)",
+            "AP(rel=2)",  # =MAP
         ],  # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
         help="Metrics used for evaluation.",
     )
