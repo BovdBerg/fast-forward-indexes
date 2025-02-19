@@ -348,8 +348,9 @@ def main(args: argparse.Namespace) -> None:
 
     # Create re-ranking pipeline based on WeightedAvgEncoder
     index_avgD = copy(index_avg)
-    if isinstance(index_avgD.query_encoder, AvgEmbQueryEstimator):
-        index_avgD.query_encoder.docs_only = True
+    index_avgD.query_encoder = copy(index_avg.query_encoder)
+    index_avgD.query_encoder.index = index_avgD
+    index_avgD.query_encoder.docs_only = True
     ff_avgD = FFScore(index_avgD)
     int_avgD = FFInterpolate(alpha=0.09)
     avgD = bm25 >> ff_avgD >> int_avgD
