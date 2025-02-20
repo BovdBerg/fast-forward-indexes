@@ -49,6 +49,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         docs_only: bool = False,
         add_special_tokens: bool = True,
         profiling: bool = False,
+        norm_q_light: bool = False,
+        norm_q_est: bool = False,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -89,6 +91,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.q_only = q_only
         self.docs_only = docs_only
         self.profiling = profiling
+        self.norm_q_light = norm_q_light
+        self.norm_q_est = norm_q_est
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model)
 
@@ -165,6 +169,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 "add_special_tokens": self.add_special_tokens,
                 "q_only": self.q_only,
                 "docs_only": self.docs_only,
+                "profiling": self.profiling,
+                "norm_q_light": self.norm_q_light,
+                "norm_q_est": self.norm_q_est,
             }
         )
 
@@ -256,7 +263,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_tok_weights = q_tok_weights / (q_tok_weights.sum(-1, keepdim=True) + 1e-9)  # Normalize
 
                     q_light = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)  # Weighted average
-        # q_light = torch.nn.functional.normalize(q_light)  # Normalize
+        if self.norm_q_light:
+            q_light = torch.nn.functional.normalize(q_light)  # Normalize
         if self.q_only:
             return q_light
 
@@ -285,4 +293,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_weights = embs_weights / (embs_weights.sum(-1, keepdim=True) + 1e-9)  # Normalize
 
         q_estimation = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
+        if self.norm_q_est:
+            q_estimation = torch.nn.functional.normalize(q_estimation)
         return q_estimation
