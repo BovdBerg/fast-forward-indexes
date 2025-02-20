@@ -280,8 +280,8 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         ckpt_path=args.ckpt_path,
         tok_embs_w_method=args.tok_embs_w_method,
         q_only=args.q_only,
-        norm_q_light=args.norm_q_light,
-        norm_q_est=args.norm_q_est,
+        norm_q_light=args.normalize_q_light,
+        norm_q_est=args.normalize_q_est,
     )
 
     print("\033[0m")  # Reset print color
