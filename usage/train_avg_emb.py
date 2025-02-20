@@ -78,6 +78,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Whether to only use the lightweight query estimation and not the top-ranked documents.",
     )
+    parser.add_argument(
+        "--norm_q_light",
+        action="store_true",
+        help="Whether to normalize the token embeddings before averaging.",
+    )
+    parser.add_argument(
+        "--norm_q_est",
+        action="store_true",
+        help="Whether to normalize the q and d embeddings before averaging.",
+    )
 
     # Training arguments
     parser.add_argument(
@@ -262,6 +272,8 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
         q_only=args.q_only,
+        norm_q_light=args.norm_q_light,
+        norm_q_est=args.norm_q_est,
     )
 
     print("\033[0m")  # Reset print color
