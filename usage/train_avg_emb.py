@@ -86,12 +86,12 @@ def parse_args() -> argparse.Namespace:
         help="Whether to only use the lightweight query estimation and not the top-ranked documents.",
     )
     parser.add_argument(
-        "--norm_q_light",
+        "--normalize_q_light",
         action="store_true",
         help="Whether to normalize the token embeddings before averaging.",
     )
     parser.add_argument(
-        "--norm_q_est",
+        "--normalize_q_est",
         action="store_true",
         help="Whether to normalize the q and d embeddings before averaging.",
     )
