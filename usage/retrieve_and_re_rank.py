@@ -381,6 +381,7 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
         ckpt_path_tok_embs=args.ckpt_path_emb,
         tok_embs_w_method="UNIFORM",
+        norm_q_light=True,
         q_only=True,
     )
     ff_est_as_emb = FFScore(index_est_as_emb)
