@@ -74,6 +74,13 @@ def parse_args() -> argparse.Namespace:
         help="Path to a checkpoint file to load the model from.",
     )
     parser.add_argument(
+        "--tok_embs_w_method",
+        type=str,
+        default="WEIGHTED",
+        choices=["UNIFORM", "WEIGHTED"],
+        help="Method to weight the token embeddings.",
+    )
+    parser.add_argument(
         "--q_only",
         action="store_true",
         help="Whether to only use the lightweight query estimation and not the top-ranked documents.",
@@ -271,6 +278,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         device=args.device,
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
+        tok_embs_w_method=args.tok_embs_w_method,
         q_only=args.q_only,
         norm_q_light=args.norm_q_light,
         norm_q_est=args.norm_q_est,
