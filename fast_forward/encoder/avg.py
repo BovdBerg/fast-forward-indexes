@@ -263,7 +263,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                     q_tok_weights = q_tok_weights / (q_tok_weights.sum(-1, keepdim=True) + 1e-9)  # Normalize
 
                     q_light = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)  # Weighted average
-        if self.norm_q_light:
+        if self.norm_q_light:  # warn: Normalization has a negative effect on training accuracy and performance. It is here to reproduce AvgTokemb.
             q_light = torch.nn.functional.normalize(q_light)  # Normalize
         if self.q_only:
             return q_light
@@ -287,12 +287,13 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             embs_weights[0] = 0.0
             embs_weights[1:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[1:self.n_embs], 0)
         else:
+            # TODO: replace softmax with regular normalization?
             embs_weights[:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[:self.n_embs], 0)
         embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
         embs_weights = embs_weights * (embs.sum(-1) != 0).float()  # Mask padding
         embs_weights = embs_weights / (embs_weights.sum(-1, keepdim=True) + 1e-9)  # Normalize
 
         q_estimation = torch.sum(embs * embs_weights.unsqueeze(-1), -2)
-        if self.norm_q_est:
+        if self.norm_q_est:  # warn: Normalization has a negative effect on training accuracy and performance. It is here to reproduce AvgTokemb.
             q_estimation = torch.nn.functional.normalize(q_estimation)
         return q_estimation
