@@ -308,7 +308,7 @@ def main() -> None:
                 verbose=True,
             ),
             callbacks.EarlyStopping(
-                monitor="val_loss", min_delta=1e-4, patience=5, verbose=True
+                monitor="val_loss", min_delta=0, patience=3, verbose=True
             ),
         ],
     )
