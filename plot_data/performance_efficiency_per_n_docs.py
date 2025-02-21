@@ -85,25 +85,25 @@ def main(args: argparse.Namespace) -> None:
             "name": "n_docs=0 (=q_only)",
             "latency": 1636,
             "latency_enc": 15.49,
-            "nDCG@10": 0.668,
+            "nDCG@10": 0.663,
         },
         {
             "name": "n_docs=1",
             "latency": 1677,
             "latency_enc": 55.27,
-            "nDCG@10": 0.677,
+            "nDCG@10": 0.673,
         },
         {
             "name": "n_docs=10",
             "latency": 1687,
             "latency_enc": 74.77,
-            "nDCG@10": 0.678,
+            "nDCG@10": 0.690,
         },
         {
             "name": "n_docs=50",
             "latency": 1691,
             "latency_enc": 79.53,
-            "nDCG@10": 0.676,
+            "nDCG@10": 0.689,
         },
     ]
 
