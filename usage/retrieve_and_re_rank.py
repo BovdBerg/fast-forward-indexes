@@ -389,11 +389,11 @@ def main(args: argparse.Namespace) -> None:
     est_as_emb = bm25 >> ff_est_as_emb >> int_est_as_emb
 
     pipelines = [
-        ("bm25", "BM25", ~bm25, None),
-        ("tct_0", "TCT-ColBERT (no interpolation)", tct_0, None),
-        ("tct", "TCT-ColBERT", tct, int_tct),
-        ("emb", "AvgTokEmb", emb, int_emb),
-        ("est_as_emb", "EstEmb", est_as_emb, int_est_as_emb),
+        # ("bm25", "BM25", ~bm25, None),
+        # ("tct_0", "TCT-ColBERT (no interpolation)", tct_0, None),
+        # ("tct", "TCT-ColBERT", tct, int_tct),
+        # ("emb", "AvgTokEmb", emb, int_emb),
+        # ("est_as_emb", "EstEmb", est_as_emb, int_est_as_emb),
         ("avgD", "AvgEmb_docs", avgD, int_avgD),
         ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
         ("avg", "AvgEmb", avg, int_avg),
