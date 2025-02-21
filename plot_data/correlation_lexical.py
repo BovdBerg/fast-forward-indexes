@@ -42,7 +42,7 @@ def parse_args():
     parser.add_argument(
         "--ckpt_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/n_docs=10+special_0.00207.ckpt",
+        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/new_est/10d_tokW+sp+pad_0.00186.ckpt",
         help="Path to the checkpoint file.",
     )
     parser.add_argument(
@@ -138,7 +138,7 @@ def main(args: argparse.Namespace) -> None:
             ckpt_path=args.ckpt_path,
         )
         ff_avg = FFScore(index)
-        int_avg = FFInterpolate(alpha=0.03)
+        int_avg = FFInterpolate(alpha=0.02)
         avg_0 = ~bm25 >> ff_avg
         avg = ~bm25 >> ff_avg >> int_avg
 
