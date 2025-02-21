@@ -80,19 +80,19 @@ def main(args: argparse.Namespace) -> None:
             "name": "AvgEmb_docs",
             "latency": 1636,
             "latency_enc": 64.8,
-            "nDCG@10": 0.553,
+            "nDCG@10": 0.571,
         },
         {
             "name": "AvgEmb_docs + AvgTokEmb",
             "latency": 3350,
             "latency_enc": 68.59,
-            "nDCG@10": 0.692,
+            "nDCG@10": 0.694,
         },
         {
             "name": "AvgEmb",
             "latency": 1671,
             "latency_enc": 75.98,
-            "nDCG@10": 0.678,
+            "nDCG@10": 0.690,
         },
     ]
 

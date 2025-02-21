@@ -113,7 +113,7 @@ def main(args: argparse.Namespace) -> None:
     start_time = time.time()
     print("\033[96m")  # Prints during setup are colored cyan
 
-    cache_file = Path(f"cache/performance_per_query_cache.pt")
+    cache_file = Path(f"cache/performance_per_query_cache4.pt")
     if cache_file.exists():
         performances = torch.load(cache_file, map_location=args.device)
         print(f"Loaded df from cache file: {cache_file}")
