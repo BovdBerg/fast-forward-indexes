@@ -251,7 +251,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         dataset_name="irds:msmarco-passage/train", samples=n_train_topics, shuffle=True
     )
     val_dataloader, val_topics = create_data(
-        dataset_name="irds:msmarco-passage/eval",  # TODO: should be dev, but I have eval cached
+        dataset_name="irds:msmarco-passage/eval",  # TODO: should be dev, but I have eval cached for the rankings and it's not trained on ranking loss anyways.
         samples=min(1_000, n_train_topics),
         shuffle=False,
     )
