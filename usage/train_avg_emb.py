@@ -95,6 +95,12 @@ def parse_args() -> argparse.Namespace:
         help="Path to the dataloader file to save or load.",
     )
     parser.add_argument(
+        "--cache_n_docs",
+        type=int,
+        default=1000,  # I created docs locally for 50
+        help="Number of documents to cache for ranking.",
+    )
+    parser.add_argument(
         "--samples",
         type=int,
         default=None,
@@ -185,7 +191,7 @@ def create_data(
 
 
 def create_lexical_ranking(queries_path: Path):
-    cache_n_docs = 50
+    cache_n_docs = args.cache_n_docs
     cache_dir = args.dataset_cache_path / f"ranking_cache_{cache_n_docs}docs"
     os.makedirs(cache_dir, exist_ok=True)
     chunk_size = 10_000
