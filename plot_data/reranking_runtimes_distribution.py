@@ -105,7 +105,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
         # Bigger font for xticks
         plt.xticks(fontsize=13)
     else:
-        plt.xticks(rotation=90)
+        plt.xticks(rotation=65)
     plt.tight_layout()
 
     if args.motivation:
@@ -140,14 +140,14 @@ def main(args: argparse.Namespace) -> None:
             "_compute_scores": 888,
         },
         {
-            "name": "AvgEmb_docs",
+            "name": "AvgEmb$_{docs}$",
             "total": 1636,
             "encode_queries": 64.8,
             "_get_vectors": 543,
             "_compute_scores": 888,
         },
         {
-            "name": "AvgEmb_docs + AvgTokEmb",
+            "name": "AvgEmb$_{docs}$ + AvgTokEmb",
             "total": 3350,
             "encode_queries": 68.59,
             "_get_vectors": 1087,

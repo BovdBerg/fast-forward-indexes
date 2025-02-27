@@ -46,12 +46,6 @@ def parse_args():
         help="Path to the checkpoint file.",
     )
     parser.add_argument(
-        "--combine_n_queries",
-        type=int,
-        default=1,
-        help="Number of queries to combine for average performance.",
-    )
-    parser.add_argument(
         "--storage",
         type=str,
         choices=["disk", "mem"],
@@ -89,7 +83,7 @@ def plot_performances(performances: dict):
     plt.xlim(-0.25, len(performances) - 1 + 0.25)
     plt.ylim(-0.01, 1.01)
     # plt.title("Correlation of performances between pipelines")
-    plt.legend(loc='lower right', fontsize=18)
+    plt.legend(loc='lower right', fontsize=18, markerscale=1.75)
 
     plt.xticks(ticks=range(len(performances)), labels=[])  # Keep ticks but remove tick labels
 
@@ -197,9 +191,18 @@ def main(args: argparse.Namespace) -> None:
 
     # Remove (no int.) pipelines
     for i in performances:
+        # Disable some pipelines
         performances[i] = performances[i][~performances[i]['name'].str.contains(r'\(no int.\)')]
         # performances[i] = performances[i][~performances[i]['name'].str.contains(r'TCT-ColBERT')]
         # performances[i] = performances[i][~performances[i]['name'].str.contains(r'AvgEmb,')]
+
+        # Replace ", α=[...]" with " α=..." in all pipeline names
+        performances[i]['name'] = performances[i]['name'].str.replace(r', α=\[(.*?)\]', '', regex=True)
+
+        # Rename AvgEmbD pipeline to "AvgEmb$_{docs}$"
+        performances[i].loc[performances[i]['name'].str.contains('AvgEmbD'), 'name'] = 'AvgEmb$_{docs}$'
+
+        # Reindex
         performances[i].reset_index(drop=True, inplace=True)
 
     # Rename AvgEmbD pipeline to AvgEmb_docs
@@ -208,36 +211,16 @@ def main(args: argparse.Namespace) -> None:
             if performances[i].iloc[j, 0] == "AvgEmbD":
                 performances[i].iloc[j, 0] = "AvgEmb_docs"
 
-    # Average each pipeline's performance per 3 queries
-    combine_n_queries = args.combine_n_queries
-    for i in range(0, len(performances), combine_n_queries):
-        combined_performance = performances[i].copy()
-        for j in range(1, combine_n_queries):
-            if i + j < len(performances):
-                for k in range(len(combined_performance)):
-                    combined_performance.iloc[k, 1] += performances[i + j].iloc[k, 1]
-        for k in range(len(combined_performance)):
-            combined_performance.iloc[k, 1] /= combine_n_queries
-        performances[i] = combined_performance
-
-    # Remove the extra entries
-    for i in range(len(performances) - 1, -1, -1):
-        if i % combine_n_queries != 0:
-            del performances[i]
-
     # Sort performances on BM25 performance
     performances = dict(sorted(performances.items(), key=lambda item: item[1]['ndcg_cut_10'][0] if item[1] is not None else float('inf')))
-
-    # Reindex
-    performances = {i: performances[qno] for i, qno in enumerate(performances)}
+    performances = {i: performances[qno] for i, qno in enumerate(performances)}  # Reindex
 
     print("\033[0m")  # Reset color
     print(f"performances: {performances}")
 
-    plot_performances(performances)
-
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
+    plot_performances(performances)
 
 
 if __name__ == "__main__":
