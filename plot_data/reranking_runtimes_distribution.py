@@ -16,10 +16,15 @@ def parse_args():
         Run the script with --help or -h to see the full list of arguments.
     """
     parser = argparse.ArgumentParser()
+    parser.add_argument("--motivation", action="store_true", help="Only plot the pipelines required for the introduction/motivation section")
     return parser.parse_args()
 
 
 def plot_runtimes(profiles: List[Dict[str, Any]]):
+    if args.motivation:
+        # Only keep first profile
+        profiles = profiles[:1]
+
     def extract_runtimes(key: str) -> np.ndarray:
         return np.array([profile[key] for profile in profiles])
 
@@ -34,54 +39,79 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
 
     bar_width = 0.9
     bars = [
-        ax.bar(names, encode_queries, color="darkviolet", label="encode queries", width=bar_width),
-        ax.bar(names, get_vectors, bottom=encode_queries, label="get vectors", width=bar_width),
-        ax.bar(names, compute_scores, bottom=encode_queries + get_vectors, label="compute scores", width=bar_width),
-        ax.bar(names, other, bottom=encode_queries + get_vectors + compute_scores, label="other", width=bar_width),
+        ax.bar(names, encode_queries, color="darkviolet", label="Encode queries", width=bar_width),
+        ax.bar(names, get_vectors, bottom=encode_queries, label="Retrieve doc vectors", width=bar_width),
+        ax.bar(names, compute_scores, bottom=encode_queries + get_vectors, label="Compute scores", width=bar_width),
+        ax.bar(names, other, bottom=encode_queries + get_vectors + compute_scores, label="Other", width=bar_width),
     ]
 
     # Set y-axis limit
     ax.set_ylim(0, (max(total) // 1000 + 1) * 1000)
 
-    # Add percentage text for bars of >X cm
-    for i, (bar_group, runtimes) in enumerate(zip(bars, [encode_queries, get_vectors, compute_scores, other])):
-        for j, (bar, runtime) in enumerate(zip(bar_group, runtimes)):
-            if i == 0:
+    if args.motivation:
+        for i, (bar_group, runtimes) in enumerate(zip(bars, [encode_queries, get_vectors, compute_scores, other])):
+            for j, (bar, runtime) in enumerate(zip(bar_group, runtimes)):
                 ax.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    bar.get_y(),
-                    f'{(runtime / total[j]) * 100:.1f}%',
+                    0,
+                    bar.get_y() + bar.get_height() / 2,
+                    f"{bar_group.get_label()}: {runtime}ms ({(runtime / total[j]) * 100:.1f}%)",
+                    # f'{(runtime / total[j]) * 100:.1f}%',
                     ha='center',
-                    va='bottom',
+                    va='center',
                     color='white',
-                    fontsize=11,
+                    fontsize=13,
                     fontweight='bold',
                 )
+    else:
+        # Add percentage text for bars of >X cm
+        for i, (bar_group, runtimes) in enumerate(zip(bars, [encode_queries, get_vectors, compute_scores, other])):
+            for j, (bar, runtime) in enumerate(zip(bar_group, runtimes)):
+                if i == 0:
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        bar.get_y(),
+                        f'{(runtime / total[j]) * 100:.1f}%',
+                        ha='center',
+                        va='bottom',
+                        color='white',
+                        fontsize=11,
+                        fontweight='bold',
+                    )
 
-    # Add speedup text for bars except the first
-    for i in range(0, len(names)):
-        bar = bars[0][i]
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            total[i] + 2.5,
-            f'{total[0] / total[i]:.1f}X',
-            ha='center',
-            va='bottom',
-            color='black',
-            fontsize=12,
-            fontweight='bold',
-        )
+    if not args.motivation:
+        # Add speedup text for bars except the first
+        for i in range(0, len(names)):
+            bar = bars[0][i]
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                total[i] + 2.5,
+                f'{total[0] / total[i]:.1f}X',
+                ha='center',
+                va='bottom',
+                color='black',
+                fontsize=12,
+                fontweight='bold',
+            )
 
     # ax.set_xlabel('Pipelines')
-    ax.set_ylabel('Re-ranking runtime (ms)', fontsize=13)
-    ax.legend(bbox_to_anchor=(1, 0.5), loc='center left', fontsize=11)
+    ax.set_ylabel('Re-ranking runtime (ms)', fontsize=14)
+    if not args.motivation:
+        ax.legend(bbox_to_anchor=(1, 0.5), loc='center left', fontsize=11)
 
     # Rotate the names under the X-axis vertically
     ax.set_xticks(np.arange(len(names)))
-    ax.set_xticklabels(names, rotation=90)
+    ax.set_xticklabels(names)
+    if args.motivation:
+        # Bigger font for xticks
+        plt.xticks(fontsize=13)
+    else:
+        plt.xticks(rotation=90)
     plt.tight_layout()
 
-    fig.savefig("plot_data/figures/reranking_runtimes_distribution.png", transparent=True)
+    if args.motivation:
+        fig.savefig("plot_data/figures/reranking_runtimes_distribution_motivation.png", transparent=True)
+    else:
+        fig.savefig("plot_data/figures/reranking_runtimes_distribution.png", transparent=True)
     plt.show()
 
 
