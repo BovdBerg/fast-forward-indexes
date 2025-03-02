@@ -39,7 +39,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
 
     bar_width = 0.9
     bars = [
-        ax.bar(names, encode_queries, color="darkviolet", label="Encode queries", width=bar_width),
+        ax.bar(names, encode_queries, color="darkviolet", label="Create query vectors", width=bar_width),
         ax.bar(names, get_vectors, bottom=encode_queries, label="Retrieve doc vectors", width=bar_width),
         ax.bar(names, compute_scores, bottom=encode_queries + get_vectors, label="Compute scores", width=bar_width),
         ax.bar(names, other, bottom=encode_queries + get_vectors + compute_scores, label="Other", width=bar_width),
