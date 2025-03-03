@@ -24,10 +24,10 @@ def plot(data: Dict[str, Any], ax: Any) -> None:
     weights = data["weights"]
     rank_scores = data["rank_scores"]
 
-    ax.set_title(f"n_docs={n_docs}", fontsize=20)
+    ax.set_title("AvgEmb$_{q," + f"{n_docs}" + "-docs}$", fontsize=24)
     ax.set_xlim(0, n_docs)
-    ax.set_xlabel('Document rank', fontsize=18)
-    ax.set_ylabel('Weight distribution (%)', fontsize=18)
+    ax.set_xlabel('Document rank', fontsize=20)
+    ax.set_ylabel('Weight distribution (%)', fontsize=20)
 
     # Normalize weights
     weights_normalized = np.array(weights)
@@ -40,11 +40,13 @@ def plot(data: Dict[str, Any], ax: Any) -> None:
     x_values = np.linspace(0, n_docs, len(weights))
 
     # Plot the weights as a line plot with dots
-    ax.plot(x_values, weights, marker='.', label=f"Learned")
+    ax.plot(x_values, weights, marker='.', label="AvgEmb$_{q," + f"{n_docs}" + "-docs}$")
 
     # Add a horizontal line for uniform weight distribution
     uniform_weight = 100 / len(weights)
     ax.axhline(y=uniform_weight, color='r', linestyle=(0, (3, 6)), label='Uniform')
+
+    # TODO: Update weights, approx lines, and conclusions.
 
     # # Add exponential weight distribution
     # exp_factor = 0.5
@@ -55,7 +57,7 @@ def plot(data: Dict[str, Any], ax: Any) -> None:
     # Exponential Decay: y = 0.52 * e^(-0.42 * x)
     exp_decay = 0.52 * np.exp(-0.42 * np.arange(0, n_docs))
     exp_decay = exp_decay / np.sum(exp_decay) * 100
-    ax.plot(x_values, exp_decay, linestyle=(0, (5, 5)), label='Exponential decay, y=0.52 * e^(-0.42x)')
+    ax.plot(x_values, exp_decay, linestyle=(0, (5, 5)), label='Exponential decay')
 
     # Normalize and softmax position scores and plot them as weight distribution
     rank_scores = np.array(rank_scores)
@@ -65,20 +67,22 @@ def plot(data: Dict[str, Any], ax: Any) -> None:
 
     # Scale softmax_rank_scores to start at 2 and end at 35
     softmax_rank_scores = 1 + (softmax_rank_scores - np.min(softmax_rank_scores)) * (37 - 1) / (np.max(softmax_rank_scores) - np.min(softmax_rank_scores))
-    ax.plot(x_values, softmax_rank_scores, linestyle=(0, (5, 5)), label='Softmax average BM25 score at document rank')
+    ax.plot(x_values, softmax_rank_scores, linestyle=(0, (5, 5)), label='Norm. avg. $\phi_S^{BM25}$ at rank $x$')
 
-    ax.legend(fontsize=16)
+    ax.tick_params(axis='both', which='major', labelsize=18)
+    ax.legend(fontsize=20)
 
 def main(args: argparse.Namespace) -> None:
     data_10 = {
         "n_docs": 10,
-        "weights": [0.8738, 0.0441, 0.0265, 0.0189, 0.0122, 0.0087, 0.0063, 0.0040, 0.0027, 0.0018, 0.0010],
+        # TODO: update "weights": [0.6936, 0.0638, 0.0421, 0.0341, 0.0289, 0.0257, 0.0242, 0.0232, 0.0213, 0.0217, 0.0215],  # /home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/new_est/10d_tokW+sp+pad_0.00186.ckpt
+        "weights": [0.8738, 0.0441, 0.0265, 0.0189, 0.0122, 0.0087, 0.0063, 0.0040, 0.0027, 0.0018, 0.0010],  
         "rank_scores": [37.483, 35.713, 34.547, 33.523, 32.566, 31.812, 31.234, 30.64, 30.298, 29.886]
     }
 
     data_50 = {
         "n_docs": 50,
-        "weights": [
+        "weights": [  # TODO: update weights with # /home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/new_est/50d_tokW+sp+pad_0.00*.ckpt
             8.9212e-01, 3.6479e-02, 2.2330e-02, 1.6203e-02, 1.1144e-02, 7.5169e-03,
             5.0182e-03, 2.8782e-03, 1.7377e-03, 1.0049e-03, 4.4296e-04, 5.1144e-04,
             2.6757e-04, 2.2374e-04, 1.4806e-04, 1.3727e-04, 1.0585e-04, 1.0608e-04,

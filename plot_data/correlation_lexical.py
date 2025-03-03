@@ -78,14 +78,16 @@ def plot_performances(performances: dict):
             markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
             plt.scatter(query, score, label=pipeline_names[j] if i == 0 else "", color=f"C{j % 10}", marker=markers[j % len(markers)])
 
-    plt.xlabel(f"Queries sorted on BM25 performance", fontsize=18)
-    plt.ylabel("nDCG@10", fontsize=18)
+    plt.xlabel(f"Queries sorted on BM25 performance", fontsize=30)
+    plt.ylabel("nDCG$_{10}$", fontsize=30)
     plt.xlim(-0.25, len(performances) - 1 + 0.25)
     plt.ylim(-0.01, 1.01)
     # plt.title("Correlation of performances between pipelines")
-    plt.legend(loc='lower right', fontsize=18, markerscale=1.75)
+    plt.legend(loc='lower right', fontsize=26, markerscale=1.75)
 
     plt.xticks(ticks=range(len(performances)), labels=[])  # Keep ticks but remove tick labels
+
+    plt.tick_params(axis='both', which='major', labelsize=18)
 
     plt.tight_layout()
     plt.savefig("plot_data/figures/correlation_lexical.png")
@@ -200,7 +202,8 @@ def main(args: argparse.Namespace) -> None:
         performances[i]['name'] = performances[i]['name'].str.replace(r', α=\[(.*?)\]', '', regex=True)
 
         # Rename AvgEmbD pipeline to "AvgEmb$_{docs}$"
-        performances[i].loc[performances[i]['name'].str.contains('AvgEmbD'), 'name'] = 'AvgEmb$_{docs}$'
+        performances[i].loc[performances[i]['name'] == 'AvgEmbD', 'name'] = 'AvgEmb$_{10-docs}$'
+        performances[i].loc[performances[i]['name'] == 'AvgEmb', 'name'] = 'AvgEmb$_{q,10-docs}$'
 
         # Reindex
         performances[i].reset_index(drop=True, inplace=True)

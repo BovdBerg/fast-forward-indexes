@@ -62,6 +62,7 @@ def plot_runtimes(profiles: Dict[str, float]):
     )
 
     ax.set_xticks([])
+    ax.tick_params(axis='both', which='major', labelsize=12)
 
     # handles, labels = ax.get_legend_handles_labels()
     # ax.legend(handles[::-1], labels[::-1], bbox_to_anchor=(1, 0.5), loc='center left')

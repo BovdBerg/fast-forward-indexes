@@ -94,7 +94,10 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
             )
 
     # ax.set_xlabel('Pipelines')
-    ax.set_ylabel('Re-ranking runtime (ms)', fontsize=14)
+    if args.motivation:
+        ax.set_ylabel('Re-ranking runtime (ms)', fontsize=14)
+    else:
+        ax.set_ylabel('Re-ranking runtime (ms)', fontsize=12.5)
     if not args.motivation:
         ax.legend(bbox_to_anchor=(1, 0.5), loc='center left', fontsize=11)
 
@@ -105,7 +108,7 @@ def plot_runtimes(profiles: List[Dict[str, Any]]):
         # Bigger font for xticks
         plt.xticks(fontsize=13)
     else:
-        plt.xticks(rotation=65)
+        plt.xticks(rotation=70, fontsize=13)
     plt.tight_layout()
 
     if args.motivation:
@@ -140,21 +143,21 @@ def main(args: argparse.Namespace) -> None:
             "_compute_scores": 888,
         },
         {
-            "name": "AvgEmb$_{docs}$",
+            "name": "AvgEmb$_{10-docs}$",
             "total": 1636,
             "encode_queries": 64.8,
             "_get_vectors": 543,
             "_compute_scores": 888,
         },
         {
-            "name": "AvgEmb$_{docs}$ + AvgTokEmb",
+            "name": "AvgEmb$_{10-docs}$ + AvgTokEmb",
             "total": 3350,
             "encode_queries": 68.59,
             "_get_vectors": 1087,
             "_compute_scores": 1775,
         },
         {
-            "name": "AvgEmb",
+            "name": "AvgEmb$_{q,10-docs}$",
             "total": 1671,
             "encode_queries": 75.98,
             "_get_vectors": 543,
