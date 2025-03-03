@@ -455,7 +455,12 @@ def main(args: argparse.Namespace) -> None:
                 ],
                 round=3,
                 verbose=True,
+                baseline=1,
             )
+
+            # Remove any columns whose name contains "+" or "-" as they are not needed
+            results = results.loc[:, ~results.columns.str.contains(r" [+-]")]
+
             settings_str = print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
 
