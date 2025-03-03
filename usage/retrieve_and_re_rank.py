@@ -20,7 +20,7 @@ from gspread_formatting import (
 )
 from ir_measures import measures
 
-from fast_forward.encoder.avg import AvgEmbQueryEstimator, WEIGHT_METHOD
+from fast_forward.encoder.avg import WEIGHT_METHOD, AvgEmbQueryEstimator
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
