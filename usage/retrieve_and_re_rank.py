@@ -393,9 +393,9 @@ def main(args: argparse.Namespace) -> None:
         ("tct", "TCT-ColBERT", tct, int_tct),
         ("emb", "AvgTokEmb", emb, int_emb),
         # ("est_as_emb", "EstEmb", est_as_emb, int_est_as_emb),
-        ("avgD", "AvgEmb_docs", avgD, int_avgD),
-        ("comboD", "AvgEmb_docs + AvgTokEmb", comboD, int_comboD),
-        ("avg", "AvgEmb", avg, int_avg),
+        ("avgD", "AvgEmb$_{" + str(args.n_docs) + "-docs}$", avgD, int_avgD),
+        ("comboD", "AvgEmb$_{" + str(args.n_docs) + "-docs}$" + "AvgTokEmb", comboD, int_comboD),
+        ("avg", "AvgEmb$_{q," + str(args.n_docs) + "-docs}$", avg, int_avg),
     ]
 
     # Validation and parameter tuning on dev set
