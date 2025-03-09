@@ -456,10 +456,16 @@ def main(args: argparse.Namespace) -> None:
                 round=3,
                 verbose=True,
                 baseline=1,
+                correction="bonferroni",
             )
 
             # Remove any columns whose name contains "+" or "-" as they are not needed
             results = results.loc[:, ~results.columns.str.contains(r" [+-]")]
+
+            # Only keep columns that contain "corrected" or "reject"
+            results = results[
+                results.columns[results.columns.str.contains(r"corrected|reject")]
+            ]
 
             settings_str = print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
