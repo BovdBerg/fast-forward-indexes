@@ -464,7 +464,7 @@ def main(args: argparse.Namespace) -> None:
 
             # Only keep columns that contain "corrected" or "reject"
             results = results[
-                results.columns[results.columns.str.contains(r"corrected|reject")]
+                results.columns[results.columns.str.contains(r"reject")]
             ]
 
             settings_str = print_settings()
