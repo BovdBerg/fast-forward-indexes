@@ -7,7 +7,6 @@ from typing import List
 
 import numpy as np
 import pyterrier as pt
-import torch
 from ir_measures import measures
 
 from fast_forward.encoder.avg import AvgEmbQueryEstimator
@@ -33,7 +32,6 @@ def parse_args():
         Run the script with --help or -h to see the full list of arguments.
     """
     parser = argparse.ArgumentParser()
-    # TODO [final]: Remove default paths (index_path, ckpt_path) form the arguments
     parser.add_argument(
         "--storage",
         type=str,
@@ -45,20 +43,19 @@ def parse_args():
         "--device",
         type=str,
         choices=["cuda", "cpu"],
-        default="cuda" if torch.cuda.is_available() else "cpu",
+        default="cpu",  # "cpu" since we're optimizing for CPU inference efficiency
         help="Device to use for encoding queries.",
     )
+
     # WeightedAvgEncoder
     parser.add_argument(
         "--index_path",
         type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
         help="Path to the index file.",
     )
     parser.add_argument(
         "--ckpt_path",
         type=Path,
-        default="/home/bvdb9/fast-forward-indexes/lightning_logs/checkpoints/new_est/10d_tokW+sp+pad_0.00186.ckpt",
         help="Path to the avg checkpoint file. Create it by running usage/train.py",
     )
     parser.add_argument(
@@ -72,45 +69,20 @@ def parse_args():
         action="store_true",
         help="Only use the query embeddings for the WeightedAvgEncoder.",
     )
-    parser.add_argument(
-        "--profiling",
-        action="store_true",
-        help="Profile the re-ranking process.",
-    )
 
     # StandaloneEncoder
     parser.add_argument(
         "--index_path_emb",
         type=Path,
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_emb_bert_opq.h5",
         help="Path to the index file.",
     )
     parser.add_argument(
         "--ckpt_path_emb",
         type=Path,
-        default="/home/bvdb9/models/emb_bert.ckpt",
         help="Path to the emb checkpoint file. Create it by running usage/train.py",
     )
 
     # VALIDATION
-    parser.add_argument(
-        "--dev_dataset",
-        type=str,
-        default="irds:msmarco-passage/dev/judged",
-        help="Dataset to use for validation.",
-    )
-    parser.add_argument(
-        "--dev_eval_metric",
-        type=str,
-        default="ndcg_cut_10",  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
-        help="Evaluation metric for pt.GridSearch on dev set.",
-    )
-    parser.add_argument(
-        "--dev_sample_size",
-        type=int,
-        default=512,
-        help="Number of queries to sample for validation.",
-    )
     parser.add_argument(
         "--val_pipelines",
         type=str,
@@ -124,25 +96,14 @@ def parse_args():
         default=0.1,
         help="Step size for the alpha values in the validation process.",
     )
-    parser.add_argument(
-        "--min_alpha",
-        type=float,
-        default=0.0,
-        help="Minimum alpha value for the validation process.",
-    )
-    parser.add_argument(
-        "--max_alpha",
-        type=float,
-        default=1.0,
-        help="Maximum alpha value for the validation process.",
-    )
+
     # EVALUATION
     parser.add_argument(
         "--test_datasets",
         type=str,
         nargs="*",
         default=["irds:msmarco-passage/trec-dl-2019/judged"],
-        help="Datasets to evaluate the rankings. May never be equal to dev_dataset (=msmarco_passage/dev or msmarco_passage/dev.small).",
+        help="Datasets to evaluate the rankings. May never be equal to dev_dataset.",
     )
     parser.add_argument(
         "--eval_metrics",
@@ -155,6 +116,7 @@ def parse_args():
         ],  # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
         help="Metrics used for evaluation.",
     )
+
     return parser.parse_args()
 
 
@@ -176,7 +138,7 @@ def print_settings() -> str:
     # Validation settings
     if args.val_pipelines:
         settings_description.append(
-            f"Val: {args.val_pipelines}, '{args.dev_dataset}', samples={args.dev_sample_size}, α_step={args.alphas_step}"
+            f"Val: {args.val_pipelines}, α_step={args.alphas_step}"
         )
 
     print("\nSettings:\n\t" + "\n\t".join(settings_description))
@@ -318,21 +280,18 @@ def main(args: argparse.Namespace) -> None:
     # Validation and parameter tuning on dev set
     if args.val_pipelines:
         print("\033[33m")
-        dev_dataset = pt.get_dataset(args.dev_dataset)
+        dev_dataset = pt.get_dataset("irds:msmarco-passage/dev/judged")
         dev_queries = dev_dataset.get_topics()
         dev_qrels = dev_dataset.get_qrels()
 
-        # Sample dev queries if dev_sample_size is set
-        if args.dev_sample_size is not None:
-            dev_queries = dev_queries.sample(
-                n=args.dev_sample_size, random_state=42
-            )  # Fixed seed for reproducibility.
-            dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
+        # Sample dev queries
+        dev_queries = dev_queries.sample(n=512, random_state=42)  # Fixed seed for reproducibility.
+        dev_qrels = dev_qrels[dev_qrels["qid"].isin(dev_queries["qid"])]
 
         # Validate pipelines in args.val_pipelines
         alphas = [
             round(x, 2)
-            for x in np.arange(args.min_alpha, args.max_alpha + 1e-5, args.alphas_step)
+            for x in np.arange(0.0, 1.0 + 1e-5, args.alphas_step)
         ]
         for abbrev, name, system, tunable in pipelines:
             if tunable is None or (
@@ -349,7 +308,7 @@ def main(args: argparse.Namespace) -> None:
                 {tunable: {"alpha": alphas}},
                 dev_queries,
                 dev_qrels,
-                metric=args.dev_eval_metric,
+                metric="ndcg_cut_10",  # Find official metrics for dataset version on https://ir-datasets.com/msmarco-passage.html
                 verbose=True,
                 batch_size=128,
             )
