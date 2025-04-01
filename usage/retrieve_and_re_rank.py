@@ -231,13 +231,14 @@ def main(args: argparse.Namespace) -> None:
     int_comboD = FFInterpolate(alpha=0.39)
     comboD = avgD >> ff_emb >> int_comboD
 
+    n_docs_str = str(args.n_docs) + "-docs"
     pipelines = [
         ("bm25", "BM25", ~bm25, None),
         ("tct", "TCT-ColBERT", tct, int_tct),
         ("emb", "AvgTokEmb", emb, int_emb),
-        ("avgD", "AvgEmb$_{" + str(args.n_docs) + "-docs}$", avgD, int_avgD),
-        ("comboD", "AvgEmb$_{" + str(args.n_docs) + "-docs}$" + "AvgTokEmb", comboD, int_comboD),
-        ("avg", "AvgEmb$_{q," + str(args.n_docs) + "-docs}$", avg, int_avg),
+        ("avgD", "AvgEmb$_{" + n_docs_str + "}$", avgD, int_avgD),
+        ("comboD", "AvgEmb$_{" + n_docs_str + "}$ + AvgTokEmb", comboD, int_comboD),
+        ("avg", "AvgEmb$_{q," + n_docs_str + "}$", avg, int_avg),
     ]
 
     # Validation and parameter tuning on dev set
