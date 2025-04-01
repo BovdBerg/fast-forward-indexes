@@ -19,23 +19,26 @@ pip install -e .
 ## Instructions
 For a detailed description of the program arguments, run ```python path/to/file.py -h``` or inspect the `parse_args` method of that file.
 
-### Training AvgEmbQueryEstimator
+### Training AvgEmb Query Estimator
 ```bash
 python usage/train_avg_emb.py \
     --index_path path/to/index_path.h5
     --n_docs 10
 ```
-The main options are:
+The main other options are:
+- `--cache_n_docs X` determines how large the cache files will be (n_docs per topic). X also decides the maximum n_docs setting for the trained AvgEmb estimator.
 - `--ckpt_path` can be added to continue training from an earlier checkpoint.
 - `--samples X` to train on only the first X samples.
 
-### Re-ranking
+### Interpolated Dual-Encoder Re-ranking w/ AvgEmb Query Estimator
 ```bash
 python usage/retrieve_and_re_rank.py \
+    --storage mem \
+    --device cpu \
     --index_path path/to/index_path.h5 \
     --ckpt_path path/to/ckpt_path.ckpt \
-    --device cpu \
     --n_docs 10 \
     --val_pipelines all \
-    --test_datasets "irds:msmarco-passage/trec-dl-2019/judged"
+    --test_datasets "irds:msmarco-passage/trec-dl-2019/judged" "irds:msmarco-passage/trec-dl-2020/judged"
+    --eval_metrics "nDCG@10" "RR(rel=2)" "AP(rel=2)"
 ```
