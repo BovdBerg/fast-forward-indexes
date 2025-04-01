@@ -29,7 +29,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         ckpt_path_tok_embs: Optional[Path] = None,
         q_only: bool = False,
         docs_only: bool = False,
-        add_special_tokens: bool = True,
     ) -> None:
         """
         Estimate query embeddings as the weighted average of:
@@ -51,7 +50,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             ckpt_path_tok_embs (Optional[Path]): Path to a checkpoint to load token embeddings. Overwrites `tok_embs`.
             q_only (bool): Whether to only use the lightweight query estimation and not the top-ranked documents.
             docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
-            add_special_tokens (bool): Whether to add special tokens to the queries.
         """
         assert not (q_only and docs_only), "Cannot use both q_only and docs_only."
 
@@ -61,7 +59,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.n_docs = n_docs
         self.n_embs = n_docs + 1
         self.pretrained_model = "bert-base-uncased"
-        self.add_special_tokens = add_special_tokens
         self.q_only = q_only
         self.docs_only = docs_only
 
@@ -157,7 +154,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 list(queries),
                 padding=True,
                 return_tensors="pt",
-                add_special_tokens=self.add_special_tokens,
             ).to(self.device)
             input_ids = q_tokens["input_ids"].to(self.device)
             attention_mask = q_tokens["attention_mask"].to(self.device)
