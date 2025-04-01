@@ -15,7 +15,7 @@ from lightning.pytorch import callbacks
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from fast_forward.encoder.avg import WEIGHT_METHOD, AvgEmbQueryEstimator
+from fast_forward.encoder.avg import AvgEmbQueryEstimator
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -38,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--index_path",
         type=Path,
-        help="Path to the TCT index.",
+        help="Path to the teacher's doc embedding index.",
     )
     parser.add_argument(
         "--storage",
@@ -68,7 +68,6 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Path to a checkpoint file to load the model from.",
     )
-    # warn: Normalization has a negative effect on training accuracy.
 
     # Training arguments
     parser.add_argument(
@@ -112,7 +111,7 @@ def create_data(
     if samples:
         topics = topics.sample(n=samples, random_state=42)
 
-    encoder_tct = TCTColBERTQueryEncoder(
+    encoder_teacher = TCTColBERTQueryEncoder(
         "castorini/tct_colbert-msmarco",
         device=args.device,
     )
@@ -143,8 +142,8 @@ def create_data(
                 total=len(queries) // batch_size,
             ):
                 batch_queries = queries[i : i + batch_size]
-                q_reps_tct = encoder_tct(batch_queries)
-                new_data.extend(zip(batch_queries, q_reps_tct))
+                q_reps_teacher = encoder_teacher(batch_queries)
+                new_data.extend(zip(batch_queries, q_reps_teacher))
 
             torch.save(new_data, step_dataset_file)
 
