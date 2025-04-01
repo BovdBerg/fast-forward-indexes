@@ -1,9 +1,6 @@
-import json
 import logging
 import warnings
-from enum import Enum
 from pathlib import Path
-from time import perf_counter
 from typing import Optional, Sequence
 
 import numpy as np
@@ -21,19 +18,6 @@ LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class WEIGHT_METHOD(Enum):
-    """
-    Enumeration for different types of probability distributions used to assign weights to tokens in the WeightedAvgEncoder.
-
-    Attributes:
-        UNIFORM: all tokens are weighted equally.
-        WEIGHTED: weights are learned during training.
-    """
-
-    UNIFORM = "UNIFORM"
-    WEIGHTED = "WEIGHTED"
-
-
 class AvgEmbQueryEstimator(Encoder, GeneralModule):
     def __init__(
         self,
@@ -41,8 +25,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         n_docs: int,
         device: str,
         ranking: Optional[Ranking] = None,
-        tok_embs_w_method: str = "WEIGHTED",
-        embs_w_method: str = "WEIGHTED",
         ckpt_path: Optional[Path] = None,
         ckpt_path_tok_embs: Optional[Path] = None,
         q_only: bool = False,
@@ -66,8 +48,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             device (str): The device to run the encoder on.
             ranking (Optional[Ranking]): The ranking to use for the top-ranked documents.
             ckpt_path (Optional[Path]): Path to a checkpoint to load.
-            tok_embs_w_method (str): The WEIGHT_METHOD name to use for token embedding weighting.
-            embs_w_method (str): The WEIGHT_METHOD name to use for embedding weighting.
             ckpt_path_tok_embs (Optional[Path]): Path to a checkpoint to load token embeddings. Overwrites `tok_embs`.
             q_only (bool): Whether to only use the lightweight query estimation and not the top-ranked documents.
             docs_only (bool): Whether to disable the lightweight query estimation and only use the top-ranked documents.
@@ -82,8 +62,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.n_embs = n_docs + 1
         self.pretrained_model = "bert-base-uncased"
         self.add_special_tokens = add_special_tokens
-        self.tok_embs_w_method = WEIGHT_METHOD(tok_embs_w_method)
-        self.embs_w_method = WEIGHT_METHOD(embs_w_method)
         self.q_only = q_only
         self.docs_only = docs_only
 
@@ -188,16 +166,12 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             q_tok_embs = self.tok_embs(input_ids)
             q_tok_embs = q_tok_embs * attention_mask.unsqueeze(-1)
             # TODO [out of scope]: Probably good use to remove stopwords before averaging.
-            match self.tok_embs_w_method:
-                case WEIGHT_METHOD.UNIFORM:
-                    n_masked = attention_mask.sum(dim=-1, keepdim=True)
-                    q_light = q_tok_embs.sum(dim=-2) / n_masked  # Compute mean, excluding padding
-                case WEIGHT_METHOD.WEIGHTED:
-                    q_tok_weights = torch.nn.functional.softmax(self.tok_embs_weights[input_ids], -1)
-                    q_tok_weights = q_tok_weights * attention_mask  # Mask padding
-                    q_tok_weights = q_tok_weights / (q_tok_weights.sum(-1, keepdim=True) + 1e-9)  # Normalize
+            q_tok_weights = torch.nn.functional.softmax(self.tok_embs_weights[input_ids], -1)
+            q_tok_weights = q_tok_weights * attention_mask  # Mask padding
+            q_tok_weights = q_tok_weights / (q_tok_weights.sum(-1, keepdim=True) + 1e-9)  # Normalize
 
-                    q_light = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)  # Weighted average
+            q_light = torch.sum(q_tok_embs * q_tok_weights.unsqueeze(-1), 1)  # Weighted average
+
         if self.q_only:
             return q_light
 
