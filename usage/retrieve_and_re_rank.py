@@ -6,21 +6,11 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
-import pandas as pd
 import pyterrier as pt
 import torch
-from gspread.auth import service_account
-from gspread_dataframe import set_with_dataframe
-from gspread_formatting import (
-    Border,
-    Borders,
-    CellFormat,
-    TextFormat,
-    format_cell_range,
-)
 from ir_measures import measures
 
-from fast_forward.encoder.avg import WEIGHT_METHOD, AvgEmbQueryEstimator
+from fast_forward.encoder.avg import AvgEmbQueryEstimator
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
@@ -165,19 +155,6 @@ def parse_args():
         ],  # Official metrics for TREC '19 according to https://ir-datasets.com/msmarco-passage.html#msmarco-passage/trec-dl-2019/judged
         help="Metrics used for evaluation.",
     )
-    # SAVING TO GOOGLE SHEETS
-    parser.add_argument(
-        "--gsheets_credentials",
-        type=Path,
-        default="/home/bvdb9/thesis-gsheets-credentials.json",
-        help="Path to the Google Sheets credentials file.",
-    )
-    parser.add_argument(
-        "--remarks",
-        type=str,
-        default="",
-        help="Additional remarks about the experiment. Will be added to the Google Sheets file.",
-    )
     return parser.parse_args()
 
 
@@ -204,57 +181,6 @@ def print_settings() -> str:
 
     print("\nSettings:\n\t" + "\n\t".join(settings_description))
     return "\n".join(settings_description)
-
-
-def append_to_gsheets(results: pd.DataFrame, settings_str: str) -> None:
-    """
-    Append the results of an experiment to a Google Sheets document.
-
-    Args:
-        results (pd.DataFrame): Results of the experiment to append.
-        settings_str (str): Settings used for the experiment
-    """
-    service_acc = service_account(filename=args.gsheets_credentials)
-    spreadsheet = service_acc.open("Thesis Results")
-    worksheet = spreadsheet.sheet1
-    print(f"Saving results to Google Sheets file...")
-
-    # Prepend date and time fields to the results
-    results["Remarks"] = args.remarks
-    results["Date"] = time.strftime("%Y-%m-%d %H:%M")
-    results["Settings"] = settings_str
-    prepend_cols = ["Remarks", "Date", "Settings"]
-    results = results[
-        prepend_cols + [col for col in results.columns if col not in prepend_cols]
-    ]
-
-    first_row = len(worksheet.get_all_values()) + 1
-    last_row = first_row + len(results) - 1
-
-    # Add horizontal line above the data
-    format_cell_range(
-        worksheet,
-        f"A{first_row}:G{first_row}",
-        CellFormat(borders=Borders(top=Border("SOLID"))),
-    )
-
-    # Append the results
-    set_with_dataframe(worksheet, results, row=first_row, include_column_header=False)
-
-    # Merge cells which share the same values
-    for col in ["A", "B", "C"]:
-        worksheet.merge_cells(f"{col}{first_row}:{col}{last_row}")
-
-    # Highlight the row with the highest nDCG@10 value in bold (excl. baselines)
-    non_baselines = results.iloc[2:]
-    if not non_baselines.empty:
-        max_ndcg10_index = non_baselines["nDCG@10"].idxmax()
-        max_ndcg10_row = first_row + int(max_ndcg10_index)
-        format_cell_range(
-            worksheet,
-            f"A{max_ndcg10_row}:G{max_ndcg10_row}",
-            CellFormat(textFormat=TextFormat(bold=True)),
-        )
 
 
 def main(args: argparse.Namespace) -> None:
@@ -453,13 +379,8 @@ def main(args: argparse.Namespace) -> None:
             # Remove any columns whose name contains "+" or "-" as they are not needed
             results = results.loc[:, ~results.columns.str.contains(r" [+-]")]
 
-            settings_str = print_settings()
+            print_settings()
             print(f"\nFinal results on {test_dataset_name}:\n{results}\n")
-
-            # # Save new results to Google Sheets if gsheets_credentials exists
-            # if args.gsheets_credentials:
-            #     settings_str += f"\nTest: '{test_dataset_name}'"
-            #     append_to_gsheets(results, settings_str)
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds.")
