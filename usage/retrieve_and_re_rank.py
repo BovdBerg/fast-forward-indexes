@@ -24,18 +24,14 @@ def parse_args():
     """
     Parse command-line arguments for the re-ranking script.
 
-    Returns:
-        argparse.Namespace: Parsed command-line arguments.
-
-    Arguments:
-        Run the script with --help or -h to see the full list of arguments.
+    Run the script with --help or -h to see the full list of arguments.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--storage",
         type=str,
         choices=["disk", "mem"],
-        default="mem",
+        default="mem",  # all indexes have to fit into RAM
         help="Storage type for the index.",
     )
     parser.add_argument(
@@ -122,12 +118,6 @@ def parse_args():
 def print_settings() -> None:
     """
     Print general settings used for re-ranking.
-
-    Args:
-        pipeline (pt.Transformer): The pipeline used for re-ranking.
-
-    Returns:
-        str: A string representation of the settings.
     """
     # General settings
     settings_description: List[str] = [
@@ -145,15 +135,10 @@ def print_settings() -> None:
 
 def main(args: argparse.Namespace) -> None:
     """
-    Re-ranking Stage: Create query embeddings and re-rank documents based on similarity to query embeddings.
-
-    This script takes the initial ranking of documents and re-ranks them based on the similarity to the query embeddings.
-    It uses various encoding methods and evaluation metrics to achieve this.
+    Inference for dual-encoder re-ranking with score interpolation.
+    Uses BM25 for 1st-stage retrieval and re-ranks using various methods.
 
     See parse_args() for command-line arguments.
-
-    Args:
-        args (argparse.Namespace): Parsed command-line arguments.
     """
     start_time = time.time()
     print_settings()
