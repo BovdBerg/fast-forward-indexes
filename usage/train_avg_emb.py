@@ -221,7 +221,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         dataset_name="irds:msmarco-passage/train", samples=n_train_topics, shuffle=True
     )
     val_dataloader, val_topics = create_data(
-        dataset_name="irds:msmarco-passage/eval",  # TODO: should be dev, but I have eval cached for the rankings and it's not trained on ranking loss anyways.
+        dataset_name="irds:msmarco-passage/dev",
         samples=min(1_000, n_train_topics),
         shuffle=False,
     )
@@ -229,7 +229,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
     # Create model pre-requisites
     all_topics = pd.concat(
         [val_topics, train_topics]
-    )  # Important that val_topics is first, because len(train_topics) may vary.
+    )  # Important that val_topics is first, because `train_topics` length may vary (see `samples` var).
     queries_path = args.dataset_cache_path / f"{len(all_topics)}_topics.csv"
     all_topics.to_csv(queries_path, index=False)
     lexical_ranking = create_lexical_ranking(queries_path)
@@ -288,8 +288,6 @@ def main() -> None:
         train_dataloaders=train_dataloader,
         val_dataloaders=val_dataloader,
     )
-
-    # TODO: save best model to transformers hub?
 
     end_time = time.time()
     print(f"\nScript took {end_time - start_time:.2f} seconds to complete.")
