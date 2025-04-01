@@ -275,7 +275,6 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         device=args.device,
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
-        tok_embs_w_method=args.tok_embs_w_method,
         q_only=args.q_only,
         # warn: Normalization has a negative effect on training accuracy.
     )
