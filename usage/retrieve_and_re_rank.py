@@ -119,7 +119,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def print_settings() -> str:
+def print_settings() -> None:
     """
     Print general settings used for re-ranking.
 
@@ -141,7 +141,6 @@ def print_settings() -> str:
         )
 
     print("\nSettings:\n\t" + "\n\t".join(settings_description))
-    return "\n".join(settings_description)
 
 
 def main(args: argparse.Namespace) -> None:
