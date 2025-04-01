@@ -15,7 +15,6 @@ from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
-PREV_RESULTS = Path("results.json")
 warnings.filterwarnings(
     "ignore", category=FutureWarning, message=".*weights_only=False.*"
 )
