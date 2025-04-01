@@ -57,12 +57,12 @@ def parse_args():
         "--n_docs",
         type=int,
         default=10,
-        help="Number of top-ranked documents to use. Only used for EncodingMethod.WEIGHTED_AVERAGE.",
+        help="Number of top-ranked documents to use.",
     )
     parser.add_argument(
         "--q_only",
         action="store_true",
-        help="Only use the query embeddings for the WeightedAvgEncoder.",
+        help="Only use the lightweight query embedding for the WeightedAvgEncoder.",
     )
 
     # StandaloneEncoder
