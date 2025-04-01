@@ -42,9 +42,7 @@ def parse_args():
     Arguments:
         Run the script with --help or -h to see the full list of arguments.
     """
-    parser = argparse.ArgumentParser(
-        description="Re-rank documents based on query embeddings."
-    )
+    parser = argparse.ArgumentParser()
     # TODO [final]: Remove default paths (index_path, ckpt_path) form the arguments
     parser.add_argument(
         "--verbose",
