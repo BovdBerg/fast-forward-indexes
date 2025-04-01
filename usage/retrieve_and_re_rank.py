@@ -231,25 +231,10 @@ def main(args: argparse.Namespace) -> None:
     int_comboD = FFInterpolate(alpha=0.39)
     comboD = avgD >> ff_emb >> int_comboD
 
-    index_est_as_emb = copy(index_emb)
-    index_est_as_emb.query_encoder = AvgEmbQueryEstimator(
-        index=index_est_as_emb,
-        n_docs=args.n_docs,
-        device=args.device,
-        ckpt_path_tok_embs=args.ckpt_path_emb,
-        tok_embs_w_method="UNIFORM",
-        norm_q_light=True,  # Interestingly, this has worse performance than without normalization
-        q_only=True,
-    )
-    ff_est_as_emb = FFScore(index_est_as_emb)
-    int_est_as_emb = FFInterpolate(alpha=0.11)
-    est_as_emb = bm25 >> ff_est_as_emb >> int_est_as_emb
-
     pipelines = [
         ("bm25", "BM25", ~bm25, None),
         ("tct", "TCT-ColBERT", tct, int_tct),
         ("emb", "AvgTokEmb", emb, int_emb),
-        # ("est_as_emb", "EstEmb", est_as_emb, int_est_as_emb),
         ("avgD", "AvgEmb$_{" + str(args.n_docs) + "-docs}$", avgD, int_avgD),
         ("comboD", "AvgEmb$_{" + str(args.n_docs) + "-docs}$" + "AvgTokEmb", comboD, int_comboD),
         ("avg", "AvgEmb$_{q," + str(args.n_docs) + "-docs}$", avg, int_avg),
