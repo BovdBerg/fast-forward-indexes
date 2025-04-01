@@ -187,7 +187,6 @@ def main(args: argparse.Namespace) -> None:
     index_tct = OnDiskIndex.load(
         args.index_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
-        profiling=args.profiling,
     )
     if args.storage == "mem":
         index_tct = index_tct.to_memory(2**15)
@@ -203,7 +202,6 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
         ckpt_path=args.ckpt_path,
         q_only=args.q_only,
-        profiling=args.profiling,
     )
     ff_avg = FFScore(index_avg)
     int_avg = FFInterpolate(alpha=0.02)
@@ -219,10 +217,7 @@ def main(args: argparse.Namespace) -> None:
     avgD = bm25 >> ff_avgD >> int_avgD
 
     # Create re-ranking pipeline based on TransformerEmbedding
-    index_emb = OnDiskIndex.load(
-        args.index_path_emb,
-        profiling=args.profiling,
-    )
+    index_emb = OnDiskIndex.load(args.index_path_emb)
     if args.storage == "mem":
         index_emb = index_emb.to_memory(2**15)
     index_emb.query_encoder = StandaloneEncoder(
