@@ -11,7 +11,6 @@ from ir_measures import measures
 
 from fast_forward.encoder.avg import AvgEmbQueryEstimator
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
-from fast_forward.encoder.transformer_embedding import StandaloneEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.util.pyterrier import FFInterpolate, FFScore
 
@@ -63,18 +62,6 @@ def parse_args():
         "--q_only",
         action="store_true",
         help="Only use the lightweight query embedding for the WeightedAvgEncoder.",
-    )
-
-    # StandaloneEncoder
-    parser.add_argument(
-        "--index_path_emb",
-        type=Path,
-        help="Path to the index file.",
-    )
-    parser.add_argument(
-        "--ckpt_path_emb",
-        type=Path,
-        help="Path to the emb checkpoint file. Create it by running usage/train.py",
     )
 
     # VALIDATION
@@ -206,38 +193,10 @@ def main(args: argparse.Namespace) -> None:
     int_avg = FFInterpolate(alpha=0.02)
     avg = bm25 >> ff_avg >> int_avg
 
-    # Create re-ranking pipeline based on WeightedAvgEncoder
-    index_avgD = copy(index_avg)
-    index_avgD.query_encoder = copy(index_avg.query_encoder)
-    index_avgD.query_encoder.index = index_avgD
-    index_avgD.query_encoder.docs_only = True
-    ff_avgD = FFScore(index_avgD)
-    int_avgD = FFInterpolate(alpha=0.09)
-    avgD = bm25 >> ff_avgD >> int_avgD
-
-    # Create re-ranking pipeline based on TransformerEmbedding
-    index_emb = OnDiskIndex.load(args.index_path_emb)
-    if args.storage == "mem":
-        index_emb = index_emb.to_memory(2**15)
-    index_emb.query_encoder = StandaloneEncoder(
-        ckpt_path=args.ckpt_path_emb,
-        device=args.device,
-    )
-    ff_emb = FFScore(index_emb)
-    int_emb = FFInterpolate(alpha=0.11)
-    emb = bm25 >> ff_emb >> int_emb
-
-    int_comboD = FFInterpolate(alpha=0.39)
-    comboD = avgD >> ff_emb >> int_comboD
-
-    n_docs_str = str(args.n_docs) + "-docs"
     pipelines = [
         ("bm25", "BM25", ~bm25, None),
         ("tct", "TCT-ColBERT", tct, int_tct),
-        ("emb", "AvgTokEmb", emb, int_emb),
-        ("avgD", "AvgEmb$_{" + n_docs_str + "}$", avgD, int_avgD),
-        ("comboD", "AvgEmb$_{" + n_docs_str + "}$ + AvgTokEmb", comboD, int_comboD),
-        ("avg", "AvgEmb$_{q," + n_docs_str + "}$", avg, int_avg),
+        ("avg", "AvgEmb$_{q," + str(args.n_docs) + "-docs}$", avg, int_avg),
     ]
 
     # Validation and parameter tuning on dev set
