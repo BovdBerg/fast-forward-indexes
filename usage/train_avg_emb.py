@@ -15,7 +15,7 @@ from lightning.pytorch import callbacks
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from fast_forward.encoder.avg import WEIGHT_METHOD, AvgEmbQueryEstimator
+from fast_forward.encoder.avg import AvgEmbQueryEstimator
 from fast_forward.encoder.transformer import TCTColBERTQueryEncoder
 from fast_forward.index.disk import OnDiskIndex
 from fast_forward.ranking import Ranking
@@ -31,9 +31,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments.
-
-    Returns:
-        argparse.Namespace: Parsed command-line arguments.
     """
     parser = argparse.ArgumentParser()
 
@@ -41,9 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--index_path",
         type=Path,
-        # Note that training on non-OPQ index has better results.
-        default="/home/bvdb9/indices/msm-psg/ff_index_msmpsg_TCTColBERT_opq.h5",
-        help="Path to the TCT index.",
+        help="Path to the teacher's doc embedding index.",
     )
     parser.add_argument(
         "--storage",
@@ -73,19 +68,6 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Path to a checkpoint file to load the model from.",
     )
-    parser.add_argument(
-        "--tok_embs_w_method",
-        type=str,
-        default="WEIGHTED",
-        choices=["UNIFORM", "WEIGHTED"],
-        help="Method to weight the token embeddings.",
-    )
-    parser.add_argument(
-        "--q_only",
-        action="store_true",
-        help="Whether to only use the lightweight query estimation and not the top-ranked documents.",
-    )
-    # warn: Normalization has a negative effect on training accuracy.
 
     # Training arguments
     parser.add_argument(
@@ -97,8 +79,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cache_n_docs",
         type=int,
-        default=1000,  # I created docs locally for 50
-        help="Number of documents to cache for ranking.",
+        default=1000,
+        help="Number of documents to cache for ranking; larger values require more storage.",
     )
     parser.add_argument(
         "--samples",
@@ -107,22 +89,10 @@ def parse_args() -> argparse.Namespace:
         help="Number of queries to sample from the dataset. If not specified, use all samples.",
     )
     parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=32,
-        help="Batch size for the DataLoader.",
-    )
-    parser.add_argument(
         "--num_workers",
         type=int,
         default=10,
         help="Number of workers for the DataLoader.",
-    )
-    parser.add_argument(
-        "--val_check_interval",
-        type=float,
-        default=None,
-        help="Validation check interval in epochs.",
     )
 
     return parser.parse_args()
@@ -141,7 +111,7 @@ def create_data(
     if samples:
         topics = topics.sample(n=samples, random_state=42)
 
-    encoder_tct = TCTColBERTQueryEncoder(
+    encoder_teacher = TCTColBERTQueryEncoder(
         "castorini/tct_colbert-msmarco",
         device=args.device,
     )
@@ -172,8 +142,8 @@ def create_data(
                 total=len(queries) // batch_size,
             ):
                 batch_queries = queries[i : i + batch_size]
-                q_reps_tct = encoder_tct(batch_queries)
-                new_data.extend(zip(batch_queries, q_reps_tct))
+                q_reps_teacher = encoder_teacher(batch_queries)
+                new_data.extend(zip(batch_queries, q_reps_teacher))
 
             torch.save(new_data, step_dataset_file)
 
@@ -184,7 +154,7 @@ def create_data(
         shuffle=shuffle,
         num_workers=args.num_workers,
         drop_last=True,
-        batch_size=args.batch_size,
+        batch_size=32,
     )
 
     return dataloader, topics
@@ -251,7 +221,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         dataset_name="irds:msmarco-passage/train", samples=n_train_topics, shuffle=True
     )
     val_dataloader, val_topics = create_data(
-        dataset_name="irds:msmarco-passage/eval",  # TODO: should be dev, but I have eval cached for the rankings and it's not trained on ranking loss anyways.
+        dataset_name="irds:msmarco-passage/dev",
         samples=min(1_000, n_train_topics),
         shuffle=False,
     )
@@ -259,7 +229,7 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
     # Create model pre-requisites
     all_topics = pd.concat(
         [val_topics, train_topics]
-    )  # Important that val_topics is first, because len(train_topics) may vary.
+    )  # Important that val_topics is first, because `train_topics` length may vary (see `samples` var).
     queries_path = args.dataset_cache_path / f"{len(all_topics)}_topics.csv"
     all_topics.to_csv(queries_path, index=False)
     lexical_ranking = create_lexical_ranking(queries_path)
@@ -275,7 +245,6 @@ def setup() -> tuple[AvgEmbQueryEstimator, DataLoader, DataLoader]:
         device=args.device,
         ranking=lexical_ranking,
         ckpt_path=args.ckpt_path,
-        tok_embs_w_method=args.tok_embs_w_method,
         q_only=args.q_only,
         # warn: Normalization has a negative effect on training accuracy.
     )
@@ -300,13 +269,9 @@ def main() -> None:
             1 if len(train_dataloader) <= 1000 else len(train_dataloader) // 100
         ),
         val_check_interval=(
-            args.val_check_interval
-            if args.val_check_interval
-            else (
-                1.0
-                if len(train_dataloader) <= 1_000
-                else 0.5 if len(train_dataloader) <= 10_000 else 0.1
-            )
+            1.0
+            if len(train_dataloader) <= 1_000
+            else 0.5 if len(train_dataloader) <= 10_000 else 0.1
         ),
         callbacks=[
             callbacks.ModelCheckpoint(
@@ -323,8 +288,6 @@ def main() -> None:
         train_dataloaders=train_dataloader,
         val_dataloaders=val_dataloader,
     )
-
-    # TODO: save best model to transformers hub?
 
     end_time = time.time()
     print(f"\nScript took {end_time - start_time:.2f} seconds to complete.")
