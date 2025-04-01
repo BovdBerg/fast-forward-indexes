@@ -145,30 +145,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 state_dict[key] = v
         self.load_state_dict(state_dict)
 
-    def on_train_start(self) -> None:
-        super().on_train_start()
-        self.train()
-
-        with open(self.settings_file, "r") as f:
-            settings = json.load(f)
-
-        settings.update(
-            {
-                "n_docs": self.n_docs,
-                "device": self.device.type,
-                "ckpt_path": str(getattr(self, "ckpt_path", None)),
-                "tok_embs_w_method": self.tok_embs_w_method.value,
-                "embs_w_method": self.embs_w_method.value,
-                "add_special_tokens": self.add_special_tokens,
-                "q_only": self.q_only,
-                "docs_only": self.docs_only,
-            }
-        )
-
-        print(f"Settings: {settings}")
-        with open(self.settings_file, "w") as f:
-            json.dump(settings, f, indent=4)
-
     def __call__(self, queries: Sequence[str]) -> np.ndarray:
         return self.forward(queries).cpu().detach().numpy()
 
