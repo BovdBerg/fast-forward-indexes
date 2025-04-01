@@ -45,11 +45,6 @@ def parse_args():
     parser = argparse.ArgumentParser()
     # TODO [final]: Remove default paths (index_path, ckpt_path) form the arguments
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Print more information during re-ranking.",
-    )
-    parser.add_argument(
         "--storage",
         type=str,
         choices=["disk", "mem"],
@@ -321,7 +316,6 @@ def main(args: argparse.Namespace) -> None:
     index_tct = OnDiskIndex.load(
         args.index_path,
         TCTColBERTQueryEncoder("castorini/tct_colbert-msmarco", device=args.device),
-        verbose=args.verbose,
         profiling=args.profiling,
     )
     if args.storage == "mem":
@@ -356,7 +350,6 @@ def main(args: argparse.Namespace) -> None:
     # Create re-ranking pipeline based on TransformerEmbedding
     index_emb = OnDiskIndex.load(
         args.index_path_emb,
-        verbose=args.verbose,
         profiling=args.profiling,
     )
     if args.storage == "mem":
