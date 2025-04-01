@@ -95,7 +95,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         vocab_size = self.tokenizer.vocab_size
         self.tok_embs_weights = torch.nn.Parameter(torch.ones(vocab_size) / vocab_size)
 
-        self._embs_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
+        self.embs_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
 
         if ckpt_path is not None:
             self.load_checkpoint(ckpt_path)
@@ -112,7 +112,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.to(device)
 
         # Print some information about the model
-        LOGGER.info(f"embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self._embs_weights, dim=0)}")
+        LOGGER.info(f"embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self.embs_weights, dim=0)}")
 
     @property
     def ranking(self) -> Optional[Ranking]:
@@ -133,8 +133,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
                 return
             elif key == "tok_embs_avg_weights":
                 state_dict["tok_embs_weights"] = v
-            elif key == "embs_avg_weights":
-                state_dict["_embs_weights"] = v
+            elif key in {"embs_avg_weights", "_embs_weights"}:
+                state_dict["embs_weights"] = v
             elif key in self.state_dict():
                 state_dict[key] = v
         self.load_state_dict(state_dict)
@@ -144,7 +144,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
     def on_validation_epoch_end(self):
         super().on_validation_epoch_end()
-        LOGGER.info(f"embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self._embs_weights, dim=0)}")
+        LOGGER.info(f"embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self.embs_weights, dim=0)}")
 
     def _get_top_docs_embs(self, queries: Sequence[str]):
         assert self.ranking is not None, "Provide a ranking before encoding."
@@ -209,9 +209,9 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         embs_weights = torch.zeros((embs.shape[-2]), device=self.device)
         if self.docs_only:
             embs_weights[0] = 0.0
-            embs_weights[1:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[1:self.n_embs], 0)
+            embs_weights[1:self.n_embs] = torch.nn.functional.softmax(self.embs_weights[1:self.n_embs], 0)
         else:
-            embs_weights[:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[:self.n_embs], 0)
+            embs_weights[:self.n_embs] = torch.nn.functional.softmax(self.embs_weights[:self.n_embs], 0)
         embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
         embs_weights = embs_weights * (embs.sum(-1) != 0).float()  # Mask padding
         embs_weights = embs_weights / (embs_weights.sum(-1, keepdim=True) + 1e-9)  # Normalize
