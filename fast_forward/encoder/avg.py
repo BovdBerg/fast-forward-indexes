@@ -90,17 +90,12 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model)
 
         model = AutoModel.from_pretrained(self.pretrained_model)
-        self.tok_embs = (
-            model.get_input_embeddings()
-        )  # Embedding(vocab_size, embedding_dim)
+        self.tok_embs = model.get_input_embeddings()
 
         vocab_size = self.tokenizer.vocab_size
         self.tok_embs_weights = torch.nn.Parameter(torch.ones(vocab_size) / vocab_size)
 
-        # TODO [maybe]: Maybe self.embs_avg_weights should have a dimension for n_embs_per_q too? [[1.0], [0.5, 0.5], [0.33, 0.33, 0.33]] or padded [[1.0, 0.0, 0.0], [0.5, 0.5, 0], [0.33, 0.33, 0.33]] etc... up until n_embs
         self._embs_weights = torch.nn.Parameter(torch.ones(self.n_embs) / self.n_embs)
-
-        # TODO [maybe]: add different WEIGHT_METHODs for d_emb weighting (excluding q_light)
 
         if ckpt_path is not None:
             self.load_checkpoint(ckpt_path)
@@ -117,7 +112,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
         self.to(device)
 
         # Print some information about the model
-        # LOGGER.info(f"embs_weights: {self.embs_weights}")
         LOGGER.info(f"embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self._embs_weights, dim=0)}")
 
     @property
@@ -150,32 +144,8 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
     def on_validation_epoch_end(self):
         super().on_validation_epoch_end()
-        # LOGGER.info(f"Current self.embs_weights: {self.embs_weights}")
         LOGGER.info(f"embs_avg_weights (softmaxed): {torch.nn.functional.softmax(self._embs_weights, dim=0)}")
 
-    # def _get_top_docs_embs(self, queries: Sequence[str]):
-    #     assert self.ranking is not None, "Provide a ranking before encoding."
-    #     assert self.index.dim is not None, "Index dimension cannot be None."
-
-    #     # Retrieve the top-ranked documents for all queries
-    #     top_docs = self.ranking._df[self.ranking._df["query"].isin(queries)].copy()
-    #     top_docs['rank'] = top_docs.groupby('query')['score'].rank(ascending=False, method='first').astype(int) - 1
-    #     query_to_idx = {query: idx for idx, query in enumerate(queries)}
-
-    #     # Retrieve any needed embeddings from the index
-    #     d_embs, d_idxs = self.index._get_vectors(top_docs["id"].unique())
-    #     if self.index.quantizer is not None:
-    #         d_embs = self.index.quantizer.decode(d_embs)
-    #     d_embs = torch.tensor(d_embs[np.array(d_idxs).flatten()], device=self.device)
-
-    #     # Map doc_ids in top_docs_ids to embeddings
-    #     top_docs_embs = torch.zeros((len(queries), self.n_docs, 768), device=self.device)
-    #     top_docs_embs[
-    #         torch.tensor(top_docs["query"].map(query_to_idx).values, device=self.device),
-    #         torch.tensor(top_docs["rank"].values, device=self.device)
-    #     ] = d_embs
-
-    #     return top_docs_embs
     def _get_top_docs_embs(self, queries: Sequence[str]):
         assert self.ranking is not None, "Provide a ranking before encoding."
         assert self.index.dim is not None, "Index dimension cannot be None."
@@ -198,7 +168,7 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             top_docs_embs[q_no, : len(d_embs)] = d_embs
             q_n_embs[q_no] += len(d_embs)
 
-        return top_docs_embs#, q_n_embs
+        return top_docs_embs
 
     def forward(self, queries: Sequence[str]) -> torch.Tensor:
         if self.docs_only:
@@ -220,7 +190,6 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
             # TODO [out of scope]: Probably good use to remove stopwords before averaging.
             match self.tok_embs_w_method:
                 case WEIGHT_METHOD.UNIFORM:
-                    # q_light = torch.mean(q_tok_embs, 1)
                     n_masked = attention_mask.sum(dim=-1, keepdim=True)
                     q_light = q_tok_embs.sum(dim=-2) / n_masked  # Compute mean, excluding padding
                 case WEIGHT_METHOD.WEIGHTED:
@@ -237,21 +206,11 @@ class AvgEmbQueryEstimator(Encoder, GeneralModule):
 
         # Estimate final query as (weighted) average of q_light ++ top_docs_embs
         embs = torch.cat((q_light.unsqueeze(1), top_docs_embs), -2)
-        # assign self.embs_avg_weights to embs_avg_weights, but only up to the number of top-ranked documents per query
-        # embs_weights = torch.zeros((len(queries), embs.shape[-2]), device=self.device)
-        # for q_no, n_embs in enumerate(q_n_embs):
-        #     # TODO: what if we use regular normalization to self._embs_weights[:n_embs]? or none at all?
-        #     if self.docs_only:
-        #         embs_weights[q_no, 0] = 0.0
-        #         embs_weights[q_no, 1:n_embs] = torch.nn.functional.softmax(self._embs_weights[1:n_embs], 0)
-        #     else:
-        #         embs_weights[q_no, :n_embs] = torch.nn.functional.softmax(self._embs_weights[:n_embs], 0)
         embs_weights = torch.zeros((embs.shape[-2]), device=self.device)
         if self.docs_only:
             embs_weights[0] = 0.0
             embs_weights[1:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[1:self.n_embs], 0)
         else:
-            # TODO: replace softmax with regular normalization?
             embs_weights[:self.n_embs] = torch.nn.functional.softmax(self._embs_weights[:self.n_embs], 0)
         embs_weights = embs_weights.unsqueeze(0).expand(len(queries), -1)
         embs_weights = embs_weights * (embs.sum(-1) != 0).float()  # Mask padding
