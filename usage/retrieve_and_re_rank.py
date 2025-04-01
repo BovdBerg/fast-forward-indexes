@@ -192,7 +192,6 @@ def main(args: argparse.Namespace) -> None:
         index_tct = index_tct.to_memory(2**15)
     ff_tct = FFScore(index_tct)
     int_tct = FFInterpolate(alpha=0.03)
-    tct_0 = bm25 >> ff_tct
     tct = bm25 >> ff_tct >> int_tct
 
     index_avg = copy(index_tct)
